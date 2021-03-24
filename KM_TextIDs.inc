@@ -450,6 +450,26 @@ TX_MAPED_TERRAIN_HEIGHTS_UNEQUALIZE = 384; //Unequalize / Flatten
 TX_MAPED_TERRAIN_HEIGHTS_ELEVATE_HINT = 385; //Elevate (left click) / Lower (right click)
 TX_MAPED_TERRAIN_HEIGHTS_UNEQUALIZE_HINT = 386; //Unequalize (left click) / Flatten (right click)
 TX_MAPED_TERRAIN_BRUSH = 387; //Brush & Masks
+
+TX_MAPED_OBJECTS_BRUSH = 1468; //Object Brushes
+TX_MAPED_OBJECTS_BRUSH_TREES = 1469; //Object Brushes - trees
+TX_MAPED_OBJECTS_BRUSH_ALL = 1470; //Object Brushes - All objects except trees
+TX_MAPED_OBJECTS_BRUSH_STONES = 1471; //Object Brushes - stones
+TX_MAPED_OBJECTS_BRUSH_FLOWERS = 1472; //Object Brushes - flowers
+TX_MAPED_OBJECTS_BRUSH_MUSHROOMS = 1473; //Object Brushes - mushrooms
+TX_MAPED_OBJECTS_BRUSH_TRUNKS = 1474; //Object Brushes - trunks
+TX_MAPED_OBJECTS_BRUSH_DEAD = 1475; //Object Brushes - dead
+TX_MAPED_OBJECTS_BRUSH_CACTUS = 1476; //Object Brushes - cactus
+TX_MAPED_OBJECTS_BRUSH_BUSH = 1477; //Object Brushes - desert bush
+TX_MAPED_OBJECTS_BRUSH_RUINS = 1478; //Object Brushes - ruins
+TX_MAPED_TERRAIN_BRUSH_USE_OBJECTS = 1479; //Terrain Brush - use objects
+TX_MAPED_TERRAIN_BRUSH_USE_OBJECTS_HINT = 1480; //Terrain Brush - use objects - hint
+TX_MAPED_OBJECTS_BRUSH_DENSITY = 1481; //Object Brushes - density
+TX_MAPED_OBJECTS_BRUSH_DENSITY_HINT = 1482; //Object Brushes - density - hint
+TX_MAPED_OBJECTS_BRUSH_AGE = 1483; //Object Brushes - forest age
+TX_MAPED_OBJECTS_BRUSH_AGE_HINT = 1484; //Object Brushes - forest age - hint
+TX_MAPED_OBJECTS_BRUSH_CLEAN = 1485; //Object Brushes - clean brush - hint
+
 TX_MAPED_TERRAIN_BRUSH_RANDOM = 388; //Random elements
 TX_MAPED_TERRAIN_TILES_RANDOM = 389; //Random Direction
 TX_MAPED_TERRAIN_TILES_RANDOM_HINT = 390; //Tick for randomized tile direction or use right click to rotate the selected tile

@@ -765,6 +765,7 @@ begin
       cmEqualize: fHistory.MakeCheckpoint(caTerrain, gResTexts[TX_MAPED_TERRAIN_HEIGHTS_UNEQUALIZE]);
       cmBrush:    fHistory.MakeCheckpoint(caTerrain, gResTexts[TX_MAPED_TERRAIN_BRUSH]);
       cmObjects:  fHistory.MakeCheckpoint(caTerrain, GetCheckpointObjectsStr);
+      cmObjectsBrush:    fHistory.MakeCheckpoint(caTerrain, GetCheckpointObjectsStr);
       cmTiles:    fHistory.MakeCheckpoint(caTerrain, gResTexts[TX_MAPED_TERRAIN_HINTS_TILES]);
       cmOverlays: fHistory.MakeCheckpoint(caTerrain, gResTexts[TX_MAPED_TERRAIN_OVERLAYS]);
     end;
@@ -793,6 +794,7 @@ begin
                 cmEqualize:   fHistory.MakeCheckpoint(caTerrain, gResTexts[TX_MAPED_TERRAIN_HEIGHTS_UNEQUALIZE]);
                 cmBrush:      fHistory.MakeCheckpoint(caTerrain, gResTexts[TX_MAPED_TERRAIN_BRUSH]);
                 cmObjects:    fHistory.MakeCheckpoint(caTerrain, GetCheckpointObjectsStr);
+                cmObjectsBrush:    fHistory.MakeCheckpoint(caTerrain, GetCheckpointObjectsStr);
                 cmTiles:      fHistory.MakeCheckpoint(caTerrain, gResTexts[TX_MAPED_TERRAIN_HINTS_TILES] + ' ' + P.ToString);
                 cmOverlays:   fHistory.MakeCheckpoint(caTerrain, gResTexts[TX_MAPED_TERRAIN_OVERLAYS] + ' ' + P.ToString);
                 cmMagicWater: fTerrainPainter.MagicWater(P);

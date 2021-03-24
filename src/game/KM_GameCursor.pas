@@ -31,6 +31,14 @@ type
     MapEdRandomizeTiling: Boolean;
     MapEdOverrideCustomTiles: Boolean;
     MapEdBlendingLvl: Byte;
+    MapEdUseTerrainObjects: Boolean;
+
+    //Objects Brush
+    MapEdCleanBrush:Boolean;
+    MapEdObjectsType:array[0..9]of Boolean;
+    MapEdForestAge: Integer;
+    MapEdObjectsDensity: Integer;
+
     // MapEd elevations page
     MapEdSlope: Byte;
     MapEdSpeed: Byte;

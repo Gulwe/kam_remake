@@ -78,6 +78,7 @@ type
     procedure RenderForegroundUI;
     procedure RenderForegroundUI_Brush;
     procedure RenderForegroundUI_ElevateEqualize;
+    procedure RenderForegroundUI_ObjectsBrush;
     procedure RenderForegroundUI_Markers;
     procedure RenderForegroundUI_Units;
     procedure RenderForegroundUI_PaintBucket(aHighlightAll: Boolean);
@@ -1545,6 +1546,34 @@ begin
 end;
 
 
+procedure TRenderPool.RenderForegroundUI_ObjectsBrush;
+var
+  I, K: Integer;
+  tmp: Single;
+  rad, slope: Byte;
+  F: TKMPointF;
+begin
+  F := gGameCursor.Float;
+  rad := (gGameCursor.MapEdSize div 2) +1;
+  slope := gGameCursor.MapEdSlope;
+  for I := Max((Round(F.Y) - rad), 1) to Min((Round(F.Y) + rad), gTerrain.MapY -1) do
+    for K := Max((Round(F.X) - rad), 1) to Min((Round(F.X) + rad), gTerrain.MapX - 1) do
+    begin
+      case gGameCursor.MapEdShape of
+        hsCircle: tmp := 1 - GetLength(I-Round(F.Y), K-Round(F.X)) / rad;
+        hsSquare: tmp := 1 - Math.max(abs(I-Round(F.Y)), abs(K-Round(F.X))) / rad;
+        else                 tmp := 0;
+      end;
+      tmp := Power(Abs(tmp), (slope + 1) / 6) * Sign(tmp); // Modify slopes curve
+      tmp := EnsureRange(tmp * 2.5, 0, 1); // *2.5 makes dots more visible
+      gRenderAux.DotOnTerrain(K, I, $FF or (Round(tmp*255) shl 24));
+    end;
+    case gGameCursor.MapEdShape of
+      hsCircle: gRenderAux.CircleOnTerrain(round(F.X), round(F.Y), rad, $00000000,  $FFFFFFFF);
+      hsSquare: gRenderAux.SquareOnTerrain(round(F.X) - rad, round(F.Y) - rad, round(F.X + rad), round(F.Y) + rad, $FFFFFFFF);
+    end;
+end;
+
 procedure TRenderPool.RenderWireTileInt(const X,Y: Integer);
 begin
   RenderWireTile(KMPoint(X, Y), icLightCyan, 0, 0.3);
@@ -1680,6 +1709,7 @@ begin
                     RenderMapElement(gTerrain.Land[P.Y,P.X].Obj, gTerrain.AnimStep, P.X, P.Y, True, True);
                     RenderMapElement(gGameCursor.Tag1, gTerrain.AnimStep, P.X, P.Y, True);
                   end;
+    cmObjectsBrush:RenderForegroundUI_ObjectsBrush;
     cmMagicWater: ; //todo: Render some effect to show magic water is selected
     cmEyeDropper: RenderWireTile(P, icCyan); // Cyan quad
     cmRotateTile: RenderWireTile(P, icCyan); // Cyan quad

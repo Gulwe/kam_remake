@@ -1415,3 +1415,21 @@
 1465:Sound volume down
 1466:Mute sounds
 1467:Mute all (music and sounds)
+1468:Object Brushes
+1469:Trees
+1470:All objects except trees
+1471:Stones
+1472:Flowers
+1473:Mushrooms
+1474:Trunks
+1475:Dead trees
+1476:Cactus
+1477:Desert bushes
+1478:Ruins
+1479:Terrain objects
+1480:Set terrain objects to selected brush
+1481:Density
+1482:Objects/forest density
+1483:Forest age
+1484:1 - all trees ages, 3 - all trees are ready to chop
+1485:Clean brush - clean all objects
