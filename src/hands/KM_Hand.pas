@@ -1134,7 +1134,7 @@ procedure TKMHand.ToggleFieldPlan(const aLoc: TKMPoint; aFieldType: TKMFieldType
 var
   plan: TKMFieldType;
 begin
-  Assert(aFieldType in [ftRoad, ftCorn, ftWine], 'Placing wrong FieldType');
+  Assert(aFieldType in [ftRoad, ftCorn, ftWine, ftWall], 'Placing wrong FieldType');
 
   plan := fConstructions.FieldworksList.HasField(aLoc);
   if aFieldType = plan then //Same plan - remove it
@@ -1150,6 +1150,7 @@ begin
          ftRoad: gScriptEvents.ProcPlanRoadPlaced(fID, aLoc.X, aLoc.Y);
          ftCorn: gScriptEvents.ProcPlanFieldPlaced(fID, aLoc.X, aLoc.Y);
          ftWine: gScriptEvents.ProcPlanWinefieldPlaced(fID, aLoc.X, aLoc.Y);
+         ftWall: gScriptEvents.ProcPlanWinefieldPlaced(fID, aLoc.X, aLoc.Y);
       else
         raise Exception.Create('Unknown aFieldType');
       end;
@@ -1175,7 +1176,7 @@ procedure TKMHand.ToggleFakeFieldPlan(const aLoc: TKMPoint; aFieldType: TKMField
 var
   plan: TKMFieldType;
 begin
-  Assert(aFieldType in [ftRoad, ftCorn, ftWine], 'Placing wrong fake FieldType');
+  Assert(aFieldType in [ftRoad, ftCorn, ftWine, ftWall], 'Placing wrong fake FieldType');
 
   plan := fConstructions.FieldworksList.HasFakeField(aLoc);
   if aFieldType = plan then //Same plan - remove it
@@ -1290,6 +1291,7 @@ begin
     ftRoad: gScriptEvents.ProcPlanRoadRemoved(fID, Position.X, Position.Y);
     ftCorn: gScriptEvents.ProcPlanFieldRemoved(fID, Position.X, Position.Y);
     ftWine: gScriptEvents.ProcPlanWinefieldRemoved(fID, Position.X, Position.Y);
+    ftWall: gScriptEvents.ProcPlanWinefieldRemoved(fID, Position.X, Position.Y);
   else
     raise Exception.Create('Unknown fieldType');
   end;
@@ -1809,7 +1811,7 @@ begin
             if (gHands[fID].Alliances[J] = atAlly)
               and ((gHands[J].fConstructions.FieldworksList.HasField(P2) <> ftNone)
                 or gHands[J].fConstructions.HousePlanList.HasPlan(P2)) then
-              allowBuild := False;
+              allowBuild := False; 
 
         //Check surrounding tiles in +/- 1 range for other houses pressence
         for S := -1 to 1 do
@@ -1820,7 +1822,7 @@ begin
                   and gHands[J].fConstructions.HousePlanList.HasPlan(KMPoint(P2.X + S, P2.Y + T)) then
                 begin
                   BlockPoint(KMPoint(P2.X + S, P2.Y + T), TC_BLOCK); //Block surrounding points
-                  allowBuild := False;
+                  allowBuild := False; 
                 end;
 
         //Mark the tile according to previous check results

@@ -78,14 +78,14 @@ const
   // All shortcuts are in English and are the same for all languages to avoid
   // naming collisions and confusion in discussions
 
-  GUI_HOUSE_COUNT = 28;   // Number of KaM houses to show in GUI
+  GUI_HOUSE_COUNT = 31;   // Number of KaM houses to show in GUI
   GUIHouseOrder: array [1..GUI_HOUSE_COUNT] of TKMHouseType = (
     htSchool, htInn, htQuary, htWoodcutters, htSawmill,
     htFarm, htMill, htBakery, htSwine, htButchers,
     htWineyard, htGoldMine, htCoalMine, htMetallurgists, htWeaponWorkshop,
     htTannery, htArmorWorkshop, htStables, htIronMine, htIronSmithy,
     htWeaponSmithy, htArmorSmithy, htBarracks, htStore, htWatchTower,
-    htFisherHut, htMarketplace, htTownHall);
+    htFisherHut, htMarketplace, htTownHall, htSiegeWorkshop, htCharcoalFactory, htWall);
 
   // Template for how resources are shown in Barracks
   BARRACKS_RES_COUNT = 11;
@@ -103,22 +103,25 @@ const
      wtAxe,      wtSword,   wtPike,        wtHallebard, wtBow,
      wtArbalet,  wtHorse,   wtFish);
 
-  School_Order: array [0..13] of TKMUnitType = (
+    School_Order: array [0..13] of TKMUnitType = (
     utSerf, utWorker, utStoneCutter, utWoodcutter, utLamberjack,
     utFisher, utFarmer, utBaker, utAnimalBreeder, utButcher,
     utMiner, utMetallurgist, utSmith, utRecruit);
+    
+    SiegeWorkshop_Order: array [0..1] of TKMUnitType = (
+    utCatapult, utBallista);
 
-  Barracks_Order: array [0..8] of TKMUnitType = (
-    utMilitia, utAxeFighter, utSwordsman, utBowman, utArbaletman,
-    utPikeman, utHallebardman, utHorseScout, utCavalry);
+  Barracks_Order: array [0..10] of TKMUnitType = (
+    utMilitia, utAxeFighter, utMetalBarbarian ,utSwordsman, utBowman, utArbaletman,
+    utPikeman, utHallebardman, utHorseman, utHorseScout, utCavalry);
 
-  TownHall_Order: array [0..4] of TKMUnitType = (
-    utPeasant, utSlingshot, utHorseman, utBarbarian, utMetalBarbarian);
-
-  Soldiers_Order: array[0..13] of TKMUnitType = (
+  TownHall_Order: array [0..6] of TKMUnitType = (
+    utPeasant, utSlingshot, utHorseman, utBarbarian, utMetalBarbarian, utCatapult, utBallista);
+   
+      Soldiers_Order: array[0..15] of TKMUnitType = (
     utMilitia, utAxeFighter, utSwordsman, utBowman, utArbaletman,
     utPikeman, utHallebardman, utHorseScout, utCavalry,
-    utPeasant, utSlingshot, utHorseman, utBarbarian, utMetalBarbarian);
+    utPeasant, utSlingshot, utHorseman, utBarbarian, utMetalBarbarian, utCatapult, utBallista);
 
   // Stats get stacked by UI logic (so that on taller screens they all were
   // in nice pairs, and would stack up only on short screens)
@@ -135,29 +138,29 @@ const
     (HouseType: (htButchers, htTannery, htNone, htNone);                UnitType: (utButcher, utNone)),
     (HouseType: (htMetallurgists, htIronSmithy, htNone, htNone);        UnitType: (utMetallurgist, utNone)),
     (HouseType: (htArmorSmithy, htWeaponSmithy, htNone, htNone);        UnitType: (utSmith, utNone)),
-    (HouseType: (htCoalMine, htIronMine, htGoldMine, htNone);           UnitType: (utMiner, utNone)),
-    (HouseType: (htSawmill, htWeaponWorkshop, htArmorWorkshop, htNone); UnitType: (utLamberjack, utNone)),
+    (HouseType: (htCoalMine, htIronMine, htGoldMine, htCharcoalFactory);UnitType: (utMiner, utNone)),
+    (HouseType: (htSawmill, htWeaponWorkshop, htArmorWorkshop, htSiegeWorkshop); UnitType: (utLamberjack, utNone)),
     (HouseType: (htBarracks, htTownHall, htWatchTower, htNone);         UnitType: (utRecruit, utNone)),
     (HouseType: (htStore, htSchool, htInn, htMarketplace);              UnitType: (utSerf, utWorker))
     );
 
-  MapEd_Order: array [0..13] of TKMUnitType = (
+  MapEd_Order: array [0..15] of TKMUnitType = (
     utMilitia, utAxeFighter, utSwordsman, utBowman, utArbaletman,
-    utPikeman, utHallebardman, utHorseScout, utCavalry, utBarbarian,
-    utPeasant, utSlingshot, utMetalBarbarian, utHorseman);
+    utPikeman, utHallebardman, utHorseScout, utCavalry,
+    utBarbarian, utPeasant, utSlingshot, utMetalBarbarian, utHorseman, utCatapult, utBallista);
 
-  MapEd_Icon: array [0..13] of Word = (
+  MapEd_Icon: array [0..15] of Word = (
     61, 62, 63, 64, 65,
     66, 67, 68, 69, 70,
-    79, 80, 81, 82);
+    79, 80, 81, 82, 83, 84);
 
   Animal_Order: array [0..7] of TKMUnitType = (
     utWolf, utFish,        utWatersnake, utSeastar,
     utCrab, utWaterflower, utWaterleaf,  utDuck);
 
-  Animal_Icon: array [0..7] of word = (
+  Animal_Icon: array [0..9] of word = (
     71, 72, 73, 74,
-    75, 76, 77, 78);
+    75, 76, 77, 78, 82, 82);
 
   MARKET_RES_HEIGHT = 35;
 

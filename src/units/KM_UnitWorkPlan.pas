@@ -323,6 +323,14 @@ begin
                           SubActAdd(haWork5,1);
                         end else
                           ResourceDepleted := True;
+                      end else
+                      if aHome = htCharcoalFactory then
+                      begin
+                          ResourcePlan(wtTrunk,2,wtNone,0,wtCoal);   
+                        SubActAdd(haWork1,1);  
+                        SubActAdd(haWork2,24);
+                        SubActAdd(haWork5,1);
+                        fIssued := True;                        
                       end;
     utAnimalBreeder: if aHome = htSwine then
                       begin
@@ -450,6 +458,20 @@ begin
                         SubActAdd(haWork5,1);
                         fIssued := True;
                       end;
+                      
+                      { if aHome = htSiegeWorkshop then }
+                      { begin }
+                        { ResourcePlan(wtWood,4,wtSteel,4,wtNone); }
+                        { SubActAdd(haWork1,1); }
+                        { for I := 0 to 2 do }
+                        { begin }
+                          { SubActAdd(haWork2,1); }
+                          { SubActAdd(haWork3,1); }
+                          { SubActAdd(haWork4,1); }
+                        { end; }
+                        { SubActAdd(haWork5,1); }
+                        { fIssued := True; }
+                      { end; }
     utBaker:         if aHome = htMill then
                       begin
                         ResourcePlan(wtCorn,1,wtNone,0,wtFlour);
@@ -580,7 +602,7 @@ begin
                         end;
                         SubActAdd(haWork5,1);
                         fIssued := True;
-                      end;
+                      end;                 
     utMetallurgist:  if aHome = htIronSmithy then
                       begin
                         ResourcePlan(wtIronOre,1,wtCoal,1,wtSteel);

@@ -197,7 +197,8 @@ const
     2, 4,           // utPikeman, utHallebardman
     3.3, 6,         // utHorseScout, utCavalry
     5.3, 1.5, 1.5,  // utBarbarian, utPeasant, utSlingshot
-    5.3, 2.1        // utMetalBarbarian, utHorseman
+    5.3, 2.1,        // utMetalBarbarian, utHorseman
+    4, 4
   );
 
   GDPWares: array [0..2] of TKMWareType = (wtAll, wtWarfare, wtFood);

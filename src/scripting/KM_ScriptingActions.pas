@@ -38,6 +38,8 @@ type
     procedure CinematicStart(aPlayer: Byte);
     procedure CinematicEnd(aPlayer: Byte);
     procedure CinematicPanTo(aPlayer: Byte; X, Y, Duration: Word);
+    
+    function ChangeHouseOwner(aHouseID, aPlayer: Integer): Integer;
 
     function  GiveAnimal(aType, X,Y: Word): Integer;
     function  GiveField(aPlayer, X, Y: Word): Boolean;
@@ -102,7 +104,7 @@ type
     procedure HouseWoodcutterChopOnly(aHouseID: Integer; aChopOnly: Boolean);
     procedure HouseWoodcutterMode(aHouseID: Integer; aWoodcutterMode: Byte);
     procedure HouseWareBlock(aHouseID, aWareType: Integer; aBlocked: Boolean);
-	procedure HouseWareBlockTakeOut(aHouseID, aWareType: Integer; aBlocked: Boolean);
+    procedure HouseWareBlockTakeOut(aHouseID, aWareType: Integer; aBlocked: Boolean);
     procedure HouseWeaponsOrderSet(aHouseID, aWareType, aAmount: Integer);
 
     procedure Log(const aText: AnsiString);
@@ -272,6 +274,40 @@ begin
     end
     else
       LogParamWarning('Actions.CinematicPanTo', [aPlayer, X, Y, Duration]);
+  except
+    gScriptEvents.ExceptionOutsideScript := True; //Don't blame script for this exception
+    raise;
+  end;
+end;
+
+
+function TKMScriptActions.ChangeHouseOwner(aHouseID, aPlayer: Integer): Integer;
+var
+  H: TKMHouse;
+  Res: TKMWareType;
+  h2id, r, r2, t, x, y: integer;
+  o: boolean;
+begin
+ try
+    Result := PLAYER_NONE;
+    if (aHouseID > 0) and (r in [Low(WARE_ID_TO_TYPE)..High(WARE_ID_TO_TYPE)]) then
+    begin
+      H := fIDCache.GetHouse(aHouseID);
+      Res := WARE_ID_TO_TYPE[r];
+       if (H <> nil) and not H.IsDestroyed and H.IsComplete then
+        if H.ResCanAddToIn(Res) or H.ResCanAddToOut(Res) then   
+        t := HOUSE_TYPE_TO_ID[H.HouseType] - 1;
+        x := H.Entrance.X;
+        y := H.Entrance.Y;
+        o := H.HasOwner;
+        HouseDestroy(aHouseID, true);
+        h2id:= GiveHouse(aPlayer, t, x, y);
+        HouseAddWaresTo(h2id, r, H.CheckResIn(Res));
+        
+        //Result := GiveHouse(aPlayer, t, x, y);
+    end
+    else
+      LogParamWarning('Actions.ChangeHouseOwner', [aHouseID, aPlayer]);
   except
     gScriptEvents.ExceptionOutsideScript := True; //Don't blame script for this exception
     raise;
@@ -1928,6 +1964,7 @@ begin
 end;
 
 
+//@Rey: When signature changes it is good to update the description too (with new version and sometimes reference to old name)
 //* Version: 10940
 //* Allows allies to view specified house
 procedure TKMScriptActions.HouseAllowAllyToSelect(aHouseID: Integer; aAllow: Boolean);
@@ -1953,6 +1990,7 @@ begin
 end;
 
 
+//@Rey: When signature changes it is good to update the description too (with new version and sometimes reference to old name)
 //* Version: 10940
 //* Allows allies to view all houses of specified player
 procedure TKMScriptActions.HouseAllowAllyToSelectAll(aPlayer: ShortInt; aAllow: Boolean);
@@ -2429,6 +2467,9 @@ begin
   end;
 end;
 
+
+//* Version: 12600
+//* Blocks taking out of a specific ware from a storehouse or barracks
 procedure TKMScriptActions.HouseWareBlockTakeOut(aHouseID, aWareType: Integer; aBlocked: Boolean);
 var
   H: TKMHouse;

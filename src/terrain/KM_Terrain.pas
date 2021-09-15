@@ -3092,7 +3092,7 @@ begin
                   if Land[P2.Y+T,P2.X+S].TileLock in [tlFenced,tlDigged,tlHouse] then
                   begin
                     MarkPoint(KMPoint(P2.X+S,P2.Y+T), TC_BLOCK);
-                    allowBuild := false;
+                    allowBuild := false; //zmiana
                   end;
 
           //Mark the tile according to previous check results
@@ -4685,6 +4685,7 @@ begin
       case aHouseType of
         htIronMine: Result := Result and CanPlaceIronMine(X, Y);
         htGoldMine: Result := Result and CanPlaceGoldMine(X, Y);
+        htWall: Result := Result and (tpMakeRoads  in Land[Y,X].Passability);
         else         Result := Result and (tpBuild in Land[Y,X].Passability);
       end;
     end;

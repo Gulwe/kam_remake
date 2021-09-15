@@ -4,7 +4,7 @@ interface
 uses
   Classes, Math, SysUtils, KromUtils, Types,
   KM_CommonClasses, KM_CommonTypes, KM_Defaults, KM_Points, KM_CommonUtils, KM_UnitVisual,
-  KM_Terrain, KM_ResHouses, KM_Houses, KM_HouseSchool, KM_HouseBarracks, KM_HouseInn,
+  KM_Terrain, KM_ResHouses, KM_Houses, KM_HouseSchool,KM_HouseSiegeWorkshop, KM_HouseBarracks, KM_HouseInn,
   KM_HandEntity,
   KM_ResTypes;
 
@@ -220,6 +220,7 @@ type
     function  GetMovementVector: TKMPointF;
     function  IsIdle: Boolean;
     procedure TrainInHouse(aSchool: TKMHouseSchool);
+    procedure TrainInSiegeWorkshop(aSchool: TKMHouseSiegeWorkshop);
 
     function CanStepTo(X,Y: Integer; aPass: TKMTerrainPassability): Boolean;
     function CanWalkTo(const aTo: TKMPoint; aDistance: Single): Boolean; overload;
@@ -366,6 +367,7 @@ uses
   KM_UnitTaskGoOutShowHungry,
   KM_UnitTaskMining,
   KM_UnitTaskSelfTrain,
+  KM_UnitTaskSelfTrainSiege,
   KM_UnitTaskThrowRock,
   KM_GameTypes,
   KM_HandTypes,
@@ -1179,6 +1181,7 @@ begin
     case TaskName of
       uttUnknown:         raise Exception.Create('TaskName can''t be handled');
       uttSelfTrain:       fTask := TKMTaskSelfTrain.Load(LoadStream);
+      uttSelfTrainSiege:  fTask := TKMTaskSelfTrainSiege.Load(LoadStream);
       uttDeliver:         fTask := TKMTaskDeliver.Load(LoadStream);
       uttBuildRoad:       fTask := TKMTaskBuildRoad.Load(LoadStream);
       uttBuildWine:       fTask := TKMTaskBuildWine.Load(LoadStream);
@@ -1267,6 +1270,10 @@ begin
   fTask := TKMTaskSelfTrain.Create(Self, aSchool);
 end;
 
+procedure TKMUnit.TrainInSiegeWorkshop(aSchool: TKMHouseSiegeWorkshop);
+begin
+  fTask := TKMTaskSelfTrainSiege.Create(Self, aSchool);
+end;
 
 // Erase everything related to unit status to exclude it from being accessed by anything but the old pointers
 procedure TKMUnit.CloseUnit(aRemoveTileUsage: Boolean = True);
@@ -2105,7 +2112,7 @@ end;
 function TKMUnit.GetActivityText: UnicodeString;
 const
   TASK_TEXT: array[TKMUnitTaskType] of Integer = (
-      -1,-1,                   //uttUnknown, uttSelfTrain
+      -1,-1,-1,                   //uttUnknown, uttSelfTrain,uttSelfTrainSiege
       TX_UNIT_TASK_DELVERING,  //uttDeliver
       TX_UNIT_TASK_ROAD,       //uttBuildRoad
       TX_UNIT_TASK_WINEFIELD,  //uttBuildWine

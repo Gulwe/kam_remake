@@ -229,7 +229,7 @@ const
     4, {htIronMine}     8,{htIronSmithy}     10,{htMarketplace} 8, {htMetallurgists} 8, {htMill}
     6, {htQuary}        8,{htSawmill}        10,{htSchool}      8, {htSiegeWorkshop} 10,{htStables}
     10,{htStore}        8,{htSwine}          8, {htTannery}     10,{htTownHall}      6, {htWatchTower}
-    8, {htWeaponSmithy} 8,{htWeaponWorkshop} 8, {htWineyard}    6  {htWoodcutters}
+    8, {htWeaponSmithy} 8,{htWeaponWorkshop} 8, {htWineyard}    6  {htWoodcutters},  8 {htCharcoalFactory}, 4 {htWall}
   );
 
 

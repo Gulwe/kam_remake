@@ -78,8 +78,11 @@ type
     gicHouseStoreNotAcceptFlag,      //Control wares delivery to store
     gicHStoreNotAllowTakeOutFlag,    //Control wares delivery from store
     gicHouseSchoolTrain,             //Place an order to train citizen
+    gicHouseSiegeWorkshopTrain,      //Plance an order to build war machine
     gicHouseSchoolTrainChOrder,      //Change school training order
+    gicHouseSiegeWorkshopTrainChOrder, //Change siegeworkshop training order
     gicHouseSchoolTrainChLastUOrder, //Change school training order for last unit in queue
+    gicHouseSiegeWorkshopTrainChLastUOrder,
     gicHouseBarracksAcceptFlag,      //Control wares delivery to barracks
     gicHBarracksNotAllowTakeOutFlag, //Control wares delivery from barracks
     gicHBarracksAcceptRecruitsTgl,   //Toggle are recruits allowed to enter barracks or not
@@ -89,6 +92,7 @@ type
     gicHouseTownHallRally,           //Set the rally point for the TownHall
     gicHouseTownHallMaxGold,         //Set TownHall MaxGold value
     gicHouseRemoveTrain,             //Remove unit being trained from School
+    gicHouseRemoveTrainSiege,
     gicHouseWoodcuttersCutting,      //Set the cutting point for the Woodcutters
 
     //V.     Delivery ratios changes (and other game-global settings)
@@ -188,8 +192,11 @@ const
     gicHouseWoodcutterMode,
     gicHouseStoreNotAcceptFlag,
     gicHouseSchoolTrain,
+    gicHouseSiegeWorkshopTrain,
     gicHouseSchoolTrainChOrder,
+    gicHouseSiegeWorkshopTrainChOrder,
     gicHouseSchoolTrainChLastUOrder,
+    gicHouseSiegeWorkshopTrainChLastUOrder,
     gicHouseBarracksAcceptFlag,
     gicHBarracksNotAllowTakeOutFlag,
     gicHBarracksAcceptRecruitsTgl,
@@ -199,6 +206,7 @@ const
     gicHouseTownHallRally,
     gicHouseTownHallMaxGold,
     gicHouseRemoveTrain,
+    gicHouseRemoveTrainSiege,
     gicHouseWoodcuttersCutting];
 
 
@@ -237,8 +245,11 @@ const
     gicpt_Int2,     // gicHouseStoreNotAcceptFlag
     gicpt_Int2,     // gicHStoreNotAllowTakeOutFlag
     gicpt_Int3,     // gicHouseSchoolTrain
+    gicpt_Int3,                     // gicHouseSiegeWorkshopTrain
     gicpt_Int3,     // gicHouseSchoolTrainChOrder
+    gicpt_Int3,                     // gicHouseSiegeWorkshopTrainChOrder
     gicpt_Int2,     // gicHouseSchoolTrainChLastUOrder
+    gicpt_Int2,                     // gicHouseSiegeWorkshopTrainChLastUOrder
     gicpt_Int2,     // gicHouseBarracksAcceptFlag
     gicpt_Int2,     // gicHBarracksNotAllowTakeOutFlag
     gicpt_Int1,     // gicHBarracksAcceptRecruitsTgl
@@ -248,6 +259,7 @@ const
     gicpt_Int3,     // gicHouseTownHallRally
     gicpt_Int2,     // gicHouseTownHallMaxGold
     gicpt_Int2,     // gicHouseRemoveTrain
+    gicpt_Int2,                     // gicHouseRemoveTrainSiege
     gicpt_Int3,     // gicHouseWoodcuttersCutting
     //V.     Delivery ratios changes (and other game-global settings)
     gicpt_Int3,     // gicWareDistributionChange
@@ -468,7 +480,7 @@ implementation
 uses
   Classes, SysUtils, StrUtils, TypInfo, Math,
   KM_GameApp, KM_Game, KM_GameParams, KM_HandsCollection,
-  KM_HouseMarket, KM_HouseBarracks, KM_HouseSchool, KM_HouseTownHall,
+  KM_HouseMarket, KM_HouseBarracks, KM_HouseSchool,KM_HouseSiegeWorkshop, KM_HouseTownHall,
   KM_ScriptingEvents, KM_Alerts, KM_CommonUtils, KM_Log, KM_RenderUI,
   KM_ResFonts, KM_Resource,
   KM_GameSettings;
@@ -889,7 +901,7 @@ begin
       gicHouseOrderProduct, gicHouseMarketFrom, gicHouseMarketTo, gicHouseBarracksRally, gicHouseTownHallRally,
       gicHouseStoreNotAcceptFlag, gicHStoreNotAllowTakeOutFlag, gicHouseBarracksAcceptFlag, gicHBarracksNotAllowTakeOutFlag,
       gicHouseBarracksEquip, gicHouseTownHallEquip, gicHouseClosedForWorkerTgl,
-      gicHouseSchoolTrain, gicHouseSchoolTrainChOrder, gicHouseSchoolTrainChLastUOrder, gicHouseRemoveTrain,
+      gicHouseSchoolTrain,gicHouseSiegeWorkshopTrain, gicHouseSchoolTrainChOrder,gicHouseSiegeWorkshopTrainChOrder, gicHouseSchoolTrainChLastUOrder, gicHouseSiegeWorkshopTrainChLastUOrder, gicHouseRemoveTrain,gicHouseRemoveTrainSiege,
       gicHouseWoodcutterMode, gicHBarracksAcceptRecruitsTgl, gicHouseArmorWSDeliveryToggle] then
     begin
       srcHouse := gHands.GetHouseByUID(IntParams[0]);
@@ -976,6 +988,13 @@ begin
       gicHouseSchoolTrainChOrder:TKMHouseSchool(srcHouse).ChangeUnitTrainOrder(IntParams[1], IntParams[2]);
       gicHouseSchoolTrainChLastUOrder: TKMHouseSchool(srcHouse).ChangeUnitTrainOrder(IntParams[1]);
       gicHouseRemoveTrain:       TKMHouseSchool(srcHouse).RemUnitFromQueue(IntParams[1]);
+      
+      gicHouseSiegeWorkshopTrain: TKMHouseSiegeWorkshop(srcHouse).AddUnitToQueue(TKMUnitType(IntParams[1]), IntParams[2]);
+      gicHouseSiegeWorkshopTrainChOrder:  TKMHouseSiegeWorkshop(srcHouse).ChangeUnitTrainOrder(IntParams[1], IntParams[2]);
+      gicHouseSiegeWorkshopTrainChLastUOrder : TKMHouseSiegeWorkshop(srcHouse).ChangeUnitTrainOrder(IntParams[1]);
+      gicHouseRemoveTrainSiege:       TKMHouseSiegeWorkshop(srcHouse).RemUnitFromQueue(IntParams[1]);
+      
+
       gicHouseWoodcuttersCutting: TKMHouseWoodcutters(srcHouse).FlagPoint := KMPoint(IntParams[1], IntParams[2]);
       gicHouseArmorWSDeliveryToggle:   TKMHouseArmorWorkshop(srcHouse).ToggleResDelivery(TKMWareType(IntParams[1]));
 
@@ -1188,7 +1207,7 @@ end;
 
 procedure TKMGameInputProcess.CmdHouse(aCommandType: TKMGameInputCommandType; aHouse: TKMHouse; aItem, aAmountChange: Integer);
 begin
-  Assert(aCommandType in [gicHouseOrderProduct, gicHouseSchoolTrainChOrder]);
+  Assert(aCommandType in [gicHouseOrderProduct, gicHouseSchoolTrainChOrder, gicHouseSiegeWorkshopTrainChOrder]);
   TakeCommand(MakeCommand(aCommandType, aHouse.UID, aItem, aAmountChange));
 end;
 
@@ -1211,15 +1230,15 @@ end;
 
 procedure TKMGameInputProcess.CmdHouse(aCommandType: TKMGameInputCommandType; aHouse: TKMHouse; aUnitType: TKMUnitType; aCount: Integer);
 begin
-  Assert(aCommandType in [gicHouseSchoolTrain, gicHouseBarracksEquip, gicHouseTownHallEquip]);
+  Assert(aCommandType in [gicHouseSchoolTrain, gicHouseBarracksEquip, gicHouseTownHallEquip, gicHouseSiegeWorkshopTrain]);
   TakeCommand(MakeCommand(aCommandType, aHouse.UID, Byte(aUnitType), aCount));
 end;
 
 
 procedure TKMGameInputProcess.CmdHouse(aCommandType: TKMGameInputCommandType; aHouse: TKMHouse; aValue: Integer);
 begin
-  Assert(aCommandType in [gicHouseRemoveTrain, gicHouseSchoolTrainChLastUOrder, gicHouseTownHallMaxGold]);
-  Assert((aHouse is TKMHouseSchool) or (aHouse is TKMHouseTownHall));
+  Assert(aCommandType in [gicHouseRemoveTrain, gicHouseSchoolTrainChLastUOrder, gicHouseTownHallMaxGold, gicHouseRemoveTrainSiege, gicHouseSiegeWorkshopTrainChLastUOrder]);
+  Assert((aHouse is TKMHouseSchool) or (aHouse is TKMHouseTownHall) or (aHouse is TKMHouseSiegeWorkshop));  //zmiana
   TakeCommand(MakeCommand(aCommandType, aHouse.UID, aValue));
 end;
 

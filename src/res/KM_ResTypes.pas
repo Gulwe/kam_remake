@@ -15,14 +15,13 @@ type
     wtAll,     wtWarfare, wtFood
   );
 
-
   TKMHouseType = (htNone, htAny,
     htArmorSmithy,     htArmorWorkshop,   htBakery,        htBarracks,      htButchers,
     htCoalMine,        htFarm,            htFisherHut,     htGoldMine,      htInn,
     htIronMine,        htIronSmithy,      htMarketplace,   htMetallurgists, htMill,
     htQuary,           htSawmill,         htSchool,        htSiegeWorkshop, htStables,
     htStore,           htSwine,           htTannery,       htTownHall,      htWatchTower,
-    htWeaponSmithy,    htWeaponWorkshop,  htWineyard,      htWoodcutters    );
+    htWeaponSmithy,    htWeaponWorkshop,  htWineyard,      htWoodcutters,   htCharcoalFactory, htWall);
 
   THouseTypeSet = set of TKMHouseType;
   TKMHouseTypeArray = array of TKMHouseType;

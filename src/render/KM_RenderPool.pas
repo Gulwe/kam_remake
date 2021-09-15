@@ -995,6 +995,12 @@ begin
                     id := Step[Round(Min(aFlight, 1) * (Count-1)) + 1] + 1;
     ptSlingRock: with gRes.Units[utSlingshot].UnitAnim[uaSpec, aDir] do
                     id := Step[Round(Min(aFlight, 1) * (Count-1)) + 1] + 1;
+    ptBallistaRock: with gRes.Units[utBallista].UnitAnim[uaSpec, aDir] do
+                    id := Step[Round(Min(aFlight, 1) * (Count-1)) + 1] + 1;
+    ptCatapultRock: with gRes.Units[utCatapult].UnitAnim[uaSpec, aDir] do
+                    id := Step[Round(Min(aFlight, 1) * (Count-1)) + 1] + 1;
+                        
+                    
     ptTowerRock: id := ProjectileBounds[aProj, 1] + 1;
     else          id := 1; // Nothing?
   end;
@@ -1005,7 +1011,7 @@ begin
   cornerY := (R.Pivot[id].Y + R.Size[id].Y) / CELL_SIZE_PX - 1;
 
   case aProj of
-    ptArrow, ptBolt, ptSlingRock:  ground := aTilePos.Y + (0.5 - Abs(Min(aFlight, 1) - 0.5)) - 0.5;
+    ptArrow, ptBolt, ptSlingRock, ptBallistaRock, ptCatapultRock:  ground := aTilePos.Y + (0.5 - Abs(Min(aFlight, 1) - 0.5)) - 0.5;
     ptTowerRock:                     ground := aTilePos.Y + Min(aFlight, 1)/5 - 0.4;
     else                              ground := aTilePos.Y - 1; // Nothing?
   end;
@@ -1664,6 +1670,12 @@ begin
                     RenderWireTile(P, icCyan) // Cyan quad
                   else
                     RenderSpriteOnTile(P, TC_BLOCK);       // Red X
+    cmWall:       if (gMySpectator.Hand.CanAddFakeFieldPlan(P, ftWall) or (gGameParams.IsMapEditor and gTerrain.TileIsWineField(P)))
+                    and (gGameCursor.Tag1 <> Ord(cfmErase)) then
+                    RenderWireTile(P, icCyan) // Cyan quad
+                  else
+                    RenderSpriteOnTile(P, TC_BLOCK);       // Red X                
+                    
     cmHouses:     RenderWireHousePlan(KMPointAdd(P, gGameCursor.DragOffset), TKMHouseType(gGameCursor.Tag1)); // Cyan quads and red Xs
     cmBrush:      RenderForegroundUI_Brush;
     cmTiles:      if gGameCursor.MapEdDir in [0..3] then

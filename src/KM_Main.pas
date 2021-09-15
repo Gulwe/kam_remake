@@ -197,7 +197,7 @@ begin
 
   gVideoPlayer := TKMVideoPlayer.Create;
 
-  fFormMain.Caption := 'KaM Remake - ' + UnicodeString(GAME_VERSION);
+  fFormMain.Caption := 'KaM Remake Gelwe warchamines mod - ' + UnicodeString(GAME_VERSION);
   //Will make the form slightly higher, so do it before ReinitRender so it is reset
   fFormMain.ControlsSetVisibile(SHOW_DEBUG_CONTROLS);
 

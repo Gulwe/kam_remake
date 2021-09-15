@@ -383,7 +383,7 @@ begin
       + 'htIronMine,        htIronSmithy,      htMarketplace,   htMetallurgists, htMill,'
       + 'htQuary,           htSawmill,         htSchool,        htSiegeWorkshop, htStables,'
       + 'htStore,           htSwine,           htTannery,       htTownHall,      htWatchTower,'
-      + 'htWeaponSmithy,    htWeaponWorkshop,  htWineyard,      htWoodcutters    )');
+      + 'htWeaponSmithy,    htWeaponWorkshop,  htWineyard,      htWoodcutters,    htCharcoalFactory, htWall)');
 
     Sender.AddTypeS('TKMGroupOrder', '(goNone, goWalkTo, goAttackHouse, goAttackUnit, goStorm)');
 
@@ -420,7 +420,7 @@ begin
       + 'utArbaletman,   utPikeman,      utHallebardman,  utHorseScout,'
       + 'utCavalry,      utBarbarian,'
       + 'utPeasant,      utSlingshot,    utMetalBarbarian,utHorseman,'
-      //utCatapult,   utBallista,
+      + 'utCatapult,   utBallista,'
       + 'utWolf,         utFish,         utWatersnake,   utSeastar,'
       + 'utCrab,         utWaterflower,  utWaterleaf,    utDuck)');
 
@@ -454,7 +454,7 @@ begin
 
     RegisterMethodCheck(c, 'function ConnectedByRoad(X1, Y1, X2, Y2: Integer): Boolean');
     RegisterMethodCheck(c, 'function ConnectedByWalking(X1, Y1, X2, Y2: Integer): Boolean');
-
+    
     RegisterMethodCheck(c, 'function FogRevealed(aPlayer: Byte; aX, aY: Word): Boolean');
 
     RegisterMethodCheck(c, 'function GameSpeed: Single');
@@ -505,7 +505,7 @@ begin
     RegisterMethodCheck(c, 'function HouseWoodcutterChopOnly(aHouseID: Integer): Boolean');
     RegisterMethodCheck(c, 'function HouseWoodcutterMode(aHouseID: Integer): Integer');
     RegisterMethodCheck(c, 'function HouseWareBlocked(aHouseID, aWareType: Integer): Boolean');
-	RegisterMethodCheck(c, 'function HouseWareBlockedTakeOut(aHouseID, aWareType: Integer): Boolean');
+    RegisterMethodCheck(c, 'function HouseWareBlockedTakeOut(aHouseID, aWareType: Integer): Boolean');
     RegisterMethodCheck(c, 'function HouseWeaponsOrdered(aHouseID, aWareType: Integer): Integer');
 
     RegisterMethodCheck(c, 'function IsFieldAt(aPlayer: ShortInt; X, Y: Word): Boolean');
@@ -659,6 +659,8 @@ begin
     RegisterMethodCheck(c, 'procedure CinematicEnd(aPlayer: Byte)');
     RegisterMethodCheck(c, 'procedure CinematicPanTo(aPlayer: Byte; X, Y, Duration: Word)');
     RegisterMethodCheck(c, 'procedure CinematicStart(aPlayer: Byte)');
+    
+    RegisterMethodCheck(c, 'procedure ChangeHouseOwner(aHouseID, aPlayer: Integer): Integer');
 
     RegisterMethodCheck(c, 'procedure FogCoverAll(aPlayer: Byte)');
     RegisterMethodCheck(c, 'procedure FogCoverCircle(aPlayer, X, Y, aRadius: Word)');
@@ -722,7 +724,7 @@ begin
     RegisterMethodCheck(c, 'procedure HouseWoodcutterChopOnly(aHouseID: Integer; aChopOnly: Boolean)');
     RegisterMethodCheck(c, 'procedure HouseWoodcutterMode(aHouseID: Integer; aWoodcutterMode: Byte)');
     RegisterMethodCheck(c, 'procedure HouseWareBlock(aHouseID, aWareType: Integer; aBlocked: Boolean)');
-	RegisterMethodCheck(c, 'procedure HouseWareBlockTakeOut(aHouseID, aWareType: Integer; aBlocked: Boolean)');
+    RegisterMethodCheck(c, 'procedure HouseWareBlockTakeOut(aHouseID, aWareType: Integer; aBlocked: Boolean)');
     RegisterMethodCheck(c, 'procedure HouseWeaponsOrderSet(aHouseID, aWareType, aAmount: Integer)');
 
     RegisterMethodCheck(c, 'procedure Log(const aText: AnsiString)');
@@ -1125,7 +1127,7 @@ begin
       RegisterMethod(@TKMScriptStates.ClosestUnitMultipleTypes,                 'ClosestUnitMultipleTypes');
 
       RegisterMethod(@TKMScriptStates.ConnectedByRoad,                          'ConnectedByRoad');
-      RegisterMethod(@TKMScriptStates.ConnectedByWalking,                       'ConnectedByWalking');
+      RegisterMethod(@TKMScriptStates.ConnectedByWalking,                       'ConnectedByWalking');           
 
       RegisterMethod(@TKMScriptStates.FogRevealed,                              'FogRevealed');
 
@@ -1177,7 +1179,7 @@ begin
       RegisterMethod(@TKMScriptStates.HouseWoodcutterChopOnly,                  'HouseWoodcutterChopOnly');
       RegisterMethod(@TKMScriptStates.HouseWoodcutterMode,                      'HouseWoodcutterMode');
       RegisterMethod(@TKMScriptStates.HouseWareBlocked,                         'HouseWareBlocked');
-	  RegisterMethod(@TKMScriptStates.HouseWareBlockedTakeOut,                  'HouseWareBlockedTakeOut');
+      RegisterMethod(@TKMScriptStates.HouseWareBlockedTakeOut,                  'HouseWareBlockedTakeOut');
       RegisterMethod(@TKMScriptStates.HouseWeaponsOrdered,                      'HouseWeaponsOrdered');
 
       RegisterMethod(@TKMScriptStates.IsFieldAt,                                'IsFieldAt');
@@ -1331,6 +1333,8 @@ begin
       RegisterMethod(@TKMScriptActions.CinematicEnd,                            'CinematicEnd');
       RegisterMethod(@TKMScriptActions.CinematicPanTo,                          'CinematicPanTo');
       RegisterMethod(@TKMScriptActions.CinematicStart,                          'CinematicStart');
+      
+      RegisterMethod(@TKMScriptActions.ChangeHouseOwner,                        'ChangeHouseOwner');
 
       RegisterMethod(@TKMScriptActions.FogCoverAll,                             'FogCoverAll');
       RegisterMethod(@TKMScriptActions.FogCoverCircle,                          'FogCoverCircle');
@@ -1394,7 +1398,7 @@ begin
       RegisterMethod(@TKMScriptActions.HouseWoodcutterChopOnly,                 'HouseWoodcutterChopOnly');
       RegisterMethod(@TKMScriptActions.HouseWoodcutterMode,                     'HouseWoodcutterMode');
       RegisterMethod(@TKMScriptActions.HouseWareBlock,                          'HouseWareBlock');
-	  RegisterMethod(@TKMScriptActions.HouseWareBlockTakeOut,                   'HouseWareBlockTakeOut');
+      RegisterMethod(@TKMScriptActions.HouseWareBlockTakeOut,                   'HouseWareBlockTakeOut');
       RegisterMethod(@TKMScriptActions.HouseWeaponsOrderSet,                    'HouseWeaponsOrderSet');
 
       RegisterMethod(@TKMScriptActions.Log,                                     'Log');

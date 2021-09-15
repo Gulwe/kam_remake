@@ -7,10 +7,10 @@ uses
 
 
 type
-  TKMProjectileType = (ptArrow, ptBolt, ptSlingRock, ptTowerRock); {ptBallistaRock, }
+  TKMProjectileType = (ptArrow, ptBolt, ptSlingRock, ptTowerRock, ptBallistaRock, ptCatapultRock); {ptBallistaRock, }
 
 const //Corresponding indices in units.rx //ptArrow, ptBolt are unused
-  ProjectileBounds: array [TKMProjectileType, 1..2] of word = ((0,0), (0,0), (0,0), (4186,4190));
+  ProjectileBounds: array [TKMProjectileType, 1..2] of word = ((0,0), (0,0), (0,0), (4186,4190), (0,0), (0,0));
 
 type
   //Projectiles in-game: arrows, bolts, rocks, etc..
@@ -65,14 +65,14 @@ uses
 
 
 const
-  ProjectileLaunchSounds:array[TKMProjectileType] of TSoundFX = (sfxBowShoot, sfxCrossbowShoot, sfxNone, sfxRockThrow);
-  ProjectileHitSounds:   array[TKMProjectileType] of TSoundFX = (sfxArrowHit, sfxArrowHit, sfxArrowHit, sfxNone);
-  ProjectileSpeeds:array[TKMProjectileType] of Single = (0.75, 0.75, 0.6, 0.8);
-  ProjectileArcs:array[TKMProjectileType,1..2] of Single = ((1.6, 0.5), (1.4, 0.4), (2.5, 1), (1.2, 0.2)); //Arc curve and random fraction
-  ProjectileJitter:array[TKMProjectileType] of Single = (0.26, 0.29, 0.26, 0.2); //Fixed Jitter added every time
-  ProjectileJitterHouse:array[TKMProjectileType] of Single = (0.6, 0.6, 0.6, 0); //Fixed Jitter added every time
+  ProjectileLaunchSounds:array[TKMProjectileType] of TSoundFX = (sfxBowShoot, sfxCrossbowShoot, sfxNone, sfxRockThrow, sfxBalistaShoot, sfxBalistaShoot);
+  ProjectileHitSounds:   array[TKMProjectileType] of TSoundFX = (sfxArrowHit, sfxArrowHit, sfxArrowHit, sfxNone, sfxArrowHit, sfxSiegeBuildingSmash);
+  ProjectileSpeeds:array[TKMProjectileType] of Single = (0.75, 0.75, 0.6, 0.8, 0.9, 0.8);
+  ProjectileArcs:array[TKMProjectileType,1..2] of Single = ((1.6, 0.5), (1.4, 0.4), (2.5, 1), (1.2, 0.2), (0,0), (6,2)); //Arc curve and random fraction
+  ProjectileJitter:array[TKMProjectileType] of Single = (0.26, 0.29, 0.26, 0.2, 0.1, 0.1); //Fixed Jitter added every time
+  ProjectileJitterHouse:array[TKMProjectileType] of Single = (0.6, 0.6, 0.6, 0, 0.1, 0.1); //Fixed Jitter added every time
   //Jitter added according to target's speed (moving target harder to hit) Note: Walking = 0.1, so the added jitter is 0.1*X
-  ProjectilePredictJitter:array[TKMProjectileType] of Single = (2, 2, 2, 3);
+  ProjectilePredictJitter:array[TKMProjectileType] of Single = (2, 2, 2, 3, 1, 1);
 
 
 { TKMProjectiles }
@@ -214,8 +214,8 @@ end;
 { Return flight time (archers like to know when they hit target before firing again) }
 function TKMProjectiles.AddItem(const aStart,aAim,aEnd: TKMPointF; aSpeed,aArc,aMaxLength: Single; aProjType: TKMProjectileType; aOwner: TKMUnit): Word;
 const //TowerRock position is a bit different for reasons said below
-  OffsetX: array [TKMProjectileType] of Single = (0.5, 0.5, 0.5, -0.25); //Recruit stands in entrance, Tower middleline is X-0.75
-  OffsetY: array [TKMProjectileType] of Single = (0.2, 0.2, 0.2, -0.5); //Add towers height
+  OffsetX: array [TKMProjectileType] of Single = (0.5, 0.5, 0.5, -0.25, 0.5, 0.5); //Recruit stands in entrance, Tower middleline is X-0.75
+  OffsetY: array [TKMProjectileType] of Single = (0.2, 0.2, 0.2, -0.5, 0.5, 0.5); //Add towers height
 var
   I: Integer;
 begin
@@ -284,6 +284,54 @@ begin
             case fType of
               ptArrow,
               ptSlingRock,
+              ptBallistaRock:
+                              if (U <> nil) and not U.IsDeadOrDying and U.Visible and not (U is TKMUnitAnimal)
+                            //Can't hit units past max range because that's unintuitive/confusing to player
+                            and (KMLengthSqr(fShotFrom, U.PositionF) <= Sqr(fMaxLength)) then
+                            begin
+                              Damage := 0;
+                              if fType = ptArrow then Damage := gRes.Units[utBowman].Attack;
+                              if fType = ptBolt then Damage := gRes.Units[utArbaletman].Attack;
+                              if fType = ptSlingRock then Damage := gRes.Units[utSlingshot].Attack;
+                              if fType = ptBallistaRock then Damage := gRes.Units[utBallista].Attack;
+                              if fType = ptCatapultRock then Damage := gRes.Units[utCatapult].Attack;
+                              Damage := Round(Damage / Math.max(gRes.Units[U.UnitType].GetDefenceVsProjectiles(fType = ptBolt), 1)); //Max is not needed, but animals have 0 defence
+                              if (FRIENDLY_FIRE or (gHands.CheckAlliance(fOwner.Owner, U.Owner)= atEnemy))
+                              and (Damage >= KaMRandom(101, 'TKMProjectiles.UpdateState')) then
+                                U.HitPointsDecrease(1, fOwner);
+                            end
+                            else
+                            begin
+                              H := gHands.HousesHitTest(Round(fTarget.X), Round(fTarget.Y));
+                              if (H <> nil)
+                              and (FRIENDLY_FIRE or (gHands.CheckAlliance(fOwner.Owner, H.Owner)= atEnemy))
+                              then
+                                H.AddDamage(2, fOwner);
+                            end;
+              ptCatapultRock:
+                if (U <> nil) and not U.IsDeadOrDying and U.Visible and not (U is TKMUnitAnimal)
+                            //Can't hit units past max range because that's unintuitive/confusing to player
+                            and (KMLengthSqr(fShotFrom, U.PositionF) <= Sqr(fMaxLength)) then
+                            begin
+                              Damage := 0;
+                              if fType = ptArrow then Damage := gRes.Units[utBowman].Attack;
+                              if fType = ptBolt then Damage := gRes.Units[utArbaletman].Attack;
+                              if fType = ptSlingRock then Damage := gRes.Units[utSlingshot].Attack;
+                              if fType = ptBallistaRock then Damage := gRes.Units[utBallista].Attack;
+                              if fType = ptCatapultRock then Damage := gRes.Units[utCatapult].Attack;
+                              Damage := Round(Damage / Math.max(gRes.Units[U.UnitType].GetDefenceVsProjectiles(fType = ptBolt), 1)); //Max is not needed, but animals have 0 defence
+                              if (FRIENDLY_FIRE or (gHands.CheckAlliance(fOwner.Owner, U.Owner)= atEnemy))
+                              and (Damage >= KaMRandom(101, 'TKMProjectiles.UpdateState')) then
+                                U.HitPointsDecrease(5, fOwner);
+                            end
+                            else
+                            begin
+                              H := gHands.HousesHitTest(Round(fTarget.X), Round(fTarget.Y));
+                              if (H <> nil)
+                              and (FRIENDLY_FIRE or (gHands.CheckAlliance(fOwner.Owner, H.Owner)= atEnemy))
+                              then
+                                H.AddDamage(5, fOwner);
+                            end;
               ptBolt:      if (U <> nil) and not U.IsDeadOrDying and U.Visible and not (U is TKMUnitAnimal)
                             //Can't hit units past max range because that's unintuitive/confusing to player
                             and (KMLengthSqr(fShotFrom, U.PositionF) <= Sqr(fMaxLength)) then
@@ -292,6 +340,8 @@ begin
                               if fType = ptArrow then Damage := gRes.Units[utBowman].Attack;
                               if fType = ptBolt then Damage := gRes.Units[utArbaletman].Attack;
                               if fType = ptSlingRock then Damage := gRes.Units[utSlingshot].Attack;
+                              if fType = ptBallistaRock then Damage := gRes.Units[utBallista].Attack;
+                              if fType = ptCatapultRock then Damage := gRes.Units[utCatapult].Attack;
                               Damage := Round(Damage / Math.max(gRes.Units[U.UnitType].GetDefenceVsProjectiles(fType = ptBolt), 1)); //Max is not needed, but animals have 0 defence
                               if (FRIENDLY_FIRE or (gHands.CheckAlliance(fOwner.Owner, U.Owner)= atEnemy))
                               and (Damage >= KaMRandom(101, 'TKMProjectiles.UpdateState')) then
@@ -350,7 +400,7 @@ begin
       P := KMLerp(fItems[I].fScreenStart, fItems[I].fScreenEnd, MixValue);
       PTileBased := KMLerp(fItems[I].fShotFrom, fItems[I].fTarget, MixValue);
       case fItems[I].fType of
-        ptArrow, ptSlingRock, ptBolt:
+        ptArrow, ptSlingRock, ptBolt, ptBallistaRock, ptCatapultRock:
           begin
             MixArc := sin(MixValue*pi);   // 0 >> 1 >> 0 Parabola
             //Looks better moved up, launches from the bow not feet and lands in target's body

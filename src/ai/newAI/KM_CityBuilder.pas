@@ -290,7 +290,7 @@ var
   Dir: TDirection;
 begin
   // Reserve all tiles inside house plan
-  //if (aHT <> htCoalMine) then
+  //if (aHT <> htWall) then
 
     for I := Low(gAIFields.Eye.HousesMapping[aHT].Tiles) to High(gAIFields.Eye.HousesMapping[aHT].Tiles) do
     begin
@@ -335,9 +335,9 @@ begin
     for I := Low(gAIFields.Eye.HousesMapping[aHT].Surroundings[Dist,Dir]) to High(gAIFields.Eye.HousesMapping[aHT].Surroundings[Dist,Dir]) do
     begin
       Point := KMPointAdd(aLoc, gAIFields.Eye.HousesMapping[aHT].Surroundings[Dist,Dir,I]);
-      if (gAIFields.Influences.AvoidBuilding[Point.Y, Point.X] = AVOID_BUILDING_HOUSE_OUTSIDE_LOCK) then
-        gAIFields.Influences.AvoidBuilding[Point.Y, Point.X] := AVOID_BUILDING_UNLOCK;
-    end;
+     if (gAIFields.Influences.AvoidBuilding[Point.Y, Point.X] = AVOID_BUILDING_HOUSE_OUTSIDE_LOCK) then
+       gAIFields.Influences.AvoidBuilding[Point.Y, Point.X] := AVOID_BUILDING_UNLOCK;
+  end;
 end;
 
 
@@ -705,12 +705,14 @@ procedure TKMCityBuilder.UpdateBuildNode(var aNode: TBuildNode);
         end
         // Check if field already exists ...
         else if ((FieldType = ftWine) AND IsCompletedWine(FieldList.Items[K]))
-             OR ((FieldType = ftCorn) AND IsCompletedField(FieldList.Items[K])) then
+             OR ((FieldType = ftCorn) AND IsCompletedField(FieldList.Items[K])) 
+             OR ((FieldType = ftWall) AND IsCompletedField(FieldList.Items[K]))then
         begin
           RequiredWorkers := RequiredWorkers - 1;
         end
         else if ((FieldType = ftWine) AND IsPlan(FieldList.Items[K], tlFieldWork, ftWine))
-             OR ((FieldType = ftCorn) AND IsPlan(FieldList.Items[K], tlFieldWork, ftCorn)) then
+             OR ((FieldType = ftCorn) AND IsPlan(FieldList.Items[K], tlFieldWork, ftCorn)) 
+             OR ((FieldType = ftWall) AND IsPlan(FieldList.Items[K], tlFieldWork, ftWall))then
         begin
           ActiveWorkers := ActiveWorkers + 1;
           if (MaxReqWorkers <= ActiveWorkers) then
@@ -813,7 +815,7 @@ begin
   begin
     case aNode.FieldType of
       ftRoad: BuildRoad();
-      ftWine, ftCorn: BuildFields();
+      ftWine, ftCorn, ftWall: BuildFields();
       else begin end;
     end;
   end;
@@ -1106,7 +1108,7 @@ var
 
   function TryUnlockByRnd(var aHT: TKMHouseType): Boolean;
   const
-    FORBIDDEN_HOUSES = [htIronMine, htGoldMine, htCoalMine, htWineyard, htStables, htFisherHut, htTownHall, htSiegeWorkshop, htIronSmithy, htArmorSmithy, htWeaponSmithy];
+    FORBIDDEN_HOUSES = [htIronMine, htGoldMine, htCoalMine, htWineyard, htStables, htFisherHut, htTownHall, htIronSmithy, htArmorSmithy, htWeaponSmithy];
   var
     HT: TKMHouseType;
   begin
@@ -1304,20 +1306,20 @@ var
   procedure CheckHouseReservation();
   const
     // Reservation sets must be able to unlock specific houses!!!
-    RESERVATION_FullSet: array[0..28] of TKMHouseType = (
+    RESERVATION_FullSet: array[0..29] of TKMHouseType = (
       htSchool, htInn, htQuary, htMarketplace, htWoodcutters, htSawmill, // Inn because of old unlock order
       htGoldMine, htCoalMine, htMetallurgists, htBarracks,
       htFarm, htMill, htBakery, htSwine, htButchers, htStables, htFisherHut,
       htIronMine, htIronSmithy, htArmorSmithy, htWeaponSmithy,
       htTannery, htArmorWorkshop, htWeaponWorkshop,
-      htSiegeWorkshop, htTownHall, htWineyard, htStore, htWatchTower
+      htSiegeWorkshop, htTownHall, htWineyard, htStore, htWatchTower, htCharcoalFactory
     );
     // If RESERVATION_FullSet was changed, then the following indexes must be changed too!
     STONE_SHORTAGE_IDX = 2;
     TRUNK_SHORTAGE_IDX = 4;
     WOOD_SHORTAGE_IDX = 8;
     GOLD_SHORTAGE_IDX = 8;
-    FULL_SET = 28;
+    FULL_SET = 29;
   var
     K,L, MinIdx, MaxIdx, Overflow: Integer;
     Gain, BestGain: Single;
@@ -1505,7 +1507,9 @@ const
     {htWeaponSmithy}   [ htIronSmithy,    htCoalMine,     htBarracks     ],
     {htWeaponWorkshop} [ htSawmill,       htBarracks                     ],
     {htWineyard}       [ htInn                                           ],
-    {htWoodcutters}    [ htNone                                          ]
+    {htWoodcutters}    [ htNone                                          ],
+    {htCharcoalFactory}[ htNone                                          ],
+    {htWall}           [ htNone                                          ]
   );
 
   function FindAndMarkNewHouse(var aHT: TKMHouseType; var aLoc: TKMPoint): Boolean;

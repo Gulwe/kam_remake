@@ -361,6 +361,8 @@ begin
   case fType of
     utBowman,
     utArbaletman,
+    utBallista,
+    utCatapult,
     utSlingshot:   Result := RangeMax / (Byte(REDUCE_SHOOTING_RANGE) + 1);
     //During storm attack we look for enemies 1.42 tiles away so we engage enemies easier and don't accidentially walk past them diagonally
     else            if aTileBased and not (Action is TKMUnitActionStormAttack) then
@@ -506,7 +508,7 @@ end;
 procedure TKMUnitWarrior.SetActionGoIn(aAction: TKMUnitActionType; aGoDir: TKMGoInDirection; aHouse: TKMHouse);
 begin
   Assert(aGoDir = gdGoOutside, 'Walking inside is not implemented yet');
-  Assert((aHouse.HouseType = htBarracks) or (aHouse.HouseType = htTownHall), 'Only Barracks and TownHall so far');
+  Assert((aHouse.HouseType = htBarracks) or (aHouse.HouseType = htTownHall) or (aHouse.HouseType = htSchool) or (aHouse.HouseType = htSiegeWorkshop), 'Only Barracks and TownHall so far');       //zmiana
   inherited;
 
   TKMUnitActionGoInOut(Action).OnWalkedOut := WalkedOut;
@@ -696,6 +698,9 @@ begin
       utBowman,
       utArbaletman: Result := FIRING_DELAY;
       utSlingShot:  Result := SLINGSHOT_FIRING_DELAY;
+      utBallista:  Result := FIRING_DELAY;
+      utCatapult:  Result := SLINGSHOT_FIRING_DELAY;
+
       else raise Exception.Create('Unknown shooter');
     end;
 end;
@@ -716,6 +721,8 @@ begin
       utBowman:     Result := BOWMEN_AIMING_DELAY_MIN + KaMRandom(BOWMEN_AIMING_DELAY_ADD, 'TKMUnitWarrior.GetAimingDelay');
       utArbaletman: Result := CROSSBOWMEN_AIMING_DELAY_MIN + KaMRandom(CROSSBOWMEN_AIMING_DELAY_ADD, 'TKMUnitWarrior.GetAimingDelay 2');
       utSlingShot:  Result := SLINGSHOT_AIMING_DELAY_MIN + KaMRandom(SLINGSHOT_AIMING_DELAY_ADD, 'TKMUnitWarrior.GetAimingDelay 3');
+      utBallista:  Result := CROSSBOWMEN_AIMING_DELAY_MIN + KaMRandom(SLINGSHOT_AIMING_DELAY_ADD, 'TKMUnitWarrior.GetAimingDelay 3');
+      utCatapult:  Result := SLINGSHOT_AIMING_DELAY_MIN + KaMRandom(SLINGSHOT_AIMING_DELAY_ADD, 'TKMUnitWarrior.GetAimingDelay 3');
       else raise Exception.Create('Unknown shooter');
     end;
 end;
@@ -759,6 +766,8 @@ begin
       utBowman:     Result := RANGE_BOWMAN_MIN;
       utArbaletman: Result := RANGE_ARBALETMAN_MIN;
       utSlingShot:  Result := RANGE_SLINGSHOT_MIN;
+      utBallista:  Result := RANGE_SLINGSHOT_MIN;
+      utCatapult:  Result := RANGE_SLINGSHOT_MIN;
       else raise Exception.Create('Unknown shooter');
     end;
 end;
@@ -769,6 +778,8 @@ const
   RANGE_ARBALETMAN_MAX  = 10.99; //KaM: Unit standing 10 tiles from us will be shot, 11 tiles not
   RANGE_BOWMAN_MAX      = 10.99;
   RANGE_SLINGSHOT_MAX   = 10.99;
+  RANGE_Catapult   = 15.99;
+  
 begin
   Result := 0;
   if IsRanged then
@@ -776,6 +787,8 @@ begin
       utBowman:     Result := RANGE_BOWMAN_MAX;
       utArbaletman: Result := RANGE_ARBALETMAN_MAX;
       utSlingShot:  Result := RANGE_SLINGSHOT_MAX;
+      utBallista:    Result := RANGE_Catapult;
+      utCatapult: Result := RANGE_Catapult;
       else raise Exception.Create('Unknown shooter');
     end;
 end;
@@ -788,6 +801,8 @@ begin
     utBowman:     Result := ptArrow;
     utArbaletman: Result := ptBolt;
     utSlingShot:  Result := ptSlingRock;
+    utBallista: Result := ptBallistaRock;
+    utCatapult: Result := ptCatapultRock;
     else raise Exception.Create('Unknown shooter');
   end;
 end;

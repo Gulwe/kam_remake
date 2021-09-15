@@ -131,6 +131,8 @@ begin
                 utArbaletman: gSoundPlayer.Play(sfxCrossbowDraw, PositionF); //Aiming
                 utBowman:     gSoundPlayer.Play(sfxBowDraw,      PositionF); //Aiming
                 utSlingshot:  ;
+                utBallista:   gSoundPlayer.Play(sfxCatapultReload,      PositionF);
+                utCatapult:   gSoundPlayer.Play(sfxCatapultReload,      PositionF);
                 else           raise Exception.Create('Unknown shooter');
               end;
             end

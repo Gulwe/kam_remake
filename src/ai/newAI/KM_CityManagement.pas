@@ -803,10 +803,10 @@ var
     DEFAULT_ARMY_REQUIREMENTS: array[WARRIOR_EQUIPABLE_BARRACKS_MIN..WARRIOR_EQUIPABLE_BARRACKS_MAX] of Single = (
       1, 1, 1, 3,//utMilitia,      utAxeFighter,   utSwordsman,     utBowman,
       3, 1, 1, 0.5,//utArbaletman,   utPikeman,      utHallebardman,  utHorseScout,
-      0.5//utCavalry
+      0.5, 2,0.5,1,1,1,2,2//utCavalry
     );
-    WOOD_ARMY: set of TKMUnitType = [utAxeFighter, utBowman, utPikeman]; //utHorseScout,
-    IRON_ARMY: set of TKMUnitType = [utSwordsman, utArbaletman, utHallebardman]; //utCavalry
+    WOOD_ARMY: set of TKMUnitType = [utAxeFighter, utBowman, utPikeman, utHorseman]; //utHorseScout,
+    IRON_ARMY: set of TKMUnitType = [utSwordsman, utArbaletman, utHallebardman, utMetalBarbarian]; //utCavalry
   var
     I, WoodReq, IronReq: Integer;
     UT: TKMUnitType;
@@ -1035,8 +1035,11 @@ const
   COLOR_YELLOW = '[$00FFFF]';
   COLOR_GREEN = '[$00FF00]';
   WARFARE: array[WARFARE_MIN..WARFARE_MAX] of UnicodeString =
-    ('Shield     ', 'MetalShield', 'Armor      ', 'MetalArmor', 'Axe         ', 'Sword      ',
-     'Pike       ', 'Hallebard  ', 'Bow        ', 'Arbalet   ', 'Horse      ');
+  ('Shield     ', 'MetalShield', 'Armor      ', 'MetalArmor', 'Axe         ', 'Sword      ',
+  'Pike       ', 'Hallebard  ', 'Bow        ', 'Arbalet   ', 'Horse      ');
+//  WARFARE: array[WARFARE_MIN..WARFARE_MAX] of UnicodeString =
+//    ('Wood    ', '    ', '    ', '    ', 'Steel    ', '    ', '    ', '    ', '    ', '    ', '     ', '     ', '     ', '     ', 'Shield     ', 'MetalShield', 'Armor      ', 'MetalArmor', 'Axe         ', 'Sword      ',
+//     'Pike       ', 'Hallebard  ', 'Bow        ', 'Arbalet   ', 'Horse      ');
 var
   WT: TKMWareType;
 begin

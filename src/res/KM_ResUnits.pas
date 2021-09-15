@@ -117,7 +117,7 @@ const
     -1, -1, //utNone, utAny
     0,1,2,3,4,5,6,7,8,9,10,11,12,13, //Citizens
     14,15,16,17,18,19,20,21,22,23, //Warriors
-    -1,-1,-1,-1, {-1,-1,} //TPR warriors (can't be placed with SET_UNIT)
+    -1,-1,-1,-1, -1,-1, //TPR warriors (can't be placed with SET_UNIT)
     24,25,26,27,28,29,30,31); //Animals
 
   //This is a map of the valid values for !SET_GROUP, and the corresponing unit that will be created (matches KaM behavior)
@@ -128,7 +128,7 @@ const
     utMilitia,utAxeFighter,utSwordsman,utBowman,utArbaletman,
     utPikeman,utHallebardman,utHorseScout,utCavalry,utBarbarian, //TSK Troops
     utPeasant,utSlingshot,utMetalBarbarian,utHorseman,
-    {utCatapult,utBallista}utNone,utNone, //Placeholder for Seige weapons
+    utCatapult,utBallista, //Placeholder for Seige weapons
     utWolf, utFish, utWatersnake, utSeastar, utCrab,
     utWaterflower, utWaterleaf, utDuck,
     utNone, utNone, utNone
@@ -138,12 +138,12 @@ const
     -1, -1, //utNone, utAny
     0,1,2,3,4,5,6,7,8,9,10,11,12,13, //Citizens
     14,15,16,17,18,19,20,21,22,23, //Warriors
-    24,25,26,27, {28,29,} //TPR warriors
+    24,25,26,27,28,29, //TPR warriors
     30,31,32,33,34,35,36,37); //Animals
 
 
   //Number means ResourceType as it is stored in Barracks, hence it's not rtSomething
-  TROOP_COST: array [utMilitia..utCavalry, 1..4] of TKMWareType = (
+  TROOP_COST: array [utMilitia..utHorseman, 1..4] of TKMWareType = (
     (wtAxe,          wtNone,        wtNone,  wtNone ), //Militia
     (wtShield,       wtArmor,       wtAxe,   wtNone ), //Axefighter
     (wtMetalShield,  wtMetalArmor,  wtSword, wtNone ), //Swordfighter
@@ -152,7 +152,15 @@ const
     (wtArmor,        wtPike,        wtNone,  wtNone ), //Lance Carrier
     (wtMetalArmor,   wtHallebard,   wtNone,  wtNone ), //Pikeman
     (wtShield,       wtArmor,       wtAxe,   wtHorse), //Scout
-    (wtMetalShield,  wtMetalArmor,  wtSword, wtHorse)  //Knight
+    (wtMetalShield,  wtMetalArmor,  wtSword, wtHorse),  //Knight
+    (wtNone,  wtNone,  wtNone, wtNone),
+    (wtNone,  wtNone,  wtNone, wtNone),
+    (wtNone,  wtNone,  wtNone, wtNone),
+    (wtAxe,          wtMetalArmor,  wtAxe,  wtNone ), //Warrior
+    (wtAxe,          wtHorse,       wtNone,  wtNone ) //Wagabunda
+   // (wtSteel,        wtWood,       wtSteel,  wtSteel ), //Katapulta
+   // (wtSteel,        wtWood,       wtSteel,  wtSteel ) //Balista
+    
   );
 
 
@@ -162,7 +170,7 @@ const
 var
   //TownHall default units troops cost (number of gold chests needed)
   //Could be modified by script functions
-  TH_TROOP_COST: array[0..4] of Byte;
+  TH_TROOP_COST: array[0..6] of Byte;
 
 
 implementation
@@ -171,8 +179,8 @@ uses
 
 const
   //TownHall default units troops cost (number of gold chests needed)
-  TH_DEFAULT_TROOP_COST: array[0..4] of Byte = (
-    2, 3, 5, 8, 8 //rebel / rogue / vagabond / barbarian / warrior
+  TH_DEFAULT_TROOP_COST: array[0..6] of Byte = (
+    2, 3, 5, 8, 8, 8, 8 //rebel / rogue / vagabond / barbarian / warrior
   );
 
 
@@ -265,7 +273,9 @@ const
     [uaWalk, uaWork, uaDie, uaEat], //Rebel
     [uaWalk, uaWork, uaSpec, uaDie, uaEat], //Slingshot
     [uaWalk, uaWork, uaSpec, uaDie, uaEat], //Warrior
-    [uaWalk, uaWork, uaDie, uaEat],
+    [uaWalk, uaWork, uaSpec, uaDie, uaEat], //Vagabond
+    [uaWalk, uaWork, uaSpec, uaDie],                //28
+    [uaWalk, uaWork, uaSpec, uaDie],                //29
     [uaWalk], [uaWalk], [uaWalk], [uaWalk], [uaWalk], [uaWalk], [uaWalk], [uaWalk] //Animals
   );
 begin
@@ -308,8 +318,9 @@ const
     ftMelee,                   //Peasant
     ftRanged,                  //utSlingshot
     ftMelee,                   //utMetalBarbarian
-    ftMelee                    //utHorseman
-    {ftRanged,ftRanged,       //utCatapult, utBallista,}
+    ftMelee,                   //utHorseman
+    ftRanged,
+    ftRanged      //utCatapult, utBallista,}
   );
 begin
   Assert(fUnitType in [Low(WarriorFightType)..High(WarriorFightType)]);
@@ -351,7 +362,7 @@ const
   MMColor: array[TKMUnitType] of Cardinal = (
     0,0,0,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,
     $B0B0B0,$B08000,$B08000,$80B0B0,$00B0B0,$B080B0,$00B000,$80B0B0); //Exact colors can be tweaked
 begin
   Result := MMColor[fUnitType] or $FF000000;
@@ -399,6 +410,7 @@ begin
     utWaterflower: Result := TX_UNITS_WATERFLOWER;
     utWaterleaf:   Result := TX_UNITS_WATERLEAF;
     utDuck:        Result := TX_UNITS_DUCK;
+
   else
     Result := TX_UNITS_NAMES__29 + UNIT_TYPE_TO_ID[fUnitType];
   end;
@@ -440,7 +452,18 @@ begin
   fItems[utHorseman].fUnitDat.Attack := 35;
   fItems[utPeasant].fUnitDat.AttackHorse := 50;
   fItems[utPikeman].fUnitDat.AttackHorse := 60;
+  
+  fItems[utBallista].fUnitDat.Attack := 300;
+  fItems[utCatapult].fUnitDat.Attack := 200;
+  fItems[utCatapult].fUnitDat.Sight := 14;
+  fItems[utBallista].fUnitDat.Sight := 14;
+
+
+  //fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[1] := 9401;
+
+  
   //ExportCSV(ExeDir+'units.csv');
+  
 end;
 
 

@@ -346,9 +346,11 @@ type
   private
     fAcceptWood: Boolean;
     fAcceptLeather: Boolean;
+    fAcceptSteel: Boolean;
   public
     property AcceptWood: Boolean read fAcceptWood write fAcceptWood;
     property AcceptLeather: Boolean read fAcceptLeather write fAcceptLeather;
+    property AcceptSteel: Boolean read fAcceptSteel write fAcceptSteel;
     constructor Create(aUID: Integer; aHouseType: TKMHouseType; PosX, PosY: Integer; aOwner: TKMHandID; aBuildState: TKMHouseBuildState);
     constructor Load(LoadStream: TKMemoryStream); override;
     procedure Save(SaveStream: TKMemoryStream); override;
@@ -356,7 +358,21 @@ type
     function AcceptWareForDelivery(aWareType: TKMWareType): Boolean;
     function ShouldAbandonDeliveryTo(aWareType: TKMWareType): Boolean; override;
   end;
-
+  
+  { TKMHouseSiegeWorkshop = class(TKMHouse) }
+  { private }
+    { fAcceptWood: Boolean; }
+    { fAcceptSteel: Boolean; }
+  { public }
+    { property AcceptWood: Boolean read fAcceptWood write fAcceptWood; }
+    { property AcceptSteel: Boolean read fAcceptSteel write fAcceptSteel; }
+    { constructor Create(aUID: Integer; aHouseType: TKMHouseType; PosX, PosY: Integer; aOwner: TKMHandID; aBuildState: TKMHouseBuildState); }
+    { constructor Load(LoadStream: TKMemoryStream); override; }
+    { procedure Save(SaveStream: TKMemoryStream); override; }
+    { procedure ToggleResDelivery(aWareType: TKMWareType); }
+    { function AcceptWareForDelivery(aWareType: TKMWareType): Boolean; }
+    { function ShouldAbandonDeliveryTo(aWareType: TKMWareType): Boolean; override; }
+  { end; }
 
 implementation
 uses
@@ -1908,6 +1924,7 @@ begin
                       else if (Work = haWork1)and(Step = 24) then gSoundPlayer.Play(sfxCoalMineThud, fPosition,true,0.8)
                       else if (Work = haWork2)and(Step = 7) then gSoundPlayer.Play(sfxmine, fPosition)
                       else if (Work = haWork5)and(Step = 1) then gSoundPlayer.Play(sfxcoalDown, fPosition);
+    htCharcoalFactory: if (Work = haWork2)and(Step = 1) then gSoundPlayer.Play(sfxBlacksmithFire, fPosition);
     htIronMine:      if (Work = haWork2)and(Step = 7) then gSoundPlayer.Play(sfxmine, fPosition);
     htGoldMine:      if (Work = haWork2)and(Step = 5) then gSoundPlayer.Play(sfxmine, fPosition);
     htSawmill:       if (Work = haWork2)and(Step = 1) then gSoundPlayer.Play(sfxsaw, fPosition);
@@ -1935,6 +1952,9 @@ begin
                       else if (Work = haWork3)and(Step in [10,21]) then gSoundPlayer.Play(sfxCarpenterHammer, fPosition)
                       else if (Work = haWork4)and(Step in [2,13]) then gSoundPlayer.Play(sfxCarpenterHammer, fPosition);
     htArmorWorkshop: if (Work = haWork2)and(Step in [3,13,23]) then gSoundPlayer.Play(sfxsaw, fPosition)
+                      else if (Work = haWork3)and(Step in [17,28]) then gSoundPlayer.Play(sfxCarpenterHammer, fPosition)
+                      else if (Work = haWork4)and(Step in [10,20]) then gSoundPlayer.Play(sfxCarpenterHammer, fPosition);
+    htSiegeWorkshop: if (Work = haWork2)and(Step in [3,13,23]) then gSoundPlayer.Play(sfxsaw, fPosition)
                       else if (Work = haWork3)and(Step in [17,28]) then gSoundPlayer.Play(sfxCarpenterHammer, fPosition)
                       else if (Work = haWork4)and(Step in [10,20]) then gSoundPlayer.Play(sfxCarpenterHammer, fPosition);
     htTannery:       if (Work = haWork2)and(Step = 5) then gSoundPlayer.Play(sfxLeather, fPosition,true,0.8);
@@ -2497,6 +2517,53 @@ begin
 end;
 
 
+{ TKMHouseSiegeWorkshop }
+{ constructor TKMHouseSiegeWorkshop.Create(aUID: Integer; aHouseType: TKMHouseType; PosX, PosY: Integer; aOwner: TKMHandID; aBuildState: TKMHouseBuildState); }
+{ begin }
+  { inherited; }
+  { fAcceptWood := True; }
+  { fAcceptSteel := True; }
+{ end; }
+
+{ constructor TKMHouseSiegeWorkshop.Load(LoadStream: TKMemoryStream); }
+{ begin }
+  { inherited; }
+  { LoadStream.CheckMarker('HouseSiegeWorkshop'); }
+  { LoadStream.Read(fAcceptWood); }
+  { LoadStream.Read(fAcceptSteel); }
+{ end; }
+
+{ procedure TKMHouseSiegeWorkshop.Save(SaveStream: TKMemoryStream); }
+{ begin }
+  { inherited; }
+  { SaveStream.PlaceMarker('HouseSiegeWorkshop'); }
+  { SaveStream.Write(fAcceptWood); }
+  { SaveStream.Write(fAcceptSteel); }
+{ end; }
+
+{ procedure TKMHouseSiegeWorkshop.ToggleResDelivery(aWareType: TKMWareType); }
+{ begin }
+  { case aWareType of }
+    { wtWood: fAcceptWood := not fAcceptWood; }
+    { wtSteel: fAcceptSteel := not fAcceptSteel; }
+  { end; }
+{ end; }
+
+{ function TKMHouseSiegeWorkshop.AcceptWareForDelivery(aWareType: TKMWareType): Boolean; }
+{ begin }
+  { Result := False; }
+  { case aWareType of }
+    { wtWood: Result := fAcceptWood; }
+    { wtSteel: Result := fAcceptSteel; }
+  { end; }
+{ end; }
+
+{ function TKMHouseSiegeWorkshop.ShouldAbandonDeliveryTo(aWareType: TKMWareType): Boolean; }
+{ begin }
+  { Result := inherited or not AcceptWareForDelivery(aWareType); }
+{ end; }
+
+
 { TKMHouseArmorWorkshop }
 constructor TKMHouseArmorWorkshop.Create(aUID: Integer; aHouseType: TKMHouseType; PosX, PosY: Integer; aOwner: TKMHandID; aBuildState: TKMHouseBuildState);
 begin
@@ -2504,7 +2571,6 @@ begin
   fAcceptWood := True;
   fAcceptLeather := True;
 end;
-
 
 constructor TKMHouseArmorWorkshop.Load(LoadStream: TKMemoryStream);
 begin
@@ -2543,10 +2609,13 @@ begin
 end;
 
 
+
 function TKMHouseArmorWorkshop.ShouldAbandonDeliveryTo(aWareType: TKMWareType): Boolean;
 begin
   Result := inherited or not AcceptWareForDelivery(aWareType);
 end;
+
+
 
 
 { THouseAction }

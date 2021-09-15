@@ -216,7 +216,9 @@ const
     {htWeaponSmithy}   [ htIronSmithy,     htCoalMine,       htBarracks,       htIronMine                       ],
     {htWeaponWorkshop} [ htSawmill,        htWeaponWorkshop, htBarracks                                         ],
     {htWineyard}       [ htInn,            htQuary,          htCoalMine                                         ],
-    {htWoodcutters}    [ htStore                                                                                ]
+    {htWoodcutters}    [ htStore                                                                                ],
+    {htCharcoalFactory}[ htStore                                                                                ],
+    {htWall}           [ htStore                                                                                ]
   );
 
 implementation
@@ -2691,7 +2693,7 @@ begin
   // 1 tile from future house
   else if (AvoidBuilding = AVOID_BUILDING_HOUSE_OUTSIDE_LOCK)
   // Snap to no-build areas (1 tile from house / mountain / special tiles)
-    OR not (tpBuild in gTerrain.Land[aToY,aToX].Passability)
+   OR not (tpBuild in gTerrain.Land[aToY,aToX].Passability)
   // 1 tile form mine
     OR (AvoidBuilding = AVOID_BUILDING_MINE_TILE)           then Inc(Result, Round(AI_Par[ROADS_noBuildArea]))
   else

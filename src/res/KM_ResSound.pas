@@ -154,13 +154,13 @@ const
   WarriorSFXFolder: array[WARRIOR_MIN..WARRIOR_MAX] of string = (
     'militia', 'axeman', 'swordman', 'bowman', 'crossbowman',
     'lanceman', 'pikeman', 'cavalry', 'knights', 'barbarian',
-    'rebel', 'rogue', 'warrior', 'vagabond');
+    'rebel', 'rogue', 'warrior', 'vagabond','','');
 
   //TPR warriors reuse TSK voices in some languages, so if the specific ones don't exist use these
   WarriorSFXFolderBackup: array[WARRIOR_MIN..WARRIOR_MAX] of string = (
     '', '', '', '', '',
     '', '', '', '', '',
-    'bowman', 'lanceman', 'barbarian', 'cavalry');
+    'bowman', 'lanceman', 'barbarian', 'cavalry','','');
 
   WarriorSFX: array[TWarriorSpeech] of string = (
     'select', 'eat', 'left', 'right', 'halve',

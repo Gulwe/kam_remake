@@ -438,6 +438,7 @@ type
     cmRoad,
     cmField,
     cmWine,
+    cmWall,
     cmHouses, // Gameplay
 
     //Map Editor
@@ -598,7 +599,7 @@ type
     utCavalry,      utBarbarian,
 
     utPeasant,      utSlingshot,    utMetalBarbarian,utHorseman,
-    //utCatapult,   utBallista,
+    utCatapult,     utBallista,
 
     utWolf,         utFish,         utWatersnake,   utSeastar,
     utCrab,         utWaterflower,  utWaterleaf,    utDuck);
@@ -611,13 +612,13 @@ const
   CITIZEN_MIN = utSerf;
   CITIZEN_MAX = utRecruit;
   WARRIOR_MIN = utMilitia;
-  WARRIOR_MAX = utHorseman;
+  WARRIOR_MAX = utBallista;
   WARRIOR_EQUIPABLE_BARRACKS_MIN = utMilitia; //Available from barracks
-  WARRIOR_EQUIPABLE_BARRACKS_MAX = utCavalry;
+  WARRIOR_EQUIPABLE_BARRACKS_MAX = utBallista;
   WARRIOR_EQUIPABLE_TH_MIN = utBarbarian; //Available from Townhall
-  WARRIOR_EQUIPABLE_TH_MAX = utHorseman;
+  WARRIOR_EQUIPABLE_TH_MAX = utBallista;
   HUMANS_MIN = utSerf;
-  HUMANS_MAX = utHorseman;
+  HUMANS_MAX = utBallista;
   ANIMAL_MIN = utWolf;
   ANIMAL_MAX = utDuck;
 
@@ -650,8 +651,9 @@ const
     gtAntiHorse,        //utPeasant
     gtRanged,           //utSlingshot
     gtMelee,            //utMetalBarbarian
-    gtMounted           //utHorseman
-    {gtRanged,gtRanged, //utCatapult, utBallista,}
+    gtMounted,           //utHorseman
+    gtRanged,
+    gtRanged //utCatapult, utBallista,}
     );
 
   //AI's prefences for training troops
@@ -689,7 +691,7 @@ const //Corresponding indices in units.rx
 
 type
   TKMUnitTaskType = ( uttUnknown, //Uninitialized task to detect bugs
-        uttSelfTrain, uttDeliver,         uttBuildRoad,  uttBuildWine,        uttBuildField,
+        uttSelfTrain,uttSelfTrainSiege, uttDeliver,         uttBuildRoad,  uttBuildWine,        uttBuildField, 
         uttBuildHouseArea, uttBuildHouse, uttBuildHouseRepair, uttGoHome,    uttDismiss,
         uttGoEat,     uttMining,          uttDie,        uttGoOutShowHungry,  uttAttackHouse,
         uttThrowRock);
@@ -751,6 +753,7 @@ type
     ftRoad,
     ftCorn,
     ftWine,
+    ftWall,
     ftInitWine //Reset rotation and set grapes ground, but without Grapes yet
   );
 

@@ -52,7 +52,7 @@ implementation
 uses
   SysUtils, Types, Math,
   KM_Game, KM_GameParams, KM_Terrain,
-  KM_HouseInn, KM_HouseMarket, KM_HouseBarracks, KM_HouseSchool, 
+  KM_HouseInn, KM_HouseMarket, KM_HouseBarracks, KM_HouseSchool, KM_HouseSiegeWorkshop,
   KM_HouseTownHall, KM_HouseWoodcutters,
   KM_Resource,
   KM_GameTypes;
@@ -99,6 +99,7 @@ begin
     htWatchTower:    Result := TKMHouseTower.Create(id, aHouseType,PosX,PosY, aOwner, aHBS);
     htWoodcutters:   Result := TKMHouseWoodcutters.Create(id, aHouseType,PosX,PosY, aOwner, aHBS);
     htArmorWorkshop: Result := TKMHouseArmorWorkshop.Create(id, aHouseType,PosX,PosY, aOwner, aHBS);
+    htSiegeWorkshop: Result := TKMHouseSiegeWorkshop.Create(id, aHouseType,PosX,PosY, aOwner, aHBS);
     else              Result := TKMHouse.Create(id, aHouseType,PosX,PosY, aOwner, aHBS);
   end;
 
@@ -389,6 +390,7 @@ begin
       htWoodcutters:   T := TKMHouseWoodcutters.Load(LoadStream);
       htArmorWorkshop: T := TKMHouseArmorWorkshop.Load(LoadStream);
       htTownHall:      T := TKMHouseTownHall.Load(LoadStream);
+      htSiegeWorkshop:  T := TKMHouseSiegeWorkshop.Load(LoadStream);
       else              T := TKMHouse.Load(LoadStream);
     end;
 

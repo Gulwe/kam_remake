@@ -594,7 +594,7 @@ end;
 
 function TKMGUIGameSpectatorItemLineCustomBuildings.GetTagCount: Integer;
 begin
-  Result := HOUSES_CNT - 1; //-1 for htSiegeWorkshop
+  Result := HOUSES_CNT; //-1 for htSiegeWorkshop
 end;
 
 function TKMGUIGameSpectatorItemLineCustomBuildings.GetTag(AIndex: Integer): Integer;

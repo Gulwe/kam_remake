@@ -1599,7 +1599,13 @@ begin
   end
   else
     Exit;
-
+  
+  if DirectoryExists(ExeDir + 'Maps' + PathDelim + 'Sprites' + PathDelim) then
+  begin
+  //fSprites[aRT].OverloadFromFolder(ExeDir + 'Maps' + PathDelim + '.*' + PathDelim + 'Sprites' + PathDelim);
+  fSprites[aRT].OverloadFromFolder(ExeDir + 'Maps' + PathDelim + 'Sprites' + PathDelim);
+  end
+  else
   fSprites[aRT].OverloadFromFolder(ExeDir + 'Sprites' + PathDelim);
 
   if aRT = rxTiles then

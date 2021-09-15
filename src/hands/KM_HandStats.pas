@@ -876,7 +876,7 @@ begin
   aStrings.Append('Name;Planned;PlanRemoved;Started;Ended;Initial;Built;SelfDestruct;Lost;ClosedATM;Destroyed');
 
   for HT := HOUSE_MIN to HOUSE_MAX do
-    if HT <> htSiegeWorkshop then
+   // if HT <> htSiegeWorkshop then
       with Houses[HT] do
       begin
         S := '';

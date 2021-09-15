@@ -3630,6 +3630,13 @@ begin
         SwitchPage(Button_Main[tbBuild]);
       fGuiGameBuild.PlanWine;
     end;
+    
+     if Key = gResKeys[kfPlanWine].Key then
+    begin
+      if not fGuiGameBuild.Visible then
+        SwitchPage(Button_Main[tbBuild]);
+      fGuiGameBuild.PlanWall;
+    end;
 
     if Key = gResKeys[kfErasePlan].Key then
     begin
@@ -3851,6 +3858,7 @@ begin
         cmRoad:   HandleFieldLMBDrag(P, ftRoad);
         cmField:  HandleFieldLMBDrag(P, ftCorn);
         cmWine:   HandleFieldLMBDrag(P, ftWine);
+        cmWall:   HandleFieldLMBDrag(P, ftWall);
         cmErase:  if not KMSamePoint(fLastDragPoint, P) then
                   begin
                     if gMySpectator.Hand.Constructions.HousePlanList.HasPlan(P) then
@@ -4002,7 +4010,7 @@ begin
         // Only allow placing of roads etc. with the left mouse button
         if gMySpectator.FogOfWar.CheckTileRevelation(P.X, P.Y) = 0 then
         begin
-          if (gGameCursor.Mode in [cmErase, cmRoad, cmField, cmWine, cmHouses]) and not gGameParams.IsReplayOrSpectate then
+          if (gGameCursor.Mode in [cmErase, cmRoad, cmField, cmWine, cmWall, cmHouses]) and not gGameParams.IsReplayOrSpectate then
             // Can't place noise when clicking on unexplored areas
             gSoundPlayer.Play(sfxCantPlace, P, False, 4);
         end
@@ -4061,6 +4069,7 @@ begin
             cmRoad:  gGameCursor.Tag1 := Ord(cfmNone);
             cmField: gGameCursor.Tag1 := Ord(cfmNone);
             cmWine:  gGameCursor.Tag1 := Ord(cfmNone);
+            cmWall:  gGameCursor.Tag1 := Ord(cfmNone);
 
             cmHouses:
               if gMySpectator.Hand.CanAddHousePlan(P, TKMHouseType(gGameCursor.Tag1)) then

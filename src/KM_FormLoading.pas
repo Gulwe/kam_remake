@@ -3,7 +3,8 @@ unit KM_FormLoading;
 interface
 uses
   {$IFDEF FPC} LResources, {$ENDIF}
-  Forms, Controls, ComCtrls, ExtCtrls, StdCtrls, Graphics, Classes;
+  Forms, Controls, ComCtrls, ExtCtrls, StdCtrls, Graphics, Classes,
+  Vcl.Imaging.pngimage;
 
 type
   TFormLoading = class(TForm)
@@ -17,6 +18,7 @@ type
     Label6: TLabel;
     Label7: TLabel;
     Label2: TLabel;
+    Label8: TLabel;
     procedure FormHide(Sender: TObject);
   public
     procedure LoadingStep;

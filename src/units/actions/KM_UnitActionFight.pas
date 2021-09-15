@@ -169,6 +169,8 @@ begin
     utArbaletman: gSoundPlayer.Play(sfxCrossbowDraw, fUnit.PositionF); // Aiming
     utBowman:     gSoundPlayer.Play(sfxBowDraw,      fUnit.PositionF); // Aiming
     utSlingshot:  gSoundPlayer.Play(sfxSlingerShoot, fUnit.PositionF);
+    utCatapult:   gSoundPlayer.Play(sfxCatapultReload, fUnit.PositionF);
+    utBallista:   gSoundPlayer.Play(sfxCatapultReload, fUnit.PositionF);
     else           begin
                      if IsHit then
                        gSoundPlayer.Play(MeleeSoundsHit[Random(Length(MeleeSoundsHit))], fUnit.PositionF)

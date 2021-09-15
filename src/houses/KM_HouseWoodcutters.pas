@@ -25,6 +25,8 @@ type
     procedure Save(SaveStream: TKMemoryStream); override;
   end;
 
+
+ 
   
 implementation
 
@@ -90,6 +92,5 @@ begin
 
   fWoodcutterMode := aWoodcutterMode;
 end;
-
 
 end.

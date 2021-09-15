@@ -22,6 +22,7 @@ type
       Button_BuildRoad: TKMButtonFlat;
       Button_BuildField: TKMButtonFlat;
       Button_BuildWine: TKMButtonFlat;
+      Button_BuildWall: TKMButtonFlat;
       Button_BuildCancel: TKMButtonFlat;
       Button_Build: array [1..GUI_HOUSE_COUNT] of TKMButtonFlat;
   public
@@ -29,13 +30,14 @@ type
     procedure PlanRoad;
     procedure PlanField;
     procedure PlanWine;
+    procedure PlanWall;
     procedure ErasePlan;
     procedure Show;
     procedure Hide;
     function Visible: Boolean;
     procedure UpdateState;
   end;
-
+  
 
 implementation
 uses
@@ -65,24 +67,39 @@ begin
     Button_BuildRoad    := TKMButtonFlat.Create(Panel_Build,   0, 80, 33, 33, 335);
     Button_BuildField   := TKMButtonFlat.Create(Panel_Build,  37, 80, 33, 33, 337);
     Button_BuildWine    := TKMButtonFlat.Create(Panel_Build,  74, 80, 33, 33, 336);
+    //Button_BuildWall    := TKMButtonFlat.Create(Panel_Build,  107, 80, 33, 33, 338);
     Button_BuildCancel  := TKMButtonFlat.Create(Panel_Build, 148, 80, 33, 33, 340);
     Button_BuildRoad.OnClick    := Build_ButtonClick;
     Button_BuildField.OnClick   := Build_ButtonClick;
     Button_BuildWine.OnClick    := Build_ButtonClick;
+    //Button_BuildWall.OnClick    := Build_ButtonClick;
+    
     Button_BuildCancel.OnClick  := Build_ButtonClick;
     Button_BuildRoad.Hint   := GetHintWHotKey(TX_BUILD_ROAD_HINT, kfPlanRoad);
     Button_BuildField.Hint  := GetHintWHotKey(TX_BUILD_FIELD_HINT, kfPlanField);
     Button_BuildWine.Hint   := GetHintWHotKey(TX_BUILD_WINE_HINT, kfPlanWine);
+   // Button_BuildWall.Hint   := GetHintWHotKey(TX_BUILD_WINE_HINT, kfPlanWine);
     Button_BuildCancel.Hint := GetHintWHotKey(TX_BUILD_CANCEL_HINT, kfErasePlan);
 
     for I := 1 to GUI_HOUSE_COUNT do
     if GUIHouseOrder[I] <> htNone then
     begin
+      if (I <> GUI_HOUSE_COUNT) then
+      begin
       Button_Build[I] := TKMButtonFlat.Create(Panel_Build, ((I-1) mod 5)*37, 120+((I-1) div 5)*37, 33, 33,
                                               gRes.Houses[GUIHouseOrder[I]].GUIIcon);
       Button_Build[I].Tag := Byte(GUIHouseOrder[I]);
       Button_Build[I].OnClick := Build_ButtonClick;
+      Button_Build[I].Hint := gRes.Houses[GUIHouseOrder[I]].HouseName;  
+      end else
+      begin
+      Button_Build[I] := TKMButtonFlat.Create(Panel_Build,  107, 80, 33, 33, 338);
+      Button_Build[I].Tag := Byte(GUIHouseOrder[I]);
+      Button_Build[I].OnClick := Build_ButtonClick;
       Button_Build[I].Hint := gRes.Houses[GUIHouseOrder[I]].HouseName;
+      end;
+      
+
     end;
 end;
 
@@ -105,6 +122,14 @@ procedure TKMGUIGameBuild.PlanWine;
 begin
   Button_BuildWine.Down := True;
   Build_ButtonClick(Button_BuildWine);
+end;
+
+procedure TKMGUIGameBuild.PlanWall;
+begin
+
+  Button_BuildWall.Down := True;
+  Build_ButtonClick(Button_BuildWall);
+
 end;
 
 
@@ -159,6 +184,10 @@ begin
   else
   if Button_BuildWine.Down then
     SetCost(cmWine, 0, 336, 1, 0, gResTexts[TX_BUILD_WINE])
+  //else
+//  if Button_BuildWall.Down then
+//    SetCost(cmWall, 0, 338, 1, 0, gResTexts[TX_BUILD_WINE])
+      
   else
   begin
     house := TKMHouseType(TKMButton(Sender).Tag);
@@ -194,7 +223,7 @@ procedure TKMGUIGameBuild.UpdateState;
 var
   I: Integer;
 begin
-  for I := 1 to GUI_HOUSE_COUNT do
+  for I := 1 to GUI_HOUSE_COUNT  do 
   if GUIHouseOrder[I] <> htNone then
   if gMySpectator.Hand.Locks.HouseCanBuild(GUIHouseOrder[I]) then
   begin

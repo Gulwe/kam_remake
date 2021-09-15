@@ -15,7 +15,7 @@ type
     Panel_Units: TKMPanel;
       Button_UnitCancel: TKMButtonFlat;
       Button_Citizen: array [0..13] of TKMButtonFlat;
-      Button_Warriors: array [0..13] of TKMButtonFlat;
+      Button_Warriors: array [0..15] of TKMButtonFlat;
       Button_Animals: array [0..7] of TKMButtonFlat;
   public
     constructor Create(aParent: TKMPanel);
@@ -73,8 +73,9 @@ begin
     Button_Warriors[I].OnClick := Town_UnitChange;
   end;
 
-  LineY := 262;
-
+  //LineY := 262;
+   LineY := 300;
+   
   for I := 0 to High(Button_Animals) do
   begin
     Button_Animals[I] := TKMButtonFlat.Create(Panel_Units, 9 + (I mod 5)*37,LineY+(I div 5)*37,33,33, Animal_Icon[I], rxGui);
