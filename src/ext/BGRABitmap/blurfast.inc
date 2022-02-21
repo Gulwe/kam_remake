@@ -1,138 +1,233 @@
+// SPDX-License-Identifier: LGPL-3.0-linking-exception
 
 var
-  blurRow: array of cardinal;
+  blurRowY,blurRowX: packed array of UInt32or64;
+  iRadiusX,iRadiusY: Int32or64;
+  weightFactor: UInt32or64;
 
   { Compute weights of pixels in a row }
   procedure ComputeBlurRow;
   var
-    i: Integer;
+    i: Int32or64;
+    ofs: single;
   begin
-    SetLength(blurRow, 2*radius+1);
-    for i := 0 to radius do
+    SetLength(blurRowX, 2*iRadiusX+1);
+    if frac(radiusX)=0 then ofs := 1 else ofs := frac(radiusX);
+    for i := 0 to iRadiusX do
     begin
-      blurRow[i] := i+1;
-      blurRow[high(blurRow)-i] := blurRow[i];
+      blurRowX[i] := round((i+ofs)*weightFactor);
+      blurRowX[high(blurRowX)-i] := blurRowX[i];
+    end;
+    SetLength(blurRowY, 2*iRadiusY+1);
+    if frac(radiusY)=0 then ofs := 1 else ofs := frac(radiusY);
+    for i := 0 to iRadiusY do
+    begin
+      blurRowY[i] := round((i+ofs)*weightFactor);
+      blurRowY[high(blurRowY)-i] := blurRowY[i];
     end;
   end;
 
 
 var
-  srcDelta,
-  weightShift: integer;
+  srcDelta,srcPixSize,
+  verticalWeightShift, horizontalWeightShift: Int32or64;
+  ys1,ys2: Int32or64;
 
   { Compute blur result in a vertical direction }
-  procedure ComputeVerticalRow(psrc: PBGRAPixel; var sums: TRowSum; ys1,ys2: integer); inline;
-  var ys: integer;
-      c: TBGRAPixel;
-      w,aw: cardinal;
+  procedure ComputeVerticalRow(psrc: PByte; var sums: TRowSum; pw: PNativeUInt; count: Int32or64);
   begin
-    for ys := ys1 to ys2 do
+    while count > 0 do
     with sums do
     begin
-      c := psrc^;
-      w := blurRow[ys]; //apply pixel weight
-      aw := c.alpha*w;
-      sumA += aw;
-      aDiv += w;
-
-      aw := aw shr weightShift;
-      {$hints off}
-      sumR += c.red*aw;
-      sumG += c.green*aw;
-      sumB += c.blue*aw;
-      rgbDiv += aw;
-      {$hints on}
+      dec(count);
+      AccumulatePixel(psrc, pw^, sums, verticalWeightShift);
+      inc(pw);
       inc(psrc,srcDelta);
     end;
   end;
 
 var
-  sums: array of TRowSum;
-  sumStartIndex,curIndex: integer;
+  psum, psumEnd: PRowSum;
+  sums: packed array of TRowSum;
+  sumStartIndex: Int32or64;
   total: TRowSum;
-  yb,xb,xs,ys1,ys2,x: integer;
-  w: cardinal;
-  pdest: PBGRAPixel;
-  bmpWidth,bmpHeight : integer;
-  radiusSquare: integer;
+  extendedTotal: TExtendedRowSum;
+  yb,xb,xs,x,xEnd: Int32or64;
+  pw: PNativeUInt;
+  psrc, pdest: PByte;
+  bmpWidth,bmpHeight : Int32or64;
+  accumulationFactor: double;
+  bounds: TRect;
+  highSum: Int32or64;
+  tempDest: TCustomUniversalBitmap;
+  destPixSize: Integer;
 
 begin
+  radiusX := round(radiusX*10)*0.1;
+  radiusY := round(radiusY*10)*0.1;
+  if (radiusX <= 0) and (radiusY <= 0) then
+  begin
+    ADestination.PutImage(0,0,bmp,dmSet);
+    exit;
+  end;
+  iRadiusX := ceil(radiusX);
+  iRadiusY := ceil(radiusY);
+  if (frac(radiusX)=0) and (frac(radiusY)=0) then
+    weightFactor:= 1
+  else
+    weightFactor:= 10;
   bmpWidth := bmp.Width;
   bmpHeight := bmp.Height;
   //create output
-  result := bmp.NewBitmap(bmpWidth,bmpHeight);
-  radiusSquare := sqr((radius+1)*(radius+2) div 2);
-  weightShift := 0;
-  while radiusSquare > 16384 do //18496 do
+  if (ADestination.Width <> bmp.Width) or (ADestination.Height <> bmp.Height) then
+    raise exception.Create('Dimension mismatch');
+  bounds := bmp.GetImageBounds;
+  if bounds.IsEmpty then exit;
+  bounds.Left   := max(0, bounds.Left - iRadiusX);
+  bounds.Top    := max(0, bounds.Top - iRadiusY);
+  bounds.Right  := min(bmp.Width, bounds.Right + iRadiusX);
+  bounds.Bottom := min(bmp.Height, bounds.Bottom + iRadiusY);
+  bounds.Intersect(ABounds);
+  if bounds.IsEmpty then exit;
+
+  if radiusX*radiusY >= 100 then
   begin
-    radiusSquare := radiusSquare shr 1;
-    inc(weightShift);
+    tempDest := ADestination.NewBitmap;
+    tempDest.SetSize(ADestination.Width,ADestination.Height);
+    FilterBlurBox(bmp,bounds,radiusX/3.2,radiusY/3.2,tempDest);
+    FilterBlurBox(tempDest,bounds,radiusX/2.9,radiusY/2.9,ADestination);
+    FilterBlurBox(ADestination,bounds,radiusX/3.2,radiusY/3.2,tempDest);
+    FilterBlurBox(tempDest,bounds,radiusX/2.3,radiusY/2.3,ADestination, ACheckShouldStop);
+    tempDest.Free;
+    exit;
+  end;
+
+  accumulationFactor := (iRadiusY+2)*(iRadiusY+1) div 2 + (iRadiusY+1)*iRadiusY div 2;
+  accumulationFactor := accumulationFactor * sqr(weightFactor);
+  verticalWeightShift := 0;
+  while accumulationFactor > (high(TRegularRowValue) shr BitMargin) + 1 do
+  begin
+    inc(verticalWeightShift);
+    accumulationFactor := accumulationFactor * 0.5;
+  end;
+  horizontalWeightShift:= 0;
+  accumulationFactor := accumulationFactor *
+         ((iRadiusX+2)*(iRadiusX+1) div 2 + (iRadiusX+1)*iRadiusX div 2) *
+         sqr(weightFactor);
+  while accumulationFactor > (high(TRegularRowValue) shr BitMargin) + 1 do
+  begin
+    inc(horizontalWeightShift);
+    accumulationFactor := accumulationFactor * 0.5;
   end;
   ComputeBlurRow;
   //current vertical sums
-  setlength(sums, 2*radius+1);
+  setlength(sums, 2*iRadiusX+1);
+  highSum := high(Sums);
+  psumEnd := @sums[highSum];
+  inc(psumEnd);
   if bmp.LineOrder = riloTopToBottom then
-    srcDelta := bmpWidth else
-      srcDelta := -bmpWidth;
+    srcDelta := bmp.RowSize else srcDelta := -bmp.RowSize;
+  srcPixSize := bmp.Colorspace.GetSize;
+  destPixSize := ADestination.Colorspace.GetSize;
+  bmp.LoadFromBitmapIfNeeded;
+
+  xEnd := bounds.left-iRadiusX+highSum;
+  if xEnd >= bmpWidth then xEnd := bmpWidth-1;
   //loop through destination bitmap
-  for yb := 0 to bmpHeight-1 do
+  for yb := bounds.top to bounds.bottom-1 do
   begin
+    if (ACheckShouldStop <> nil) and ACheckShouldStop(yb) then break;
     //evalute available vertical range
-    if yb - radius < 0 then
-      ys1 := radius - yb
+    if yb - iRadiusY < 0 then
+      ys1 := iRadiusY - yb
     else
       ys1 := 0;
-    if yb + radius >= bmpHeight then
-      ys2 := bmpHeight - yb + radius - 1
+    if yb + iRadiusY >= bmpHeight then
+      ys2 := bmpHeight-1 - yb + iRadiusY
     else
-      ys2 := high(sums);
+      ys2 := 2*iRadiusY;
 
     { initial vertical rows are computed here. Later,
       for each pixel, vertical sums are shifted, so there
       is only one vertical sum to calculate }
-    for xs := 0 to high(sums) do
+    fillchar(sums[0],sizeof(TRowSum)*length(sums),0);
+    x := bounds.left-iRadiusX;
+    if x < 0 then
     begin
-      fillchar(sums[xs],sizeof(TRowSum),0);
-      x := xs-radius;
-      if (x >= 0) and (x < bmpWidth) then
-        ComputeVerticalRow(bmp.ScanLine[yb-radius+ys1]+x,sums[xs],ys1,ys2);
+      xs := -x;
+      x := 0;
+    end else
+      xs := 0;
+    psrc := bmp.GetPixelAddress(x, yb-iRadiusY+ys1);
+    psum := @sums[xs];
+    pw := @blurRowY[ys1];
+    while true do
+    begin
+      ComputeVerticalRow(psrc,psum^,pw,ys2-ys1+1);
+      inc(x);
+      inc(psrc, srcPixSize);
+      if x > xEnd then break;
+      inc(psum);
     end;
     sumStartIndex := 0;
 
-    pdest := result.scanline[yb];
-    for xb := 0 to bmpWidth-1 do
+    pdest := ADestination.GetPixelAddress(bounds.Left, yb);
+    for xb := bounds.left to bounds.right-1 do
     begin
       //add vertical rows
-      {$hints off}
-      fillchar(total,sizeof(total),0);
-      {$hints on}
-      curIndex:= sumStartIndex;
-      for xs := 0 to high(sums) do
-      with sums[curIndex] do
-      begin
-        w := blurRow[xs];
-        total.sumA += sumA*w;
-        total.aDiv += aDiv*w;
-        total.sumR += sumR*w;
-        total.sumG += sumG*w;
-        total.sumB += sumB*w;
-        total.rgbDiv += rgbDiv*w;
-        inc(curIndex);
-        if curIndex = length(sums) then curIndex := 0;
+      pw := @blurRowX[0];
+      psum := @sums[sumStartIndex];
+      if horizontalWeightShift > 4 then
+      begin //we don't want to loose too much precision
+        fillchar({%H-}extendedTotal,sizeof(extendedTotal),0);
+        for xs := highSum downto 0 do
+        begin
+          AccumulateExtended(extendedTotal, psum, pw^);
+          inc(pw);
+          inc(psum);
+          if psum >= psumEnd then pSum := @sums[0];
+        end;
+        ComputeExtendedAverage(extendedTotal, pdest);
+      end else
+      if horizontalWeightShift > 0 then
+      begin //lossy but efficient way
+        fillchar({%H-}total,sizeof(total),0);
+        for xs := highSum downto 0 do
+        begin
+          AccumulateShr(total, psum, pw^, horizontalWeightShift);
+          inc(pw);
+          inc(psum);
+          if psum >= psumEnd then pSum := @sums[0];
+        end;
+        ComputeClampedAverage(total, pdest);
+      end else
+      begin //normal way
+        {$hints off}
+        fillchar(total,sizeof(total),0);
+        {$hints on}
+        for xs := highSum downto 0 do
+        begin
+          AccumulateNormal(total, psum, pw^);
+          inc(pw);
+          inc(psum);
+          if psum >= psumEnd then pSum := @sums[0];
+        end;
+        ComputeAverage(total, pdest)
       end;
-      if (total.aDiv > 0) and (total.rgbDiv > 0) then
-        pdest^:= ComputeAverage(total)
-      else
-        pdest^:= BGRAPixelTransparent;
-      inc(pdest);
+      inc(pdest, destPixSize);
       //shift vertical rows
-      fillchar(sums[sumStartIndex],sizeof(TRowSum),0);
-      x := xb+1-radius+high(sums);
-      if (x >= 0) and (x < bmpWidth) then
-        ComputeVerticalRow(bmp.ScanLine[yb-radius+ys1]+x,sums[sumStartIndex],ys1,ys2);
+      psum := @sums[sumStartIndex];
+      fillchar(psum^,sizeof(TRowSum),0);
+      if x < bmpWidth then
+      begin
+        ComputeVerticalRow(psrc,psum^,@blurRowY[ys1],ys2-ys1+1);
+        inc(x);
+        inc(psrc, srcPixSize);
+      end;
       inc(sumStartIndex);
-      if sumStartIndex = length(sums) then sumStartIndex := 0;
+      if sumStartIndex > highSum then sumStartIndex := 0;
     end;
   end;
+  ADestination.InvalidateBitmap;
 end;
 

@@ -20,9 +20,9 @@ type
   private
     fLoc: TKMPoint;
     fIsDigged: Boolean;
-    BuildID: Integer;
-    DemandSet: Boolean;
-    TileLockSet: Boolean;
+    fBuildID: Integer;
+    fDemandSet: Boolean;
+    fTileLockSet: Boolean;
   public
     constructor Create(aWorker: TKMUnitWorker; const aLoc: TKMPoint; aID: Integer);
     constructor Load(LoadStream: TKMemoryStream); override;
@@ -37,9 +37,9 @@ type
   private
     fLoc: TKMPoint;
     fIsDigged: Boolean;
-    BuildID: Integer;
-    DemandSet: Boolean;
-    TileLockSet: Boolean;
+    fBuildID: Integer;
+    fDemandSet: Boolean;
+    fTileLockSet: Boolean;
   public
     constructor Create(aWorker: TKMUnitWorker; const aLoc: TKMPoint; aID: Integer);
     constructor Load(LoadStream: TKMemoryStream); override;
@@ -53,8 +53,8 @@ type
   TKMTaskBuildField = class(TKMTaskBuild)
   private
     fLoc: TKMPoint;
-    BuildID: Integer;
-    TileLockSet: Boolean;
+    fBuildID: Integer;
+    fTileLockSet: Boolean;
   public
     constructor Create(aWorker: TKMUnitWorker; const aLoc: TKMPoint; aID: Integer);
     constructor Load(LoadStream: TKMemoryStream); override;
@@ -70,16 +70,16 @@ type
     fHouse: TKMHouse;
     fHouseType: TKMHouseType;
     fHouseLoc: TKMPoint;
-    BuildID: Integer;
-    HouseNeedsWorker: Boolean;
-    HouseReadyToBuild: Boolean;
-    CellsToDig: array [0..15] of TKMPoint; //max house square is 4*4
-    LastToDig: ShortInt;
+    fBuildID: Integer;
+    fHouseNeedsWorker: Boolean;
+    fHouseReadyToBuild: Boolean;
+    fCellsToDig: array [0..15] of TKMPoint; //max house square is 4*4
+    fLastToDig: ShortInt;
     function GetHouseEntranceLoc: TKMPoint;
   public
     constructor Create(aWorker: TKMUnitWorker; aHouseType: TKMHouseType; const aLoc: TKMPoint; aID: Integer);
     constructor Load(LoadStream: TKMemoryStream); override;
-    property DigState: ShortInt read LastToDig;
+    property DigState: ShortInt read fLastToDig;
     procedure SyncLoad; override;
     destructor Destroy; override;
     property House: TKMHouse read fHouse;
@@ -93,9 +93,9 @@ type
   TKMTaskBuildHouse = class(TKMUnitTask)
   private
     fHouse: TKMHouse;
-    BuildID: Integer;
-    BuildFrom: TKMPointDir; //Current WIP location
-    Cells: TKMPointDirList; //List of surrounding cells and directions
+    fBuildID: Integer;
+    fBuildFrom: TKMPointDir; //Current WIP location
+    fCells: TKMPointDirList; //List of surrounding cells and directions
   public
     constructor Create(aWorker: TKMUnitWorker; aHouse: TKMHouse; aID: Integer);
     constructor Load(LoadStream: TKMemoryStream); override;
@@ -112,8 +112,8 @@ type
   private
     fHouse: TKMHouse;
     fRepairID: Integer; //Remember the house we repair to report if we died and let others take our place
-    BuildFrom: TKMPointDir; //Current WIP location
-    Cells: TKMPointDirList; //List of surrounding cells and directions
+    fBuildFrom: TKMPointDir; //Current WIP location
+    fCells: TKMPointDirList; //List of surrounding cells and directions
   public
     constructor Create(aWorker: TKMUnitWorker; aHouse: TKMHouse; aRepairID: Integer);
     constructor Load(LoadStream: TKMemoryStream); override;
@@ -142,47 +142,49 @@ end;
 
 
 { TKMTaskBuildRoad }
-constructor TKMTaskBuildRoad.Create(aWorker:TKMUnitWorker; const aLoc:TKMPoint; aID:integer);
+constructor TKMTaskBuildRoad.Create(aWorker: TKMUnitWorker; const aLoc: TKMPoint; aID: Integer);
 begin
   inherited Create(aWorker);
+
   fType := uttBuildRoad;
   fLoc      := aLoc;
-  BuildID   := aID;
-  DemandSet := False;
-  TileLockSet := False;
+  fBuildID   := aID;
+  fDemandSet := False;
+  fTileLockSet := False;
 end;
 
 
 constructor TKMTaskBuildRoad.Load(LoadStream: TKMemoryStream);
 begin
   inherited;
+
   LoadStream.CheckMarker('TaskBuildRoad');
   LoadStream.Read(fLoc);
-  LoadStream.Read(BuildID);
-  LoadStream.Read(DemandSet);
-  LoadStream.Read(TileLockSet);
+  LoadStream.Read(fBuildID);
+  LoadStream.Read(fDemandSet);
+  LoadStream.Read(fTileLockSet);
 end;
 
 
 destructor TKMTaskBuildRoad.Destroy;
 begin
-  if (fUnit <> nil) and DemandSet then
+  if (fUnit <> nil) and fDemandSet then
     gHands[fUnit.Owner].Deliveries.Queue.RemDemand(fUnit);
 
-  if TileLockSet then
+  if fTileLockSet then
     gTerrain.UnlockTile(fLoc);
 
   //Yet unstarted
   if (fUnit <> nil) then
   begin
-    if BuildID <> -1 then
+    if fBuildID <> -1 then
     begin
       if gTerrain.CanAddField(fLoc.X, fLoc.Y, ftRoad) then
         //Allow other workers to take this task
-        gHands[fUnit.Owner].Constructions.FieldworksList.ReOpenField(BuildID)
+        gHands[fUnit.Owner].Constructions.FieldworksList.ReOpenField(fBuildID)
       else
         //This plan is not valid anymore
-        gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(BuildID);
+        gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(fBuildID);
     end
     else
       //Autobuild AI should rebuild roads when worker dies (otherwise house is never built)
@@ -198,14 +200,14 @@ end;
 function TKMTaskBuildRoad.WalkShouldAbandon: Boolean;
 begin
   //Walk should abandon if other player has built something there before we arrived
-  Result := (BuildID <> -1) and not gTerrain.CanAddField(fLoc.X, fLoc.Y, ftRoad);
+  Result := (fBuildID <> -1) and not gTerrain.CanAddField(fLoc.X, fLoc.Y, ftRoad);
 end;
 
 
 procedure TKMTaskBuildRoad.CancelThePlan;
 begin
-  gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(BuildID); //Close the job now because it can no longer be cancelled
-  BuildID := -1;
+  gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(fBuildID); //Close the job now because it can no longer be cancelled
+  fBuildID := -1;
 end;
 
 
@@ -228,12 +230,12 @@ begin
     1: begin
          Thought := thNone;
          gTerrain.SetTileLock(fLoc, tlRoadWork);
-         TileLockSet := True;
+         fTileLockSet := True;
 
          CancelThePlan;
 
          gHands[Owner].Deliveries.Queue.AddDemand(nil, fUnit, wtStone, 1, dtOnce, diHigh4);
-         DemandSet := true;
+         fDemandSet := true;
 
          SetActionLockedStay(11,uaWork1,false);
        end;
@@ -258,7 +260,7 @@ begin
        end;
     5: begin
          SetActionLockedStay(11,uaWork2,false);
-         DemandSet := false;
+         fDemandSet := false;
          Thought := thNone;
        end;
     6: begin
@@ -268,7 +270,7 @@ begin
     7: begin
          gTerrain.IncDigState(fLoc);
          gTerrain.FlattenTerrain(fLoc); //Flatten the terrain slightly on and around the road
-         if gMapElements[gTerrain.Land[fLoc.Y,fLoc.X].Obj].WineOrCorn then
+         if gMapElements[gTerrain.Land^[fLoc.Y,fLoc.X].Obj].WineOrCorn then
            gTerrain.RemoveObject(fLoc); //Remove corn/wine/grass as they won't fit with road
          SetActionLockedStay(11,uaWork2,false);
        end;
@@ -277,7 +279,7 @@ begin
          gTerrain.RemoveObjectsKilledByRoad(fLoc);
          SetActionStay(5, uaWalk);
          gTerrain.UnlockTile(fLoc);
-         TileLockSet := False;
+         fTileLockSet := False;
        end;
     else Result := trTaskDone;
   end;
@@ -290,9 +292,9 @@ begin
   inherited;
   SaveStream.PlaceMarker('TaskBuildRoad');
   SaveStream.Write(fLoc);
-  SaveStream.Write(BuildID);
-  SaveStream.Write(DemandSet);
-  SaveStream.Write(TileLockSet);
+  SaveStream.Write(fBuildID);
+  SaveStream.Write(fDemandSet);
+  SaveStream.Write(fTileLockSet);
 end;
 
 
@@ -302,11 +304,10 @@ begin
   inherited Create(aWorker);
   fType := uttBuildWine;
   fLoc      := aLoc;
-  BuildID   := aID;
-  DemandSet := False;
-  TileLockSet := False;
+  fBuildID   := aID;
+  fDemandSet := False;
+  fTileLockSet := False;
 end;
-
 
 
 constructor TKMTaskBuildWine.Load(LoadStream: TKMemoryStream);
@@ -314,27 +315,27 @@ begin
   inherited;
   LoadStream.PlaceMarker('TaskBuildWine');
   LoadStream.Read(fLoc);
-  LoadStream.Read(BuildID);
-  LoadStream.Read(DemandSet);
-  LoadStream.Read(TileLockSet);
+  LoadStream.Read(fBuildID);
+  LoadStream.Read(fDemandSet);
+  LoadStream.Read(fTileLockSet);
 end;
 
 
 destructor TKMTaskBuildWine.Destroy;
 begin
   //Yet unstarted
-  if BuildID <> -1 then
+  if fBuildID <> -1 then
     if gTerrain.CanAddField(fLoc.X, fLoc.Y, ftWine) then
       //Allow other workers to take this task
-      gHands[fUnit.Owner].Constructions.FieldworksList.ReOpenField(BuildID)
+      gHands[fUnit.Owner].Constructions.FieldworksList.ReOpenField(fBuildID)
     else
       //This plan is not valid anymore
-      gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(BuildID);
+      gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(fBuildID);
 
-  if DemandSet then
+  if fDemandSet then
     gHands[fUnit.Owner].Deliveries.Queue.RemDemand(fUnit);
 
-  if TileLockSet then
+  if fTileLockSet then
     gTerrain.UnlockTile(fLoc);
   inherited;
 end;
@@ -343,14 +344,14 @@ end;
 function TKMTaskBuildWine.WalkShouldAbandon: Boolean;
 begin
   //Walk should abandon if other player has built something there before we arrived
-  Result := (BuildID <> -1) and not gTerrain.CanAddField(fLoc.X, fLoc.Y, ftWine);
+  Result := (fBuildID <> -1) and not gTerrain.CanAddField(fLoc.X, fLoc.Y, ftWine);
 end;
 
 
 procedure TKMTaskBuildWine.CancelThePlan;
 begin
-  gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(BuildID); //Close the job now because it can no longer be cancelled
-  BuildID := -1;
+  gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(fBuildID); //Close the job now because it can no longer be cancelled
+  fBuildID := -1;
 end;
 
 
@@ -373,14 +374,14 @@ begin
    1: begin
         Thought := thNone;
         gTerrain.SetTileLock(fLoc, tlFieldWork);
-        TileLockSet := True;
+        fTileLockSet := True;
 
         CancelThePlan;
 
         gTerrain.ResetDigState(fLoc); //Remove any dig over that might have been there (e.g. destroyed house)
 
         gHands[Owner].Deliveries.Queue.AddDemand(nil,fUnit,wtWood, 1, dtOnce, diHigh4);
-        DemandSet := true;
+        fDemandSet := true;
 
         SetActionLockedStay(12*4,uaWork1,false);
       end;
@@ -409,7 +410,7 @@ begin
         Thought := thWood;
       end;
    6: begin
-        DemandSet := false;
+        fDemandSet := false;
         SetActionLockedStay(11*8, uaWork2, False);
         Thought := thNone;
       end;
@@ -417,7 +418,7 @@ begin
         gTerrain.SetField(fLoc, Owner, ftWine);
         SetActionStay(5, uaWalk);
         gTerrain.UnlockTile(fLoc);
-        TileLockSet := False;
+        fTileLockSet := False;
       end;
    else Result := trTaskDone;
   end;
@@ -430,45 +431,47 @@ begin
   inherited;
   SaveStream.PlaceMarker('TaskBuildWine');
   SaveStream.Write(fLoc);
-  SaveStream.Write(BuildID);
-  SaveStream.Write(DemandSet);
-  SaveStream.Write(TileLockSet);
+  SaveStream.Write(fBuildID);
+  SaveStream.Write(fDemandSet);
+  SaveStream.Write(fTileLockSet);
 end;
 
 
 { TTaskBuildField }
-constructor TKMTaskBuildField.Create(aWorker:TKMUnitWorker; const aLoc:TKMPoint; aID: Integer);
+constructor TKMTaskBuildField.Create(aWorker: TKMUnitWorker; const aLoc: TKMPoint; aID: Integer);
 begin
   inherited Create(aWorker);
+
   fType := uttBuildField;
   fLoc      := aLoc;
-  BuildID   := aID;
-  TileLockSet := False;
+  fBuildID   := aID;
+  fTileLockSet := False;
 end;
 
 
 constructor TKMTaskBuildField.Load(LoadStream: TKMemoryStream);
 begin
   inherited;
+
   LoadStream.CheckMarker('TaskBuildField');
   LoadStream.Read(fLoc);
-  LoadStream.Read(BuildID);
-  LoadStream.Read(TileLockSet);
+  LoadStream.Read(fBuildID);
+  LoadStream.Read(fTileLockSet);
 end;
 
 
 destructor TKMTaskBuildField.Destroy;
 begin
   //Yet unstarted
-  if BuildID <> -1 then
+  if fBuildID <> -1 then
     if gTerrain.CanAddField(fLoc.X, fLoc.Y, ftCorn) then
       //Allow other workers to take this task
-      gHands[fUnit.Owner].Constructions.FieldworksList.ReOpenField(BuildID)
+      gHands[fUnit.Owner].Constructions.FieldworksList.ReOpenField(fBuildID)
     else
       //This plan is not valid anymore
-      gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(BuildID);
+      gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(fBuildID);
 
-  if TileLockSet then gTerrain.UnlockTile(fLoc);
+  if fTileLockSet then gTerrain.UnlockTile(fLoc);
   inherited;
 end;
 
@@ -476,14 +479,14 @@ end;
 function TKMTaskBuildField.WalkShouldAbandon: Boolean;
 begin
   //Walk should abandon if other player has built something there before we arrived
-  Result := (BuildID <> -1) and not gTerrain.CanAddField(fLoc.X, fLoc.Y, ftCorn);
+  Result := (fBuildID <> -1) and not gTerrain.CanAddField(fLoc.X, fLoc.Y, ftCorn);
 end;
 
 
 procedure TKMTaskBuildField.CancelThePlan;
 begin
-  gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(BuildID); //Close the job now because it can no longer be cancelled
-  BuildID := -1;
+  gHands[fUnit.Owner].Constructions.FieldworksList.CloseField(fBuildID); //Close the job now because it can no longer be cancelled
+  fBuildID := -1;
 end;
 
 
@@ -505,7 +508,7 @@ begin
        end;
     1: begin
         gTerrain.SetTileLock(fLoc, tlFieldWork);
-        TileLockSet := True;
+        fTileLockSet := True;
         CancelThePlan;
         SetActionLockedStay(0,uaWalk);
        end;
@@ -513,7 +516,7 @@ begin
         SetActionLockedStay(11,uaWork1,false);
         inc(fPhase2);
         if fPhase2 = 2 then gTerrain.ResetDigState(fLoc); //Remove any dig over that might have been there (e.g. destroyed house)
-        if (fPhase2 = 6) and gMapElements[gTerrain.Land[fLoc.Y,fLoc.X].Obj].WineOrCorn then
+        if (fPhase2 = 6) and gMapElements[gTerrain.Land^[fLoc.Y,fLoc.X].Obj].WineOrCorn then
           gTerrain.RemoveObject(fLoc); //Remove grass/corn/wine as they take up most of the tile
         if fPhase2 in [6,8] then gTerrain.IncDigState(fLoc);
        end;
@@ -522,7 +525,7 @@ begin
         gTerrain.SetField(fLoc, Owner, ftCorn);
         SetActionStay(5,uaWalk);
         gTerrain.UnlockTile(fLoc);
-        TileLockSet := False;
+        fTileLockSet := False;
        end;
     else Result := trTaskDone;
   end;
@@ -535,8 +538,8 @@ begin
   inherited;
   SaveStream.PlaceMarker('TaskBuildField');
   SaveStream.Write(fLoc);
-  SaveStream.Write(BuildID);
-  SaveStream.Write(TileLockSet);
+  SaveStream.Write(fBuildID);
+  SaveStream.Write(fTileLockSet);
 end;
 
 
@@ -550,19 +553,19 @@ begin
   fType  := uttBuildHouseArea;
   fHouseType := aHouseType;
   fHouseLoc  := aLoc;
-  BuildID    := aID;
-  HouseNeedsWorker  := False; //House needs this worker to complete
-  HouseReadyToBuild := False; //House is ready to be built
+  fBuildID    := aID;
+  fHouseNeedsWorker  := False; //House needs this worker to complete
+  fHouseReadyToBuild := False; //House is ready to be built
 
-  HA := gRes.Houses[fHouseType].BuildArea;
+  HA := gResHouses[fHouseType].BuildArea;
 
   //Fill Cells left->right, top->bottom. Worker will start flattening from the end (reversed)
-  LastToDig := -1;
+  fLastToDig := -1;
   for I := 1 to 4 do for K := 1 to 4 do
   if HA[I,K] <> 0 then
   begin
-    Inc(LastToDig);
-    CellsToDig[LastToDig] := KMPoint(fHouseLoc.X + K - 3, fHouseLoc.Y + I - 4);
+    Inc(fLastToDig);
+    fCellsToDig[fLastToDig] := KMPoint(fHouseLoc.X + K - 3, fHouseLoc.Y + I - 4);
   end;
 end;
 
@@ -575,11 +578,11 @@ begin
   LoadStream.Read(fHouse, 4);
   LoadStream.Read(fHouseType, SizeOf(fHouseType));
   LoadStream.Read(fHouseLoc);
-  LoadStream.Read(BuildID);
-  LoadStream.Read(HouseNeedsWorker);
-  LoadStream.Read(HouseReadyToBuild);
-  LoadStream.Read(LastToDig);
-  LoadStream.Read(CellsToDig, SizeOf(CellsToDig));
+  LoadStream.Read(fBuildID);
+  LoadStream.Read(fHouseNeedsWorker);
+  LoadStream.Read(fHouseReadyToBuild);
+  LoadStream.Read(fLastToDig);
+  LoadStream.Read(fCellsToDig, SizeOf(fCellsToDig));
 end;
 
 
@@ -598,29 +601,30 @@ begin
 	  Exit;
 
   //Yet unstarted
-  if (BuildID <> -1) then
+  if (fBuildID <> -1) then
     if gTerrain.CanPlaceHouse(GetHouseEntranceLoc,fHouseType) then
       //Allow other workers to take this task
-      gHands[fUnit.Owner].Constructions.HousePlanList.ReOpenPlan(BuildID)
+      gHands[fUnit.Owner].Constructions.HousePlanList.ReOpenPlan(fBuildID)
     else
     begin
       //This plan is not valid anymore
-      gHands[fUnit.Owner].Constructions.HousePlanList.ClosePlan(BuildID);
+      gHands[fUnit.Owner].Constructions.HousePlanList.ClosePlan(fBuildID);
       gHands[fUnit.Owner].Stats.HousePlanRemoved(fHouseType);
     end;
 
   //Destroy the house if worker was killed (e.g. by archer or hunger)
   //as we don't have mechanics to resume the building process yet
-  if HouseNeedsWorker and (fHouse <> nil) and not fHouse.IsDestroyed then
-    fHouse.DemolishHouse(fUnit.Owner);
+  if fHouseNeedsWorker and (fHouse <> nil) and not fHouse.IsDestroyed then
+    //Use handID of unit killer, since he indirecty caused house demolishing
+    fHouse.DemolishHouse(fUnit.KilledBy);
 
   //Complete the task in the end (Worker could have died while trying to exit building area)
-  if HouseReadyToBuild and not HouseNeedsWorker and (fHouse <> nil) and not fHouse.IsDestroyed then
+  if fHouseReadyToBuild and not fHouseNeedsWorker and (fHouse <> nil) and not fHouse.IsDestroyed then
   begin
     fHouse.BuildingState := hbsWood;
     gHands[fUnit.Owner].Constructions.HouseList.AddHouse(fHouse); //Add the house to JobList, so then all workers could take it
-    gHands[fUnit.Owner].Deliveries.Queue.AddDemand(fHouse, nil, wtWood, gRes.Houses[fHouse.HouseType].WoodCost, dtOnce, diHigh4);
-    gHands[fUnit.Owner].Deliveries.Queue.AddDemand(fHouse, nil, wtStone, gRes.Houses[fHouse.HouseType].StoneCost, dtOnce, diHigh4);
+    gHands[fUnit.Owner].Deliveries.Queue.AddDemand(fHouse, nil, wtWood, gResHouses[fHouse.HouseType].WoodCost, dtOnce, diHigh4);
+    gHands[fUnit.Owner].Deliveries.Queue.AddDemand(fHouse, nil, wtStone, gResHouses[fHouse.HouseType].StoneCost, dtOnce, diHigh4);
   end;
 
   gHands.CleanUpHousePointer(fHouse);
@@ -631,13 +635,13 @@ end;
 function TKMTaskBuildHouseArea.WalkShouldAbandon: Boolean;
 begin
   //Walk should abandon if other player has built something there before we arrived
-  Result := (BuildID <> -1) and not gTerrain.CanPlaceHouse(GetHouseEntranceLoc, fHouseType);
+  Result := (fBuildID <> -1) and not gTerrain.CanPlaceHouse(GetHouseEntranceLoc, fHouseType);
 end;
 
 
 function TKMTaskBuildHouseArea.GetHouseEntranceLoc: TKMPoint;
 begin
-  Result.X := fHouseLoc.X + gRes.Houses[fHouseType].EntranceOffsetX;
+  Result.X := fHouseLoc.X + gResHouses[fHouseType].EntranceOffsetX;
   Result.Y := fHouseLoc.Y;
 end;
 
@@ -654,10 +658,10 @@ procedure TKMTaskBuildHouseArea.CancelThePlan;
 begin
   //House plan could be canceled during initial walk or while walking within the house area so
   //ignore it if it's already been canceled (occurs when trying to walk within range of an enemy tower during flattening)
-  if BuildID = -1 then Exit;
-  gHands[fUnit.Owner].Constructions.HousePlanList.ClosePlan(BuildID);
+  if fBuildID = -1 then Exit;
+  gHands[fUnit.Owner].Constructions.HousePlanList.ClosePlan(fBuildID);
   gHands[fUnit.Owner].Stats.HousePlanRemoved(fHouseType);
-  BuildID := -1;
+  fBuildID := -1;
 end;
 
 
@@ -694,13 +698,13 @@ begin
           Assert(fHouse <> nil, 'Failed to add wip house');
           fHouse := fHouse.GetPointer; //We need to register a pointer to the house
 
-          HouseNeedsWorker := True; //The house placed on the map, if something happens with Worker the house will be removed
+          fHouseNeedsWorker := True; //The house placed on the map, if something happens with Worker the house will be removed
           SetActionLockedStay(2, uaWalk);
           Thought := thNone;
         end;
     2:  //The house can become too steep after we flatten one part of it
-        if CanWalkTo(CellsToDig[LastToDig], 0) then
-          SetActionWalkToSpot(CellsToDig[LastToDig])
+        if CanWalkTo(fCellsToDig[fLastToDig], 0) then
+          SetActionWalkToSpot(fCellsToDig[fLastToDig])
         else
         begin
           Result := trTaskDone;
@@ -712,21 +716,21 @@ begin
         end;
     4:  begin
           SetActionLockedStay(11,uaWork1,false);
-          gTerrain.FlattenTerrain(CellsToDig[LastToDig]);
+          gTerrain.FlattenTerrain(fCellsToDig[fLastToDig]);
         end;
     5:  begin
           SetActionLockedStay(11,uaWork1,false);
-          gTerrain.FlattenTerrain(CellsToDig[LastToDig]);
+          gTerrain.FlattenTerrain(fCellsToDig[fLastToDig]);
         end;
     6:  begin
           SetActionLockedStay(11,uaWork1,false);
-          gTerrain.FlattenTerrain(CellsToDig[LastToDig]);
-          gTerrain.FlattenTerrain(CellsToDig[LastToDig]); //Flatten the terrain twice now to ensure it really is flat
-          gTerrain.SetTileLock(CellsToDig[LastToDig], tlDigged); //Block passability on tile
-          if KMSamePoint(fHouse.Entrance, CellsToDig[LastToDig]) then
+          gTerrain.FlattenTerrain(fCellsToDig[fLastToDig]);
+          gTerrain.FlattenTerrain(fCellsToDig[fLastToDig]); //Flatten the terrain twice now to ensure it really is flat
+          gTerrain.SetTileLock(fCellsToDig[fLastToDig], tlDigged); //Block passability on tile
+          if KMSamePoint(fHouse.Entrance, fCellsToDig[fLastToDig]) then
             gTerrain.SetRoad(fHouse.Entrance, Owner);
-          gTerrain.RemoveObject(CellsToDig[LastToDig]); //All objects are removed
-          Dec(LastToDig);
+          gTerrain.RemoveObject(fCellsToDig[fLastToDig]); //All objects are removed
+          Dec(fLastToDig);
         end;
     7:  begin
           //Walk away from building site, before we get trapped when house becomes stoned
@@ -735,9 +739,9 @@ begin
           if KMSamePoint(OutOfWay, KMPOINT_ZERO) or KMSamePoint(OutOfWay, Position) then
             OutOfWay := fHouse.PointBelowEntrance; //Don't get stuck in corners
           SetActionWalkToSpot(OutOfWay);
-          HouseNeedsWorker := False; //House construction no longer needs the worker to continue
-          HouseReadyToBuild := True; //If worker gets killed while walking house will be finished without him
-          gScriptEvents.ProcHousePlanDigged(fHouse.UID);
+          fHouseNeedsWorker := False; //House construction no longer needs the worker to continue
+          fHouseReadyToBuild := True; //If worker gets killed while walking house will be finished without him
+          gScriptEvents.ProcHousePlanDigged(fHouse);
         end;
     else
         Result := trTaskDone;
@@ -745,7 +749,7 @@ begin
 
   Inc(fPhase);
 
-  if (fPhase = 7) and (LastToDig >= 0) then
+  if (fPhase = 7) and (fLastToDig >= 0) then
     fPhase := 2; //Repeat with next cell
 end;
 
@@ -757,11 +761,11 @@ begin
   SaveStream.Write(fHouse.UID); //Store ID, then substitute it with reference on SyncLoad
   SaveStream.Write(fHouseType, SizeOf(fHouseType));
   SaveStream.Write(fHouseLoc);
-  SaveStream.Write(BuildID);
-  SaveStream.Write(HouseNeedsWorker);
-  SaveStream.Write(HouseReadyToBuild);
-  SaveStream.Write(LastToDig);
-  SaveStream.Write(CellsToDig, SizeOf(CellsToDig));
+  SaveStream.Write(fBuildID);
+  SaveStream.Write(fHouseNeedsWorker);
+  SaveStream.Write(fHouseReadyToBuild);
+  SaveStream.Write(fLastToDig);
+  SaveStream.Write(fCellsToDig, SizeOf(fCellsToDig));
 end;
 
 
@@ -771,10 +775,10 @@ begin
   inherited Create(aWorker);
   fType := uttBuildHouse;
   fHouse    := aHouse.GetPointer;
-  BuildID   := aID;
+  fBuildID   := aID;
 
-  Cells := TKMPointDirList.Create;
-  fHouse.GetListOfCellsAround(Cells, aWorker.DesiredPassability);
+  fCells := TKMPointDirList.Create;
+  fHouse.GetListOfCellsAround(fCells, aWorker.DesiredPassability);
 end;
 
 
@@ -783,10 +787,10 @@ begin
   inherited;
   LoadStream.CheckMarker('TaskBuildHouse');
   LoadStream.Read(fHouse, 4);
-  LoadStream.Read(BuildID);
-  LoadStream.Read(BuildFrom);
-  Cells := TKMPointDirList.Create;
-  Cells.LoadFromStream(LoadStream);
+  LoadStream.Read(fBuildID);
+  LoadStream.Read(fBuildFrom);
+  fCells := TKMPointDirList.Create;
+  fCells.LoadFromStream(LoadStream);
 end;
 
 
@@ -800,21 +804,21 @@ end;
 destructor TKMTaskBuildHouse.Destroy;
 begin
   //We are no longer connected to the House (it's either done or we died)
-  gHands[fUnit.Owner].Constructions.HouseList.RemWorker(BuildID);
+  gHands[fUnit.Owner].Constructions.HouseList.RemWorker(fBuildID);
   gHands.CleanUpHousePointer(fHouse);
-  FreeAndNil(Cells);
+  FreeAndNil(fCells);
   inherited;
 end;
 
 
-{ If we are walking to the house but the house is destroyed/canceled we should abandon immediately
-  If house has not enough resource to be built, consider building task is done and look for a new
-  task that has enough resouces. Once this house has building resources delivered it will be
-  available from build queue again
-  If house is already built by other workers}
+// If we are walking to the house but the house is destroyed/canceled we should abandon immediately
+// If house has not enough resource to be built, consider building task is done and look for a new
+// task that has enough resouces. Once this house has building resources delivered it will be
+// available from build queue again
+// If house is already built by other workers
 function TKMTaskBuildHouse.WalkShouldAbandon: Boolean;
 begin
-  Result := fHouse.IsDestroyed or (not fHouse.CheckResToBuild) or fHouse.IsComplete;
+  Result := fHouse.IsDestroyed or not fHouse.CheckResToBuild or fHouse.IsComplete;
 end;
 
 
@@ -839,26 +843,26 @@ begin
 
   with TKMUnitWorker(fUnit) do
   case fPhase of
-    0:  if PickRandomSpot(Cells, BuildFrom) then
+    0:  if PickRandomSpot(fCells, fBuildFrom) then
         begin
           Thought := thBuild;
-          SetActionWalkToSpot(BuildFrom.Loc);
+          SetActionWalkToSpot(fBuildFrom.Loc);
         end
         else
           Result := trTaskDone;
     //WARNING!!! THIS PHASE VALUE IS USED IN TKMTaskDelivery to construction !!!
     1:  begin
           //Face the building
-          Direction := BuildFrom.Dir;
+          Direction := fBuildFrom.Dir;
           SetActionLockedStay(0, uaWalk);
         end;
     2:  begin
           //Start animation
           SetActionLockedStay(5, uaWork, False);
-          Direction := BuildFrom.Dir;
+          Direction := fBuildFrom.Dir;
           //Remove house plan when we start the stone phase (it is still required for wood)
           //But don't do it every time we hit if it's already done!
-          if fHouse.IsStone and (gTerrain.Land[fHouse.Position.Y, fHouse.Position.X].TileLock <> tlHouse) then
+          if fHouse.IsStone and (gTerrain.Land^[fHouse.Position.Y, fHouse.Position.X].TileLock <> tlHouse) then
             gTerrain.SetHouse(fHouse.Position, fHouse.HouseType, hsBuilt, Owner);
         end;
     3:  begin
@@ -890,9 +894,9 @@ begin
   inherited;
   SaveStream.PlaceMarker('TaskBuildHouse');
   SaveStream.Write(fHouse.UID); //Store ID, then substitute it with reference on SyncLoad
-  SaveStream.Write(BuildID);
-  SaveStream.Write(BuildFrom);
-  Cells.SaveToStream(SaveStream);
+  SaveStream.Write(fBuildID);
+  SaveStream.Write(fBuildFrom);
+  fCells.SaveToStream(SaveStream);
 end;
 
 
@@ -904,8 +908,8 @@ begin
   fHouse    := aHouse.GetPointer;
   fRepairID := aRepairID;
 
-  Cells := TKMPointDirList.Create;
-  fHouse.GetListOfCellsAround(Cells, aWorker.DesiredPassability);
+  fCells := TKMPointDirList.Create;
+  fHouse.GetListOfCellsAround(fCells, aWorker.DesiredPassability);
 end;
 
 
@@ -915,9 +919,9 @@ begin
   LoadStream.CheckMarker('TaskBuildHouseRepair');
   LoadStream.Read(fHouse, 4);
   LoadStream.Read(fRepairID);
-  LoadStream.Read(BuildFrom);
-  Cells := TKMPointDirList.Create;
-  Cells.LoadFromStream(LoadStream);
+  LoadStream.Read(fBuildFrom);
+  fCells := TKMPointDirList.Create;
+  fCells.LoadFromStream(LoadStream);
 end;
 
 
@@ -932,7 +936,7 @@ destructor TKMTaskBuildHouseRepair.Destroy;
 begin
   gHands[fUnit.Owner].Constructions.RepairList.RemWorker(fRepairID);
   gHands.CleanUpHousePointer(fHouse);
-  FreeAndNil(Cells);
+  FreeAndNil(fCells);
   inherited;
 end;
 
@@ -965,20 +969,20 @@ begin
 
   with TKMUnitWorker(fUnit) do
     case fPhase of
-      0:  if PickRandomSpot(Cells, BuildFrom) then
+      0:  if PickRandomSpot(fCells, fBuildFrom) then
           begin
             Thought := thBuild;
-            SetActionWalkToSpot(BuildFrom.Loc);
+            SetActionWalkToSpot(fBuildFrom.Loc);
           end
           else
             Result := trTaskDone;
       1:  begin
-            Direction := BuildFrom.Dir;
+            Direction := fBuildFrom.Dir;
             SetActionLockedStay(0, uaWalk);
           end;
       2:  begin
             SetActionLockedStay(5, uaWork, false, 0, 0); //Start animation
-            Direction := BuildFrom.Dir;
+            Direction := fBuildFrom.Dir;
           end;
       3:  begin
             fHouse.AddRepair;
@@ -1008,8 +1012,8 @@ begin
   SaveStream.PlaceMarker('TaskBuildHouseRepair');
   SaveStream.Write(fHouse.UID); //Store ID, then substitute it with reference on SyncLoad
   SaveStream.Write(fRepairID);
-  SaveStream.Write(BuildFrom);
-  Cells.SaveToStream(SaveStream);
+  SaveStream.Write(fBuildFrom);
+  fCells.SaveToStream(SaveStream);
 end;
 
 

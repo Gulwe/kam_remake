@@ -34,6 +34,7 @@ constructor TKMUnitActionStay.Create(aUnit: TKMUnit; aTimeToStay: Integer; aActi
                                      aStillFrame: Byte; aLocked: Boolean);
 begin
   inherited Create(aUnit, aActionType, aLocked);
+
   StayStill   := aStayStill;
   TimeToStay  := aTimeToStay;
   StillFrame  := aStillFrame;
@@ -43,6 +44,7 @@ end;
 constructor TKMUnitActionStay.Load(LoadStream: TKMemoryStream);
 begin
   inherited;
+
   LoadStream.CheckMarker('UnitActionStay');
   LoadStream.Read(StayStill);
   LoadStream.Read(TimeToStay);
@@ -92,16 +94,16 @@ end;
 
 function TKMUnitActionStay.Execute: TKMActionResult;
 var
-  Cycle, Step: Byte;
+  cycle, step: Byte;
 begin
   if not StayStill then
   begin
-    Cycle := Max(gRes.Units[fUnit.UnitType].UnitAnim[ActionType, fUnit.Direction].Count, 1);
-    Step  := fUnit.AnimStep mod Cycle;
+    cycle := Max(gRes.Units[fUnit.UnitType].UnitAnim[ActionType, fUnit.Direction].Count, 1);
+    step  := fUnit.AnimStep mod cycle;
 
-    StepDone := fUnit.AnimStep mod Cycle = 0;
+    StepDone := fUnit.AnimStep mod cycle = 0;
 
-    if TimeToStay >= 1 then MakeSound(Cycle, Step);
+    if TimeToStay >= 1 then MakeSound(cycle, step);
 
     Inc(fUnit.AnimStep);
   end
@@ -122,6 +124,7 @@ end;
 procedure TKMUnitActionStay.Save(SaveStream: TKMemoryStream);
 begin
   inherited;
+
   SaveStream.PlaceMarker('UnitActionStay');
   SaveStream.Write(StayStill);
   SaveStream.Write(TimeToStay);

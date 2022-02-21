@@ -102,7 +102,7 @@ begin
       fHighEnemiesIdx := fHighEnemiesIdx - 1;
       fHighStatsIdx := fHighStatsIdx + 1;
       if not CanBeExpanded(aIdx) then
-        break;
+        Break;
     end;
 end;
 
@@ -111,7 +111,7 @@ function TNavMeshInfluenceSearch.FindClosestEnemies(const aOwner: TKMHandID; var
   // Check if player is active in the meaning of threat for new AI
   function PlayerActive(aPL: TKMHandID): Boolean;
   const
-    TARGET_HOUSES: THouseTypeSet = [htBarracks, htStore, htSchool, htTownhall];
+    TARGET_HOUSES: TKMHouseTypeSet = [htBarracks, htStore, htSchool, htTownhall];
   var
     HT: TKMHouseType;
   begin

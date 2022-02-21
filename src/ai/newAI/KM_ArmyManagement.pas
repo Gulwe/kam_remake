@@ -67,6 +67,8 @@ uses
   KM_HouseBarracks,
   KM_CommonUtils,
   KM_DevPerfLog, KM_DevPerfLogTypes,
+  KM_AITypes,
+  KM_MapTypes,
   KM_ResTypes;
 
 
@@ -207,7 +209,7 @@ begin
 
   // Take required warriors from CityManagement (-> implemented consideration of required units + save time)
   FillChar(GroupReq, SizeOf(GroupReq), #0); //Clear up
-  for GT := Low(TKMGroupType) to High(TKMGroupType) do
+  for GT := GROUP_TYPE_MIN to GROUP_TYPE_MAX do
     for K := Low(AI_TROOP_TRAIN_ORDER[GT]) to High(AI_TROOP_TRAIN_ORDER[GT]) do
       if (AI_TROOP_TRAIN_ORDER[GT,K] <> utNone) then
         Inc(GroupReq[GT], gHands[fOwner].AI.CityManagement.WarriorsDemands[ AI_TROOP_TRAIN_ORDER[GT,K] ] + 1); // Always recruit something
@@ -234,7 +236,7 @@ begin
       // Chose a random group type that we are going to attempt to train (so we don't always train certain group types first)
       L := 0;
       repeat
-        GT := TKMGroupType(KaMRandom(4, 'TKMArmyManagement.RecruitSoldiers')); //Pick random from overall count
+        GT := TKMGroupType(GROUP_TYPE_MIN_OFF + KaMRandom(4, 'TKMArmyManagement.RecruitSoldiers')); //Pick random from overall count
         Inc(L);
       until (GroupReq[GT] > 0) OR (L > 9); // Limit number of attempts to guarantee it doesn't loop forever
 
@@ -373,7 +375,7 @@ type
     // Select the right number of groups
     StartIdx := 0;
     MenCnt := 0;
-    for GT := Low(TKMGroupType) to High(TKMGroupType) do
+    for GT := GROUP_TYPE_MIN to GROUP_TYPE_MAX do
     begin
       GCnt := aGroupAmounts[GT];
       ActIdx := StartIdx;
@@ -391,7 +393,7 @@ type
         Inc(ActIdx);
       end;
     end;
-    // Add another groups if we dont have enought men
+    // Add another groups if we dont have enough men
     while (MenCnt < aTotalMen) AND (ActIdx < aAG.Count) do
     begin
       Inc(MenCnt, aAG.GroupArr[ActIdx].Count);
@@ -464,8 +466,8 @@ begin
     DefRatio := fDefence.DefenceStatus();
     with fAttackRequest do
     begin
-      // Exit if AI has NOT enought soldiers for defences in the FFA mode
-      if FFA AND not FoodShortage AND (DefRatio < MIN_DEF_RATIO) AND (gGameParams.MissionMode <> mmTactic) then
+      // Exit if AI has NOT enough soldiers for defences in the FFA mode
+      if FFA AND not FoodShortage AND (DefRatio < MIN_DEF_RATIO) AND (gGameParams.MissionMode <> mmFighting) then
         Exit;
       // 1v1 or special game mode
       if not FFA OR gGameParams.IsTactic then
@@ -481,7 +483,7 @@ begin
     end;
     // Get array of pointers to available groups
     AG := GetGroups(MobilizationCoef);
-    // If we dont have enought groups then exit (if we should take all check if there are already some combat groups)
+    // If we dont have enough groups then exit (if we should take all check if there are already some combat groups)
     if (MobilizationCoef < 1) AND (AG.Count < MIN_GROUPS_IN_ATTACK) then
       Exit;
     // Order attack

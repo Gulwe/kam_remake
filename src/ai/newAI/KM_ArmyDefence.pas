@@ -52,7 +52,7 @@ type
     function GetPosition(aIndex: Integer): TKMDefencePosition; inline;
     function GetGroupsCount(): Word;
   public
-    TroopFormations: array [TKMGroupType] of TKMFormation; //Defines how defending troops will be formatted. 0 means leave unchanged.
+    TroopFormations: array [GROUP_TYPE_MIN..GROUP_TYPE_MAX] of TKMFormation; //Defines how defending troops will be formatted. 0 means leave unchanged.
 
     constructor Create(aOwner: TKMHandID);
     destructor Destroy; override;
@@ -168,24 +168,25 @@ end;
 function TKMDefencePosition.CanAccept(aGroup: TKMUnitGroup; aMaxUnits: Integer): Boolean;
 begin
   Result := (Group = nil)
-            OR ((GroupType = UNIT_TO_GROUP_TYPE[aGroup.UnitType]) AND (Group.Count < aMaxUnits));
+            or ((GroupType = UNIT_TO_GROUP_TYPE[aGroup.UnitType]) and (Group.Count < aMaxUnits));
 end;
 
 
 procedure TKMDefencePosition.UpdateState(aTick: Cardinal);
 begin
-  //If the group is Dead or too far away we should disassociate
-  //them from the defence position so new warriors can take up the defence if needs be
+  // If the group is Dead or too far away we should disassociate
+  // them from the defence position so new warriors can take up the defence if needs be
   if (Group = nil)
-    OR Group.IsDead
-    OR ( Group.InFight OR (Group.Order in [goAttackHouse, goAttackUnit]) ) then
+  or Group.IsDead
+  or Group.InFight
+  or (Group.Order in [goAttackHouse, goAttackUnit]) then
     gHands.CleanUpGroupPointer(fGroup);
 
-  //Tell group to walk to its position
-  //It's easier to repeat the order than check that all members are in place
+  // Tell group to walk to its position
+  // It's easier to repeat the order than check that all members are in place
   if (Group <> nil)
-    AND Group.IsIdleToAI([wtokFlagPoint, wtokHaltOrder])
-    AND Group.CanWalkTo(Position.Loc, 0) then
+  and Group.IsIdleToAI([wtokFlagPoint, wtokHaltOrder])
+  and Group.CanWalkTo(Position.Loc, 0) then
     Group.OrderWalk(Position.Loc, True, wtokAIGotoDefencePos, Position.Dir);
 end;
 
@@ -201,7 +202,7 @@ begin
   fCityUnderAttack := False;
   fPositions := TKMList.Create;
 
-  for GT := Low(TKMGroupType) to High(TKMGroupType) do
+  for GT := GROUP_TYPE_MIN to GROUP_TYPE_MAX do
   begin
     TroopFormations[GT].NumUnits := MAX_SOLDIERS_IN_GROUP;
     TroopFormations[GT].UnitsPerRow := FORMATION_OF_GROUP;
@@ -218,7 +219,8 @@ end;
 
 
 procedure TKMArmyDefence.Save(SaveStream: TKMemoryStream);
-var I: Integer;
+var
+  I: Integer;
 begin
   SaveStream.PlaceMarker('AdvDefencePositions');
   SaveStream.Write(fOwner);
@@ -233,7 +235,8 @@ end;
 
 
 procedure TKMArmyDefence.Load(LoadStream: TKMemoryStream);
-var I, NewCount: Integer;
+var
+  I, newCount: Integer;
 begin
   LoadStream.CheckMarker('AdvDefencePositions');
   LoadStream.Read(fOwner);
@@ -241,14 +244,15 @@ begin
   LoadStream.Read(fFirstLineCnt);
   LoadStream.Read(TroopFormations, SizeOf(TroopFormations));
 
-  LoadStream.Read(NewCount);
-  for I := 0 to NewCount - 1 do
+  LoadStream.Read(newCount);
+  for I := 0 to newCount - 1 do
     fPositions.Add( TKMDefencePosition.Load(LoadStream) );
 end;
 
 
 procedure TKMArmyDefence.SyncLoad;
-var I: Integer;
+var
+  I: Integer;
 begin
   for I := 0 to Count - 1 do
     Positions[I].SyncLoad;
@@ -275,11 +279,11 @@ end;
 
 function TKMArmyDefence.GetGroupsCount(): Word;
 var
-  K: Integer;
+  I: Integer;
 begin
   Result := 0;
-  for K := 0 to Count - 1 do
-    Inc(Result, Byte(Positions[K].Group <> nil));
+  for I := 0 to Count - 1 do
+    Inc(Result, Ord(Positions[I].Group <> nil));
 end;
 
 
@@ -308,13 +312,13 @@ begin
     //New position
     if (Positions[BestIdx].Group = nil) then
     begin
-      Needed := TroopFormations[ aGroup.GroupType ].NumUnits;
+      Needed := TroopFormations[aGroup.GroupType].NumUnits;
       // Add group to new defense position
       Positions[BestIdx].Group := aGroup;
       // Defence position requires less soldiers -> distribute other soldiers into different defence position
       if (aGroup.Count > Needed) then
       begin
-        UG := aGroup.OrderSplitUnit( aGroup.GetAliveMember, True);
+        UG := aGroup.OrderSplitUnit(aGroup.GetAliveMember, True);
         if (UG <> nil) then
         begin
           if (aGroup.Count - Needed > 0) then
@@ -323,7 +327,7 @@ begin
         end;
       end;
       UG := Positions[BestIdx].Group;
-      UG.OrderWalk( Positions[BestIdx].Position.Loc, True, wtokAIGotoDefencePos, Positions[BestIdx].Position.Dir );
+      UG.OrderWalk(Positions[BestIdx].Position.Loc, True, wtokAIGotoDefencePos, Positions[BestIdx].Position.Dir);
     end
     // Restock
     else
@@ -345,7 +349,7 @@ begin
 end;
 
 
-//Find DefencePosition of a group
+// Find DefencePosition of a group
 function TKMArmyDefence.FindPositionOf(aGroup: TKMUnitGroup; aIgnoreFirstLine: Boolean = False): TKMDefencePosition;
 var
   I: Integer;
@@ -355,7 +359,7 @@ begin
   for I := 0 to Count - 1 do
     if (Positions[I].Group = aGroup) then
     begin
-      if (aIgnoreFirstLine AND (Positions[I].Line <= FIRST_LINE_MAX_IDX)) then
+      if (aIgnoreFirstLine and (Positions[I].Line <= FIRST_LINE_MAX_IDX)) then
         Break;
       Result := Positions[I];
       Break;
@@ -566,7 +570,7 @@ begin
       Loc := Positions[I].Position.Loc;
       Idx := gAIFields.NavMesh.KMPoint2Polygon[Loc];
       Threat := 0;
-      for GT := Low(GT) to High(GT) do
+      for GT := GROUP_TYPE_MIN to GROUP_TYPE_MAX do
         Threat := Threat + gAIFields.Influences.Presence[ AllianceIdx, Idx, GT ];
 
       // Draw defensive lines as a triangles

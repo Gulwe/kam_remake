@@ -8,8 +8,11 @@ type
 
   TKMHandEntityType = (etNone, etUnit, etGroup, etHouse);
 
+  TKMHandHouseLock = (hlNone, hlDefault, hlBlocked, hlGranted);
+
 const
-  NO_ENTITY_UID = 0;
+  HAND_NONE = -1; //No player
+  HAND_ANIMAL = -2; //animals
 
 implementation
 

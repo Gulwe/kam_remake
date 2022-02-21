@@ -331,7 +331,8 @@ begin
     dkToHouse:         Result := fPhase <= 8;
     dkToConstruction:  Result := fPhase <= 7;
     dkToUnit:          Result := fPhase <= 6;
-    else               Result := True; //Make compiler happy
+  else
+    raise Exception.Create('Unexpected type');
   end;
 end;
 

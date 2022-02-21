@@ -151,7 +151,7 @@ begin
     while (K < fQueueCnt) do // While must be here
     begin
       if (fQueueArray[aIdx].Distance < fQueueArray[ActIdx].Distance) then
-        break;
+        Break;
       PrevIdx := ActIdx;
       ActIdx := fQueueArray[ActIdx].Next;
       K := K + 1;

@@ -334,7 +334,7 @@ function TKMScriptUtils.ArrayRemoveIndexI(aIndex: Integer; aArray: TIntegerArray
 begin
   Result := aArray;
   try
-    if (Length(aArray) > 0) and (aIndex in [Low(aArray)..High(aArray)]) then
+    if (Length(aArray) > 0) and InRange(aIndex, Low(aArray), High(aArray)) then
     begin
       DeleteFromArray(aArray, aIndex);
       Result := aArray;
@@ -353,7 +353,7 @@ function TKMScriptUtils.ArrayRemoveIndexS(aIndex: Integer; aArray: TAnsiStringAr
 begin
   Result := aArray;
   try
-    if (Length(aArray) > 0) and (aIndex in [Low(aArray)..High(aArray)]) then
+    if (Length(aArray) > 0) and InRange(aIndex, Low(aArray), High(aArray)) then
     begin
       DeleteFromArray(aArray, aIndex);
       Result := aArray;
@@ -687,7 +687,7 @@ begin
           Result := aArray[I];
     end
     else
-      LogParamWarning('Utils.MaxInArrayI: Requested array is empty',[]);
+      LogIntParamWarn('Utils.MaxInArrayI: Requested array is empty',[]);
   except
     gScriptEvents.ExceptionOutsideScript := True;
     raise;
@@ -710,7 +710,7 @@ begin
           Result := aArray[I];
     end
     else
-      LogParamWarning('Utils.MaxInArrayS: Requested array is empty',[]);
+      LogIntParamWarn('Utils.MaxInArrayS: Requested array is empty',[]);
   except
     gScriptEvents.ExceptionOutsideScript := True;
     raise;
@@ -759,7 +759,7 @@ begin
           Result := aArray[I];
     end
     else
-      LogParamWarning('Utils.MinInArrayI: Requested array is empty',[]);
+      LogIntParamWarn('Utils.MinInArrayI: Requested array is empty',[]);
   except
     gScriptEvents.ExceptionOutsideScript := True;
     raise;
@@ -782,7 +782,7 @@ begin
           Result := aArray[I];
     end
     else
-      LogParamWarning('Utils.MinInArrayS: Requested array is empty',[]);
+      LogIntParamWarn('Utils.MinInArrayS: Requested array is empty',[]);
   except
     gScriptEvents.ExceptionOutsideScript := True;
     raise;
@@ -989,7 +989,7 @@ begin
       for I := 0 to High(aArray) do
         Result := Result + aArray[I]
     else
-      LogParamWarning('Utils.SumI: Requested array is empty',[]);
+      LogIntParamWarn('Utils.SumI: Requested array is empty',[]);
   except
     gScriptEvents.ExceptionOutsideScript := True;
     raise;
@@ -1006,7 +1006,7 @@ begin
     if Length(aArray) > 0 then
       Result := Math.Sum(aArray)
     else
-      LogParamWarning('Utils.SumS: Requested array is empty',[]);
+      LogIntParamWarn('Utils.SumS: Requested array is empty',[]);
   except
     gScriptEvents.ExceptionOutsideScript := True;
     raise;

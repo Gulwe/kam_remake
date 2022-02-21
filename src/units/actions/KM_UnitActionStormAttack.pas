@@ -35,10 +35,6 @@ uses
   KM_Resource, KM_ResUnits, KM_UnitWarrior;
 
 
-const
-  STORM_SPEEDUP = 1.5;
-
-
 { TUnitActionStormAttack }
 constructor TKMUnitActionStormAttack.Create(aUnit: TKMUnit; aActionType: TKMUnitActionType; aRow: Integer);
 const
@@ -112,16 +108,17 @@ end;
 function TKMUnitActionStormAttack.GetSpeed: Single;
 begin
   if (fTileSteps <= 0) or (fTileSteps >= fStamina-1) then
-    Result := gRes.Units[fUnit.UnitType].Speed
+    Result := gRes.Units[fUnit.UnitType].GetEffectiveWalkSpeed(DIAG_DIRECTION[fUnit.Direction])
   else
-    Result := gRes.Units[fUnit.UnitType].Speed * STORM_SPEEDUP;
+    Result := gRes.Units[fUnit.UnitType].GetEffectiveStormSpeed(DIAG_DIRECTION[fUnit.Direction]);
 end;
 
 
 function TKMUnitActionStormAttack.Execute: TKMActionResult;
 var
-  DX, DY: ShortInt;
-  WalkX, WalkY, Distance: Single;
+  dx, dy: ShortInt;
+  walkX, walkY, distance: Single;
+  isWalking, isDiag: Boolean;
 begin
   if KMSamePoint(fNextPos, KMPOINT_ZERO) then
     fNextPos := fUnit.Position; //Set fNextPos to current pos so it initializes on the first run
@@ -131,24 +128,26 @@ begin
   begin
     Dec(fDelay);
     fUnit.AnimStep := UNIT_STILL_FRAMES[fUnit.Direction];
-    Result := arActContinues;
-    Exit;
+    Exit(arActContinues);
   end;
 
   //Last step is walking, others are running (unit gets tired and slows at the end)
   //In KaM the first step was also walking, but this makes it less useful/surprising
-  if (fTileSteps >= fStamina - 1) then
+
+  isWalking := (fTileSteps >= fStamina - 1);
+  if isWalking then
   begin
-    Distance := gRes.Units[fUnit.UnitType].Speed;
+    // Use umtWalk move type here, since we just want to evaluate if we are close enough
+    distance := gRes.Units[fUnit.UnitType].GetEffectiveWalkSpeed(False);
     fType := uaWalk;
   end else begin
-    Distance := gRes.Units[fUnit.UnitType].Speed * STORM_SPEEDUP;
+    distance := gRes.Units[fUnit.UnitType].GetEffectiveStormSpeed(False);
     fType := uaSpec;
   end;
 
-  if KMSamePointF(fUnit.PositionF, KMPointF(fNextPos), Distance/2) then
+  if KMSamePointF(fUnit.PositionF, KMPointF(fNextPos), distance/2) then
   begin
-    inc(fTileSteps); //We have stepped on a new tile
+    Inc(fTileSteps); //We have stepped on a new tile
     //Set precise position to avoid rounding errors
     fUnit.PositionF := KMPointF(fNextPos);
 
@@ -163,8 +162,7 @@ begin
       begin
         //If we've picked a fight it means this action no longer exists,
         //so we must exit out (don't set ActDone as that will now apply to fight action)
-        Result := arActContinues;
-        Exit;
+        Exit(arActContinues);
       end;
     Locked := True; //Finished CheckForEnemy, so lock again
 
@@ -173,10 +171,7 @@ begin
 
     //Action ends if: 1: Used up stamina. 2: There is an enemy to fight. 3: NextPos is an obsticle
     if (fTileSteps >= fStamina) or not fUnit.CanStepTo(fNextPos.X, fNextPos.Y, fUnit.DesiredPassability) then
-    begin
-      Result := arActDone; //Finished run
-      Exit; //Must exit right away as we might have changed this action to fight
-    end;
+      Exit(arActDone); //Finished run; Must exit right away as we might have changed this action to fight
 
     //Do some house keeping because we have now stepped on a new tile
     fUnit.NextPosition := fNextPos;
@@ -185,18 +180,21 @@ begin
       IncVertex(fUnit.PrevPosition,fUnit.NextPosition);
   end;
 
-  WalkX := fNextPos.X - fUnit.PositionF.X;
-  WalkY := fNextPos.Y - fUnit.PositionF.Y;
-  DX := Sign(WalkX); //-1,0,1
-  DY := Sign(WalkY); //-1,0,1
+  walkX := fNextPos.X - fUnit.PositionF.X;
+  walkY := fNextPos.Y - fUnit.PositionF.Y;
+  dx := Sign(walkX); //-1,0,1
+  dy := Sign(walkY); //-1,0,1
 
-  if (DX <> 0) and (DY <> 0) then
-    Distance := Distance / 1.41; {sqrt (2) = 1.41421 }
+  isDiag := (dx <> 0) and (dy <> 0);
+  if isWalking then
+    distance := gRes.Units[fUnit.UnitType].GetEffectiveWalkSpeed(isDiag)
+  else
+    distance := gRes.Units[fUnit.UnitType].GetEffectiveStormSpeed(isDiag);
 
-  fUnit.PositionF := KMPointF(fUnit.PositionF.X + DX*Math.min(Distance, Abs(WalkX)),
-                              fUnit.PositionF.Y + DY*Math.min(Distance, Abs(WalkY)));
+  fUnit.PositionF := KMPointF(fUnit.PositionF.X + dx*Math.min(distance, Abs(walkX)),
+                              fUnit.PositionF.Y + dy*Math.min(distance, Abs(walkY)));
 
-  inc(fUnit.AnimStep);
+  Inc(fUnit.AnimStep);
   StepDone := false; //We are not actually done because now we have just taken another step
   Result := arActContinues;
 end;
@@ -205,6 +203,7 @@ end;
 procedure TKMUnitActionStormAttack.Save(SaveStream: TKMemoryStream);
 begin
   inherited;
+
   SaveStream.PlaceMarker('UnitActionStormAttack');
   SaveStream.Write(fDelay);
   SaveStream.Write(fTileSteps);

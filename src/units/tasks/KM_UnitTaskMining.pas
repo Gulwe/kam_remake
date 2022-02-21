@@ -4,8 +4,7 @@ interface
 uses
   Math, SysUtils,
   KM_CommonClasses, KM_Defaults, KM_Points,
-  KM_Units, KM_UnitWorkplan, KM_Terrain,
-
+  KM_Units, KM_UnitWorkplan, KM_TerrainTypes,
   KM_ResTypes;
 
 
@@ -35,9 +34,10 @@ type
 
 implementation
 uses
-  KM_Houses, KM_HouseWoodcutters, KM_HandsCollection,
+  KM_Houses, KM_HouseWoodcutters, KM_HouseSwineStable,
+  KM_HandsCollection,
   KM_Resource, KM_ResMapElements, KM_ResTexts,
-  KM_Hand, KM_ResUnits, KM_ScriptingEvents;
+  KM_Hand, KM_ResUnits, KM_ScriptingEvents, KM_Terrain;
 
 
 { TTaskMining }
@@ -92,15 +92,15 @@ begin
   Result := taAny;
 
   case fUnit.Home.HouseType of
-    htWoodcutters: case TKMHouseWoodcutters(fUnit.Home).WoodcutterMode of
-                      wcmChop:         Result := taCut;
-                      wcmPlant:        Result := taPlant;
-                      wcmChopAndPlant: if fUnit.Home.CheckResOut(wtTrunk) >= MAX_WARES_IN_HOUSE then
-                                          Result := taPlant
-                                        else
-                                          Result := taAny;
+    htWoodcutters:  case TKMHouseWoodcutters(fUnit.Home).WoodcutterMode of
+                      wmChop:         Result := taCut;
+                      wmPlant:        Result := taPlant;
+                      wmChopAndPlant: if fUnit.Home.CheckResOut(wtTrunk) >= MAX_WARES_IN_HOUSE then
+                                        Result := taPlant
+                                      else
+                                        Result := taAny;
                     end;
-    htFarm:        if fUnit.Home.CheckResOut(wtCorn) >= MAX_WARES_IN_HOUSE then
+    htFarm:         if fUnit.Home.CheckResOut(wtCorn) >= MAX_WARES_IN_HOUSE then
                       Result := taPlant
                     else
                       Result := taAny;
@@ -182,12 +182,12 @@ begin
   with gTerrain do
   case WorkPlan.GatheringScript of
     gsStoneCutter:     Result := TileHasStone(WorkPlan.Loc.X, WorkPlan.Loc.Y-1); //Check stone deposit above Loc, which is walkable tile
-    gsFarmerSow:       Result := TileIsCornField(WorkPlan.Loc) and (Land[WorkPlan.Loc.Y, WorkPlan.Loc.X].FieldAge = 0);
+    gsFarmerSow:       Result := TileIsCornField(WorkPlan.Loc) and (Land^[WorkPlan.Loc.Y, WorkPlan.Loc.X].FieldAge = 0);
     gsFarmerCorn:      begin
-                          Result := TileIsCornField(WorkPlan.Loc) and (Land[WorkPlan.Loc.Y, WorkPlan.Loc.X].FieldAge = CORN_AGE_MAX);
+                          Result := TileIsCornField(WorkPlan.Loc) and (Land^[WorkPlan.Loc.Y, WorkPlan.Loc.X].FieldAge = CORN_AGE_MAX);
                           if Result then exit; //Resource still exists so exit
                           //If corn has been cut we can possibly plant new corn here to save time
-                          Result := TileIsCornField(WorkPlan.Loc) and (Land[WorkPlan.Loc.Y, WorkPlan.Loc.X].FieldAge = 0);
+                          Result := TileIsCornField(WorkPlan.Loc) and (Land^[WorkPlan.Loc.Y, WorkPlan.Loc.X].FieldAge = 0);
                           if Result then
                             with WorkPlan do
                             begin
@@ -199,12 +199,12 @@ begin
                               ProdCount1 := 0;
                             end;
                         end;
-    gsFarmerWine:      Result := TileIsWineField(WorkPlan.Loc) and (Land[WorkPlan.Loc.Y, WorkPlan.Loc.X].FieldAge = CORN_AGE_MAX);
+    gsFarmerWine:      Result := TileIsWineField(WorkPlan.Loc) and (Land^[WorkPlan.Loc.Y, WorkPlan.Loc.X].FieldAge = CORN_AGE_MAX);
     gsFisherCatch:     Result := CatchFish(KMPointDir(WorkPlan.Loc,WorkPlan.WorkDir),true);
     gsWoodCutterPlant: Result := TileGoodToPlantTree(WorkPlan.Loc.X, WorkPlan.Loc.Y);
     gsWoodCutterCut:   begin
                           P := KMGetVertexTile(WorkPlan.Loc, WorkPlan.WorkDir);
-                          Result := ObjectIsChopableTree(P, caAgeFull) and (Land[P.Y, P.X].TreeAge >= TREE_AGE_FULL);
+                          Result := ObjectIsChopableTree(P, caAgeFull) and (Land^[P.Y, P.X].TreeAge >= TREE_AGE_FULL);
                         end;
     else                Result := True;
   end;
@@ -359,7 +359,7 @@ begin
               TKMHouseSwineStable(Home).TakeBeast(fBeastID);
             end;
 
-            if fDistantResAcquired and (WorkPlan.ActCount >= fPhase2) then
+            if fDistantResAcquired and (fPhase2 < WorkPlan.ActCount) then
             begin
               Home.CurrentAction.SubActionWork(WorkPlan.HouseAct[fPhase2].Act);
               //Keep unit idling till next Phase, Idle time is -1 to compensate TaskExecution Phase
@@ -381,7 +381,7 @@ begin
               fBeastID := TKMHouseSwineStable(Home).FeedBeasts;
 
             //Keep on working
-            if fDistantResAcquired and (fPhase2 <= WorkPlan.ActCount) then
+            if fDistantResAcquired and (fPhase2 < WorkPlan.ActCount) then
             begin
               Home.CurrentAction.SubActionWork(WorkPlan.HouseAct[fPhase2].Act);
               if fPhase < WorkPlan.ActCount then

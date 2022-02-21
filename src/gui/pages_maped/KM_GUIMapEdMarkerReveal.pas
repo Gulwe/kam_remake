@@ -2,7 +2,7 @@ unit KM_GUIMapEdMarkerReveal;
 {$I KaM_Remake.inc}
 interface
 uses
-   Classes, Controls, Math, StrUtils, SysUtils,
+   Classes, Math, StrUtils, SysUtils,
    KM_Controls, KM_Defaults, KM_Pics;
 
 
@@ -34,8 +34,12 @@ type
 
 implementation
 uses
-  KM_CommonClasses, KM_HandsCollection, KM_ResTexts, KM_Game,
-  KM_RenderUI, KM_ResFonts, KM_InterfaceGame;
+  KM_Game,
+  KM_InterfaceGame,
+  KM_HandsCollection,
+  KM_ResTexts, KM_ResFonts, KM_ResTypes,
+  KM_RenderUI,
+  KM_CommonClasses;
 
 
 { TKMMapEdMarkerReveal }
@@ -66,17 +70,17 @@ end;
 
 procedure TKMMapEdMarkerReveal.Marker_Change(Sender: TObject);
 var
-  Rev: TKMPointTagList;
+  rev: TKMPointTagList;
 begin
   //Shortcut to structure we update
-  Rev := gGame.MapEditor.Revealers[fOwner];
+  rev := gGame.MapEditor.Revealers[fOwner];
 
   if Sender = TrackBar_RevealSize then
-    Rev.Tag[fIndex] := TrackBar_RevealSize.Position;
+    rev.Tag[fIndex] := TrackBar_RevealSize.Position;
 
   if Sender = Button_RevealDelete then
   begin
-    Rev.Delete(fIndex);
+    rev.Delete(fIndex);
     Hide;
     fOnDone(Self);
   end;

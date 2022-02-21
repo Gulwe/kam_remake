@@ -38,8 +38,8 @@ type
 //    TexMin: TKMTextureFilter;
 //    TexMag: TKMTextureFilter;
     TexMipmaps: Boolean;
-    procedure LoadFromXml(aNode: TXMLNode);
-    procedure SaveToXml(aNode: TXMLNode);
+    procedure LoadFromXml(aNode: TKMXmlNode);
+    procedure SaveToXml(aNode: TKMXmlNode);
   end;
   PKMFontGenInfo = ^TKMFontGenInfo;
 
@@ -78,14 +78,14 @@ type
 
 implementation
 uses
-  KM_PNG;
+  KM_IoPNG;
 
 const
   FONTS_BG_COLOR = $FFAF6B6B;
 
 
 { TKMFontGenInfo }
-procedure TKMFontGenInfo.LoadFromXml(aNode: TXMLNode);
+procedure TKMFontGenInfo.LoadFromXml(aNode: TKMXmlNode);
 begin
   Font := NameToFont(aNode.Attributes['Font'].AsString);
   FontName := aNode.Attributes['FontName'].AsString;
@@ -110,7 +110,7 @@ begin
 end;
 
 
-procedure TKMFontGenInfo.SaveToXml(aNode: TXMLNode);
+procedure TKMFontGenInfo.SaveToXml(aNode: TKMXmlNode);
 begin
   aNode.Attributes['Font'] := FontTypeName[Font];
   aNode.Attributes['FontName'] := FontName;

@@ -33,7 +33,6 @@ type
     function GetFormattedTime: UnicodeString;
     procedure LoadFromStream(aStream: TKMemoryStream);
     procedure SaveToStream(aStream: TKMemoryStream);
-    function PlayersList: string;
     function HTMLPlayersList: string;
     function ConnectedPlayerCount: Byte;
   end;
@@ -44,9 +43,10 @@ uses
   VerySimpleXML, KM_CommonUtils;
 
 
-{ TMPGameInfo }
+{ TKMPGameInfo }
 procedure TKMPGameInfo.LoadFromStream(aStream: TKMemoryStream);
-var I: Integer;
+var
+  I: Integer;
 begin
   aStream.Read(GameState, SizeOf(GameState));
   aStream.Read(PasswordLocked);
@@ -98,7 +98,8 @@ end;
 
 
 procedure TKMPGameInfo.SaveToStream(aStream: TKMemoryStream);
-var I: Integer;
+var
+  I: Integer;
 begin
   aStream.Write(GameState, SizeOf(GameState));
   aStream.Write(PasswordLocked);
@@ -122,18 +123,10 @@ begin
 end;
 
 
-function TKMPGameInfo.PlayersList: string;
-var I: Integer;
-begin
-  Result := '';
-  for I := 1 to PlayerCount do
-    Result := Result + UnicodeString(Players[I].Name) + IfThen(I < PlayerCount, ', ');
-end;
-
-
 //This function should do its own XML escaping
 function TKMPGameInfo.HTMLPlayersList: string;
-var I: Integer;
+var
+  I: Integer;
 begin
   Result := '';
   for I := 1 to PlayerCount do
@@ -148,7 +141,8 @@ end;
 
 
 function TKMPGameInfo.ConnectedPlayerCount: Byte;
-var I: Integer;
+var
+  I: Integer;
 begin
   Result := 0;
   for I := 1 to PlayerCount do
@@ -158,3 +152,4 @@ end;
 
 
 end.
+

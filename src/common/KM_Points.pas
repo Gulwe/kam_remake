@@ -7,6 +7,8 @@ type
   TKMDirection = (dirNA, dirN, dirNE, dirE, dirSE, dirS, dirSW, dirW, dirNW);
   TKMDirection4 = (drNA, drN, drE, drS, drW);
 
+  TKMDirection4Set = set of TKMDirection4;
+
 type
   //Records must be packed so they are stored identically in MP saves (padding bytes are unknown values)
   TKMPointF = record
@@ -97,6 +99,7 @@ type
   function KMNormVector(const P: TKMPoint; R: Integer): TKMPoint;
 
   function KMPointRound(const P: TKMPointF): TKMPoint;
+  function KMPointFRoundTo(const P: TKMPointF; aBase: Single): TKMPointF;
   function KMSamePoint(const P1,P2: TKMPoint): Boolean; overload;
   function KMSamePointF(const P1,P2: TKMPointF): Boolean; overload;
   function KMSamePointF(const P1,P2: TKMPointF; Epsilon: Single): Boolean; overload;
@@ -114,6 +117,7 @@ type
   function KMRectWidth(const aRect: TKMRect): Integer;
   function KMRectHeight(const aRect: TKMRect): Integer;
   function KMRectGrow(const aRect: TKMRect; aInset: Integer): TKMRect; overload;
+  function KMRectGrowNoLimits(const aRect: TKMRect; aInset: Integer): TKMRect;
   function KMRectGrow(const aRect, aInsetRect: TKMRect): TKMRect; overload;
   function KMRectGrow(const aRect: TKMRect; const aDir: TKMDirection; aInset: Integer = 1): TKMRect; overload;
   function KMRectGrowTopLeft(const aRect: TKMRect; aInset: Integer = 1): TKMRect;
@@ -136,8 +140,8 @@ type
   procedure KMRectIncludePoint(var aRect: TKMRect; const aPoint: TKMPoint); overload;
   procedure KMRectIncludeRect(var aRect: TKMRect; aRect2: TKMRect);
 
-  function KMGetDirection(X,Y: Integer): TKMDirection; overload;
-  function KMGetDirection(X,Y: Single): TKMDirection; overload;
+  function KMGetDirection(aDirF: Single): TKMDirection; overload; inline;
+  function KMGetDirection(X,Y: Single; aDirNAThreshold: Integer = 0): TKMDirection; overload;
   function KMGetDirection(const P: TKMPointF): TKMDirection; overload;
   function KMGetDirection(const FromPos, ToPos: TKMPoint): TKMDirection; overload;
   function KMGetDirection(const FromPos, ToPos: TKMPointF): TKMDirection; overload;
@@ -173,6 +177,7 @@ type
   function KMSegmentsIntersect(const A, B, C, D: TKMPoint): Boolean;
   function KMSegmentsIntersectOrTouch(const A, B, C, D: TKMPoint): Boolean;
 
+  function KMLength(A,B: Single): Single; overload;
   function KMLength(const A, B: TKMPoint): Single; overload;
   function KMLength(const A, B: TKMPointF): Single; overload;
   function KMLengthDiag(X, Y: Integer): Single; overload;
@@ -180,6 +185,7 @@ type
   function KMLengthDiag(X,Y: Integer; const B: TKMPoint): Single; overload;
   function KMLengthSqr(const A, B: TKMPoint): Integer; overload;
   function KMLengthSqr(const A, B: TKMPointF): Single; overload;
+  function KMLengthSqr(const A: TKMPoint; const B: TKMPointF): Single; overload;
 
   function KMLerp(const A,B: TKMPoint; MixValue: Single): TKMPointF; overload;
   function KMLerp(const A,B: TKMPointF; MixValue: Single): TKMPointF; overload;
@@ -217,10 +223,13 @@ const
   KMRECT_ZERO: TKMRect = (Left: 0; Top: 0; Right: 0; Bottom: 0);
   KMRECT_INVALID_TILES: TKMRect = (Left: -1; Top: -1; Right: -1; Bottom: -1);
 
+  DIAG_DIRECTION: array[TKMDirection] of Boolean = (False, False, True, False, True, False, True, False, True);
+
 
 implementation
 uses
-  SysUtils, TypInfo, Math, KM_Defaults, KM_CommonUtils;
+  SysUtils, TypInfo, Math,
+  KM_Defaults, KM_CommonUtils;
 
 
 class function TKMPoint.New(aX, aY: Integer): TKMPoint;
@@ -436,6 +445,13 @@ begin
 end;
 
 
+function KMPointFRoundTo(const P: TKMPointF; aBase: Single): TKMPointF;
+begin
+  Result.X := Round(P.X / aBase) * aBase;
+  Result.Y := Round(P.Y / aBase) * aBase;
+end;
+
+
 function KMSamePoint(const P1,P2: TKMPoint): Boolean;
 begin
   Result := ( P1.X = P2.X ) and ( P1.Y = P2.Y );
@@ -561,6 +577,15 @@ begin
   Result.Right  := Math.Max(aRect.Right  + aInset, 0);
   Result.Top    := Math.Max(aRect.Top    - aInset, 0);
   Result.Bottom := Math.Max(aRect.Bottom + aInset, 0);
+end;
+
+
+function KMRectGrowNoLimits(const aRect: TKMRect; aInset: Integer): TKMRect;
+begin
+  Result.Left   := aRect.Left   - aInset;
+  Result.Right  := aRect.Right  + aInset;
+  Result.Top    := aRect.Top    - aInset;
+  Result.Bottom := aRect.Bottom + aInset;
 end;
 
 
@@ -740,37 +765,28 @@ begin
 end;
 
 
-function KMGetDirection(X,Y: Integer): TKMDirection;
-const
-  DirectionsBitfield: array [-1..1, -1..1] of TKMDirection =
-    ((dirNW, dirW,  dirSW),
-     (dirN,  dirNA, dirS),
-     (dirNE, dirE,  dirSE));
-var
-  Scale: Integer;
-  A, B: ShortInt;
+function KMGetDirection(aDirF: Single): TKMDirection;
 begin
-  Scale := Max(Max(Abs(X), Abs(Y)), 1);
-  A := Round(X / Scale);
-  B := Round(Y / Scale);
-  Result := DirectionsBitfield[A, B]; // -1, 0, 1
+  // Convert angle value to direction
+  // 3600 is a lame way of ensuring we deal with 0..359 angle
+  Result := TKMDirection((Round((aDirF / Pi * 180) + 3600 + 22.5) mod 360) div 45 + 1);
 end;
 
 
-function KMGetDirection(X,Y: Single): TKMDirection;
-const
-  DirectionsBitfield: array [-1..1, -1..1] of TKMDirection =
-    ((dirNW, dirW,  dirSW),
-     (dirN,  dirNA, dirS),
-     (dirNE, dirE,  dirSE));
+function KMGetDirection(X, Y: Single; aDirNAThreshold: Integer = 0): TKMDirection;
 var
-  Scale: Single;
-  A, B: ShortInt;
+  ang, distSqr: Single;
 begin
-  Scale := Max(Max(Abs(X), Abs(Y)), 1);
-  A := Round(X / Scale);
-  B := Round(Y / Scale);
-  Result := DirectionsBitfield[A, B]; // -1, 0, 1
+  distSqr := Sqr(X) + Sqr(Y);
+
+  if distSqr > Sqr(aDirNAThreshold) then
+  begin
+    ang := ArcTan2(Y/distSqr, X/distSqr);
+    // We have North at zero
+    Result := KMGetDirection(ang + Pi/2);
+  end
+  else
+    Result := dirNA;
 end;
 
 
@@ -1028,6 +1044,12 @@ begin
 end;
 
 
+function KMLength(A,B: Single): Single;
+begin
+  Result := Sqrt(Sqr(A) + Sqr(B));
+end;
+
+
 //True length between 2 points
 function KMLength(const A,B: TKMPoint): Single;
 begin
@@ -1077,6 +1099,12 @@ end;
 
 
 function KMLengthSqr(const A, B: TKMPointF): Single;
+begin
+  Result := Sqr(A.X - B.X) + Sqr(A.Y - B.Y);
+end;
+
+
+function KMLengthSqr(const A: TKMPoint; const B: TKMPointF): Single;
 begin
   Result := Sqr(A.X - B.X) + Sqr(A.Y - B.Y);
 end;

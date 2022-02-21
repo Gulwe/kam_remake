@@ -5,6 +5,16 @@ uses
   Classes, SysUtils, KM_Points, KM_CommonTypes
   {$IFDEF WDC OR FPC_FULLVERSION >= 30200}, KM_WorkerThread{$ENDIF};
 
+  // Delphi 11 Alexandria had bug with S.CopyFrom for TCompressionStream.
+  // Bug occurs only during debugging, but its quite annoying
+  // It was said this bug will be fixed in Delphi 11.1
+  //
+  // Related links:
+  // https://quality.embarcadero.com/projects/RSP/issues/RSP-35516?filter=allopenissues
+  // https://forum.fast-report.com/en/discussion/17186/tfrxpdfexport-ezcompressionerror-with-message-invalid-zstream-operation-in-delphi-11-2021-3
+  // https://stackoverflow.com/questions/70242669/error-invalid-zstream-operation-delphi-11-0
+  {$IFDEF VER350}{$IFDEF DEBUG} {$DEFINE NO_COMPRESSION} {$ENDIF}{$ENDIF}
+
 
 type
   TKMSaveStreamFormat = (ssfBinary, ssfText);
@@ -58,6 +68,7 @@ type
     procedure Write(const Value: Extended      ); reintroduce; overload; virtual; abstract;
     procedure Write(const Value: Integer       ); reintroduce; overload; virtual; abstract;
     procedure Write(const Value: Cardinal      ); reintroduce; overload; virtual; abstract;
+    procedure Write(const Value: Int64         ); reintroduce; overload; virtual; abstract;
     procedure Write(const Value: Byte          ); reintroduce; overload; virtual; abstract;
     procedure Write(const Value: Boolean       ); reintroduce; overload; virtual; abstract;
     procedure Write(const Value: Word          ); reintroduce; overload; virtual; abstract;
@@ -77,6 +88,7 @@ type
     procedure Read(out Value: Extended      ); reintroduce; overload; virtual; abstract;
     procedure Read(out Value: Integer       ); reintroduce; overload; virtual; abstract;
     procedure Read(out Value: Cardinal      ); reintroduce; overload; virtual; abstract;
+    procedure Read(out Value: Int64         ); reintroduce; overload; virtual; abstract;
     procedure Read(out Value: Byte          ); reintroduce; overload; virtual; abstract;
     procedure Read(out Value: Boolean       ); reintroduce; overload; virtual; abstract;
     procedure Read(out Value: Word          ); reintroduce; overload; virtual; abstract;
@@ -147,6 +159,7 @@ type
     procedure Write(const Value: Extended      ); override;
     procedure Write(const Value: Integer       ); override;
     procedure Write(const Value: Cardinal      ); override;
+    procedure Write(const Value: Int64         ); override;
     procedure Write(const Value: Byte          ); override;
     procedure Write(const Value: Boolean       ); override;
     procedure Write(const Value: Word          ); override;
@@ -166,6 +179,7 @@ type
     procedure Read(out Value: Extended      ); override;
     procedure Read(out Value: Integer       ); override;
     procedure Read(out Value: Cardinal      ); override;
+    procedure Read(out Value: Int64         ); override;
     procedure Read(out Value: Byte          ); override;
     procedure Read(out Value: Boolean       ); override;
     procedure Read(out Value: Word          ); override;
@@ -200,6 +214,7 @@ type
     procedure Write(const Value: Extended      ); override;
     procedure Write(const Value: Integer       ); override;
     procedure Write(const Value: Cardinal      ); override;
+    procedure Write(const Value: Int64         ); override;
     procedure Write(const Value: Byte          ); override;
     procedure Write(const Value: Boolean       ); override;
     procedure Write(const Value: Word          ); override;
@@ -226,6 +241,7 @@ type
     procedure Read(out Value: Extended      ); override;
     procedure Read(out Value: Integer       ); override;
     procedure Read(out Value: Cardinal      ); override;
+    procedure Read(out Value: Int64         ); override;
     procedure Read(out Value: Byte          ); override;
     procedure Read(out Value: Boolean       ); override;
     procedure Read(out Value: Word          ); override;
@@ -458,8 +474,9 @@ end;
 
 
 { TKMemoryStream }
-constructor TKMemoryStream.Create(aShouldBeCompressed: Boolean);
+constructor TKMemoryStream.Create(aShouldBeCompressed: Boolean = False);
 begin
+  inherited Create;
   fShouldBeCompressed := aShouldBeCompressed;
 end;
 
@@ -548,7 +565,7 @@ begin
   localMainStream := aMainStream;
   localSubStream1 := aSubStream1;
   localSubStream2 := aSubStream2;
-  aMainStream := nil;  //So caller doesn't use it by mistake
+  aMainStream := nil; //So caller doesn't use it by mistake
   aSubStream1 := nil; //So caller doesn't use it by mistake
   aSubStream2 := nil; //So caller doesn't use it by mistake
 
@@ -601,16 +618,23 @@ end;
 procedure TKMemoryStream.CompressAndAppendStream(aStream: TKMemoryStream; const aMarker: string);
 var
   S: TKMemoryStream;
+  {$IFNDEF NO_COMPRESSION}
   CS: TCompressionStream;
+  {$ENDIF}
 begin
   S := TKMemoryStreamBinary.Create(True);
   try
+    {$IFDEF NO_COMPRESSION}
+    S.fShouldBeCompressed := False;
+    S.CopyFrom(aStream, 0);
+    {$ELSE}
     CS := TCompressionStream.Create(GetCompressionLvl, S);
     try
       CS.CopyFrom(aStream, 0);
     finally
       CS.Free;
     end;
+    {$ENDIF}
 
     AppendNotCompressedStream(S, aMarker);
   finally
@@ -634,6 +658,9 @@ begin
     
   if isCompressed then
   begin
+    {$IFDEF NO_COMPRESSION}
+    raise Exception.Create('Using compression streams is not allowed! F.e. on Delphi 11 Alexandria under debug');
+    {$ELSE}
     S := TKMemoryStreamBinary.Create(True);
     try
       S.CopyFrom(Self, streamSize);
@@ -648,6 +675,7 @@ begin
     finally
       S.Free;
     end;
+    {$ENDIF}
   end
   else
   begin
@@ -696,18 +724,23 @@ end;
 procedure TKMemoryStream.SaveToFileCompressed(const aFileName: string; const aMarker: string);
 var
   S: TKMemoryStream;
+  {$IFNDEF NO_COMPRESSION}
   CS: TCompressionStream;
+  {$ENDIF}
 begin
   S := TKMemoryStreamBinary.Create;
   try
     S.PlaceMarker(aMarker);
-
+    {$IFDEF NO_COMPRESSION}
+    S.CopyFrom(Self, 0);
+    {$ELSE}
     CS := TCompressionStream.Create(GetCompressionLvl, S);
     try
       CS.CopyFrom(Self, 0);
     finally
       CS.Free;
     end;
+    {$ENDIF}
 
     S.SaveToFile(aFileName);
   finally
@@ -719,19 +752,25 @@ end;
 procedure TKMemoryStream.LoadFromFileCompressed(const aFileName: string; const aMarker: string);
 var
   S: TKMemoryStream;
+  {$IFNDEF NO_COMPRESSION}
   DS: TDecompressionStream;
+  {$ENDIF}
 begin
   S := TKMemoryStreamBinary.Create;
   try
     S.LoadFromFile(aFileName);
     S.CheckMarker(aMarker);
+    {$IFDEF NO_COMPRESSION}
+    CopyFrom(S, S.Size - S.Position);
+    {$ELSE}
     DS := TDecompressionStream.Create(S);
     try
       CopyFromDecompression(DS);
-      Position := 0;
     finally
       DS.Free;
     end;
+    {$ENDIF}
+    Position := 0;
   finally
     S.Free;
   end;
@@ -1153,7 +1192,7 @@ procedure TKMPointTagList.SortByTag;
   begin
     I := MinIdx;
     K := MaxIdx;
-    X := Tag[ (MinIdx+MaxIdx) div 2 ];
+    X := Tag[(MinIdx+MaxIdx) div 2];
     repeat
       while (Tag[I] < X) do
         I := I + 1;
@@ -1519,7 +1558,7 @@ end;
 
 function TKMMapsCRCList.Contains(aMapCRC: Cardinal): Boolean;
 begin
-  if not fEnabled then Exit(False);
+  if (Self = nil) or not fEnabled then Exit(False);
 
   Result := fMapsList.IndexOf(IntToStr(aMapCRC)) <> -1;
 end;
@@ -1600,7 +1639,7 @@ begin
   // We use only Latin for Markers, hence ANSI is fine
   // But since Android does not support "AnsiString" we take "string" as input
   ReadANSI(s);
-  Assert(s = aTitle);
+  //Assert(s = aTitle);
 end;
 
 
@@ -1721,6 +1760,7 @@ procedure TKMemoryStreamBinary.Read(out Value: Single);         begin inherited 
 procedure TKMemoryStreamBinary.Read(out Value: Extended);       begin inherited Read(Value, SizeOf(Value)); end;
 procedure TKMemoryStreamBinary.Read(out Value: Integer);        begin inherited Read(Value, SizeOf(Value)); end;
 procedure TKMemoryStreamBinary.Read(out Value: Cardinal);       begin inherited Read(Value, SizeOf(Value)); end;
+procedure TKMemoryStreamBinary.Read(out Value: Int64);          begin inherited Read(Value, SizeOf(Value)); end;
 procedure TKMemoryStreamBinary.Read(out Value: Byte);           begin inherited Read(Value, SizeOf(Value)); end;
 procedure TKMemoryStreamBinary.Read(out Value: Boolean);        begin inherited Read(Value, SizeOf(Value)); end;
 procedure TKMemoryStreamBinary.Read(out Value: Word);           begin inherited Read(Value, SizeOf(Value)); end;
@@ -1741,6 +1781,7 @@ procedure TKMemoryStreamBinary.Write(const Value: Single);         begin inherit
 procedure TKMemoryStreamBinary.Write(const Value: Extended);       begin inherited Write(Value, SizeOf(Value)); end;
 procedure TKMemoryStreamBinary.Write(const Value: Integer);        begin inherited Write(Value, SizeOf(Value)); end;
 procedure TKMemoryStreamBinary.Write(const Value: Cardinal);       begin inherited Write(Value, SizeOf(Value)); end;
+procedure TKMemoryStreamBinary.Write(const Value: Int64);          begin inherited Write(Value, SizeOf(Value)); end;
 procedure TKMemoryStreamBinary.Write(const Value: Byte);           begin inherited Write(Value, SizeOf(Value)); end;
 procedure TKMemoryStreamBinary.Write(const Value: Boolean);        begin inherited Write(Value, SizeOf(Value)); end;
 procedure TKMemoryStreamBinary.Write(const Value: Word);           begin inherited Write(Value, SizeOf(Value)); end;
@@ -1879,6 +1920,11 @@ begin
   WriteText(IntToStr(Value));
 end;
 
+procedure TKMemoryStreamText.Write(const Value: Int64);
+begin
+  WriteText(IntToStr(Value));
+end;
+
 procedure TKMemoryStreamText.Write(const Value: TDateTime);
 var
   str: String;
@@ -1965,6 +2011,11 @@ begin
 end;
 
 procedure TKMemoryStreamText.Read(out Value: Cardinal);
+begin
+  raise Exception.Create('MemoryStreamText.Read is not implemented yet');
+end;
+
+procedure TKMemoryStreamText.Read(out Value: Int64);
 begin
   raise Exception.Create('MemoryStreamText.Read is not implemented yet');
 end;

@@ -4,8 +4,9 @@ interface
 uses
   {$IFDEF MSWindows} Windows, {$ENDIF}
   {$IFDEF Unix} LCLType, {$ENDIF}
-  Classes, SysUtils, Controls, Math,
-  KM_CommonUtils, KM_CommonTypes, KM_Controls, KM_Saves, KM_InterfaceDefaults, KM_Minimap, KM_Pics, KM_Defaults;
+  Classes, SysUtils, Math,
+  KM_CommonUtils, KM_CommonTypes, KM_Controls, KM_Saves,
+  KM_InterfaceDefaults, KM_InterfaceTypes, KM_MinimapGame, KM_Pics, KM_Defaults;
 
 
 type
@@ -14,7 +15,7 @@ type
     fOnPageChange: TKMMenuChangeEventText;
 
     fSaves: TKMSavesCollection;
-    fMinimap: TKMMinimap;
+    fMinimap: TKMMinimapGame;
 
     // column id, on which last time minimap was loaded. Avoid multiple loads of same minimap, which could happen on every RefreshList
     fMinimapLastListId: Integer;
@@ -65,7 +66,7 @@ type
       PopUp_Rename: TKMPopUpMenu;
         Image_Rename: TKMImage;
         Label_RenameTitle, Label_RenameName: TKMLabel;
-        Edit_Rename: TKMEdit;
+        FilenameEdit_Rename: TKMFilenameEdit;
         Button_Rename, Button_RenameConfirm, Button_RenameCancel: TKMButton;
   public
     OnNewReplay: TUnicodeStringEvent;
@@ -80,7 +81,11 @@ type
 
 implementation
 uses
-  KM_Log, KM_ResTexts, KM_RenderUI, KM_ResFonts, KM_GameSettings;
+  KM_Log,
+  KM_RenderUI,
+  KM_ResTexts, KM_ResFonts, KM_ResTypes,
+  KM_GameSettings,
+  KM_MapTypes;
 
 const
   MINIMAP_NOT_LOADED = -100; // smth, but not -1, as -1 is used for ColumnBox.ItemIndex, when no item is selected
@@ -88,6 +93,9 @@ const
 
 { TKMGUIMenuReplays }
 constructor TKMMenuReplays.Create(aParent: TKMPanel; aOnPageChange: TKMMenuChangeEventText);
+const
+  PAD = 30;
+  BTN_LEFT = 180;
 begin
   inherited Create(gpReplays);
 
@@ -96,48 +104,50 @@ begin
   OnKeyDown := KeyDown;
 
   fSaves := TKMSavesCollection.Create;
-  fMinimap := TKMMinimap.Create(False, True);
+  fMinimap := TKMMinimapGame.Create(True);
 
   Panel_Replays := TKMPanel.Create(aParent, 0, 0, aParent.Width, aParent.Height);
   Panel_Replays.AnchorsStretch;
 
-  TKMLabel.Create(Panel_Replays, aParent.Width div 2, 50, gResTexts[TX_MENU_LOAD_LIST], fntOutline, taCenter);
+  TKMLabel.Create(Panel_Replays, aParent.Width div 2, 45, gResTexts[TX_MENU_LOAD_LIST], fntOutline, taCenter);
 
-  TKMBevel.Create(Panel_Replays, 22, 86, 956, 50);
-  Radio_Replays_Type := TKMRadioGroup.Create(Panel_Replays, 30, 94, 250, 40, fntGrey);
+  TKMBevel.Create(Panel_Replays, PAD, 86, aParent.Width - 2*PAD, 46);
+  Radio_Replays_Type := TKMRadioGroup.Create(Panel_Replays, PAD + 8, 91, 250, 40, fntGrey);
   Radio_Replays_Type.ItemIndex := 0;
   Radio_Replays_Type.Add(gResTexts[TX_MENU_MAPED_SPMAPS]);
   Radio_Replays_Type.Add(gResTexts[TX_MENU_MAPED_MPMAPS]);
   Radio_Replays_Type.OnChange := Replay_TypeChange;
 
-  ColumnBox_Replays := TKMColumnBox.Create(Panel_Replays, 22, 145, 956, 400, fntMetal, bsMenu);
+  ColumnBox_Replays := TKMColumnBox.Create(Panel_Replays, PAD, 140, aParent.Width - 2*PAD, 400, fntMetal, bsMenu);
   ColumnBox_Replays.SetColumns(fntOutline,
                                ['', gResTexts[TX_MENU_LOAD_FILE], gResTexts[TX_MENU_LOAD_DATE], gResTexts[TX_MENU_LOAD_MAP_NAME],
                                 gResTexts[TX_MENU_LOAD_TIME], gResTexts[TX_MENU_LOAD_GAME_VERSION]],
                                [0, 22, 440, 580, 805, 885]);
   ColumnBox_Replays.Anchors := [anLeft,anTop,anBottom];
+  ColumnBox_Replays.ShowHintWhenShort := True;
+  ColumnBox_Replays.HintBackColor := TKMColor4f.New(87, 72, 37);
   ColumnBox_Replays.SearchColumn := 1;
   ColumnBox_Replays.ColumnIdForScroll := 2;
   ColumnBox_Replays.OnChange := Replays_ListClick;
   ColumnBox_Replays.OnColumnClick := Replays_Sort;
   ColumnBox_Replays.OnDoubleClick := Replays_Play;
 
-  MinimapView_Replay := TKMMinimapView.Create(Panel_Replays, 630, 555, 191, 191, True);
+  MinimapView_Replay := TKMMinimapView.Create(fMinimap, Panel_Replays, PAD + 580, 555, 191, 191, True);
   MinimapView_Replay.Anchors := [anLeft, anBottom];
 
-  Button_ReplaysPlay := TKMButton.Create(Panel_Replays, 200, 560, 350, 30, gResTexts[TX_MENU_VIEW_REPLAY], bsMenu);
+  Button_ReplaysPlay := TKMButton.Create(Panel_Replays, BTN_LEFT, 560, 350, 30, gResTexts[TX_MENU_VIEW_REPLAY], bsMenu);
   Button_ReplaysPlay.Anchors := [anLeft,anBottom];
   Button_ReplaysPlay.OnClick := Replays_Play;
 
-  Button_Rename := TKMButton.Create(Panel_Replays, 200, 597, 350, 30, gResTexts[TX_MENU_REPLAY_RENAME], bsMenu);
+  Button_Rename := TKMButton.Create(Panel_Replays, BTN_LEFT, 597, 350, 30, gResTexts[TX_MENU_REPLAY_RENAME], bsMenu);
   Button_Rename.Anchors := [anLeft,anBottom];
   Button_Rename.OnClick := RenameClick;
 
-  Button_Delete := TKMButton.Create(Panel_Replays, 200, 634, 350, 30, gResTexts[TX_MENU_REPLAY_DELETE], bsMenu);
+  Button_Delete := TKMButton.Create(Panel_Replays, BTN_LEFT, 634, 350, 30, gResTexts[TX_MENU_REPLAY_DELETE], bsMenu);
   Button_Delete.Anchors := [anLeft,anBottom];
   Button_Delete.OnClick := DeleteClick;
 
-  Button_ReplaysBack := TKMButton.Create(Panel_Replays, 200, 700, 350, 30, gResTexts[TX_MENU_BACK], bsMenu);
+  Button_ReplaysBack := TKMButton.Create(Panel_Replays, BTN_LEFT, 700, 350, 30, gResTexts[TX_MENU_BACK], bsMenu);
   Button_ReplaysBack.Anchors := [anLeft,anBottom];
   Button_ReplaysBack.OnClick := BackClick;
 
@@ -186,10 +196,9 @@ begin
   Label_RenameName := TKMLabel.Create(PopUp_Rename, 25, 100, 60, 20, gResTexts[TX_MENU_REPLAY_RENAME_NAME], fntMetal, taLeft);
   Label_RenameName.Anchors := [anLeft,anBottom];
 
-  Edit_Rename := TKMEdit.Create(PopUp_Rename, 105, 97, 275, 20, fntMetal);
-  Edit_Rename.Anchors := [anLeft,anBottom];
-  Edit_Rename.AllowedChars := acFileName;
-  Edit_Rename.OnChange := Edit_Rename_Change;
+  FilenameEdit_Rename := TKMFilenameEdit.Create(PopUp_Rename, 105, 97, 275, 20, fntMetal);
+  FilenameEdit_Rename.Anchors := [anLeft,anBottom];
+  FilenameEdit_Rename.OnChange := Edit_Rename_Change;
 
   Button_RenameConfirm := TKMButton.Create(PopUp_Rename, 20, 155, 170, 30, gResTexts[TX_MENU_REPLAY_RENAME_CONFIRM], bsMenu);
   Button_RenameConfirm.Anchors := [anLeft,anBottom];
@@ -262,13 +271,13 @@ end;
 
 procedure TKMMenuReplays.SetSelectedSaveInfo(aID: Integer = -1);
 var
-  Name: UnicodeString;
+  name: UnicodeString;
 begin
   if (aID <> -1) then
-    Name := fSaves[aID].FileName
+    name := fSaves[aID].FileName
   else
-    Name := '';
-  SetSelectedSaveName(Name);
+    name := '';
+  SetSelectedSaveName(name);
 end;
 
 
@@ -284,11 +293,11 @@ end;
 
 procedure TKMMenuReplays.LoadMinimap(aID: Integer = -1);
 var
-  Loaded: Boolean;
+  loaded: Boolean;
 begin
   if not Panel_Replays.Visible then Exit;
 
-  Loaded := False;
+  loaded := False;
   if (aID <> -1) then
   begin
     if fLoadKind in [gsmStart, gsmStartWithWarn] then
@@ -303,9 +312,8 @@ begin
         if fSaves[aID].LoadMinimap(fMinimap) then
         begin
           fMinimapLastListId := aID;
-          MinimapView_Replay.SetMinimap(fMinimap);
           MinimapView_Replay.Show;
-          Loaded := true;
+          loaded := true;
         end;
       except
         on E: Exception do
@@ -313,7 +321,7 @@ begin
       end;
     end;
   end;
-  if not Loaded then
+  if not loaded then
     MinimapView_Replay.Hide;
 end;
 
@@ -394,11 +402,11 @@ end;
 
 procedure TKMMenuReplays.Replays_RefreshList(aJumpToSelected: Boolean);
 var
-  I, PrevTop: Integer;
-  Row: TKMListRow;
-  Color: Cardinal;
+  I, prevTop: Integer;
+  row: TKMListRow;
+  color: Cardinal;
 begin
-  PrevTop := ColumnBox_Replays.TopIndex;
+  prevTop := ColumnBox_Replays.TopIndex;
   ColumnBox_Replays.Clear;
 
   fSaves.Lock;
@@ -406,18 +414,18 @@ begin
     for I := 0 to fSaves.Count - 1 do
     begin
       if fSaves[I].IsValidStrictly then
-        Color := clSaveLoadOk
+        color := clSaveLoadOk
       else
       if fSaves[I].IsValid then
-        Color := clSaveLoadTry
+        color := clSaveLoadTry
       else
-        Color := clSaveLoadError;
+        color := clSaveLoadError;
 
-      Row := MakeListRow(['', fSaves[I].FileName, fSaves[I].GameInfo.GetSaveTimestamp, fSaves[I].GameInfo.Title,
+      row := MakeListRow(['', fSaves[I].FileName, fSaves[I].GameInfo.GetSaveTimestamp, fSaves[I].GameInfo.Title,
                           TickToTimeStr(fSaves[I].GameInfo.TickCount), fSaves[I].GameInfo.VersionU],
-                         [Color, Color, Color, Color, Color, Color]);
-      Row.Cells[0].Pic := MakePic(rxGui, 657 + Byte(fSaves[I].GameInfo.MissionMode = mmTactic));
-      ColumnBox_Replays.AddItem(Row);
+                         [color, color, color, color, color, color]);
+      row.Cells[0].Pic := MakePic(rxGui, 657 + Byte(fSaves[I].GameInfo.MissionMode = mmFighting));
+      ColumnBox_Replays.AddItem(row);
     end;
 
     for I := 0 to fSaves.Count - 1 do
@@ -427,7 +435,7 @@ begin
     fSaves.Unlock;
   end;
 
-  ColumnBox_Replays.TopIndex := PrevTop;
+  ColumnBox_Replays.TopIndex := prevTop;
 
   if aJumpToSelected and (ColumnBox_Replays.ItemIndex <> -1)
   and not InRange(ColumnBox_Replays.ItemIndex - ColumnBox_Replays.TopIndex, 0, ColumnBox_Replays.GetVisibleRows-1)
@@ -491,7 +499,7 @@ end;
 procedure TKMMenuReplays.Replays_Play(Sender: TObject);
 var
   ID: Integer;
-  LoadError: UnicodeString;
+  loadError: UnicodeString;
 
   procedure DoPlay;
   begin
@@ -516,12 +524,12 @@ begin
         except
           on E: Exception do
           begin
-            LoadError := Format(gResTexts[TX_UNSUPPORTED_REPLAY_LOAD_ERROR_MSG], [fSaves[ID].GameInfo.Version, fSaves[ID].Path])
+            loadError := Format(gResTexts[TX_UNSUPPORTED_REPLAY_LOAD_ERROR_MSG], [fSaves[ID].GameInfo.Version, fSaves[ID].Path])
               + '||' + E.ClassName + ': ' + E.Message;
-            gLog.AddTime('Replay load Exception: ' + LoadError
+            gLog.AddTime('Replay load Exception: ' + loadError
               {$IFDEF WDC} + sLineBreak + E.StackTrace {$ENDIF}
               );
-            fOnPageChange(gpError, LoadError);
+            fOnPageChange(gpError, loadError);
           end;
         end;
       end;
@@ -566,7 +574,7 @@ end;
 
 procedure TKMMenuReplays.DeleteClick(Sender: TObject);
 var
-  OldSelection, NewSelection: Integer;
+  oldSelection, newSelection: Integer;
 begin
   if ColumnBox_Replays.ItemIndex = -1 then Exit;
 
@@ -579,13 +587,13 @@ begin
   //Delete the save
   if Sender = Button_DeleteConfirm then
   begin
-    OldSelection := ColumnBox_Replays.ItemIndex;
+    oldSelection := ColumnBox_Replays.ItemIndex;
     fSaves.DeleteSave(ColumnBox_Replays.ItemIndex);
 
     if ColumnBox_Replays.RowCount > 1 then
     begin
-      NewSelection := EnsureRange(OldSelection, 0, ColumnBox_Replays.RowCount - 2);
-      SetSelectedSaveInfo(NewSelection);
+      newSelection := EnsureRange(oldSelection, 0, ColumnBox_Replays.RowCount - 2);
+      SetSelectedSaveInfo(newSelection);
     end else
       SetSelectedSaveInfo;
 
@@ -600,7 +608,7 @@ begin
 
   if aVisible then
   begin
-    Edit_Rename.Text := fSaves[ColumnBox_Replays.ItemIndex].FileName;
+    FilenameEdit_Rename.Text := fSaves[ColumnBox_Replays.ItemIndex].FileName;
     Button_RenameConfirm.Enabled := False;
     PopUp_Rename.Show;
   end else
@@ -611,7 +619,7 @@ end;
 // Check if new name is allowed
 procedure TKMMenuReplays.Edit_Rename_Change(Sender: TObject);
 begin
-  Button_RenameConfirm.Enabled := (Trim(Edit_Rename.Text) <> '') and not fSaves.Contains(Trim(Edit_Rename.Text));
+  Button_RenameConfirm.Enabled := FilenameEdit_Rename.IsValid and not fSaves.Contains(Trim(FilenameEdit_Rename.Text));
 end;
 
 
@@ -641,9 +649,9 @@ begin
   // Change name of the save
   if Sender = Button_RenameConfirm then
   begin
-    Edit_Rename.Text := Trim(Edit_Rename.Text);
-    fSaves.RenameSave(ColumnBox_Replays.ItemIndex, Edit_Rename.Text);
-    SetSelectedSaveName(Edit_Rename.Text);
+    FilenameEdit_Rename.Text := Trim(FilenameEdit_Rename.Text);
+    fSaves.RenameSave(ColumnBox_Replays.ItemIndex, FilenameEdit_Rename.Text);
+    SetSelectedSaveName(FilenameEdit_Rename.Text);
     ListUpdate;
   end;
 end;

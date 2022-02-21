@@ -17,13 +17,12 @@ type
     fFormMain: TFormMain;
     fFormLoading: TFormLoading;
 
-    fOldTimeFPS, fOldFrameTimes, fFrameCount: Cardinal;
-    {$IFNDEF FPC}
-    fFlashing: Boolean;
-    {$ENDIF}
+    fGameTickInterval: Cardinal;
+
+    fRenderSchedule, fTickSchedule, fUpdateStateSchedule: Cardinal;
+    fLastRenderTime, fOldFrameTimes, fFrameCount: Cardinal;
     fMutex: THandle;
 
-    fGameAppSettings: TKMGameAppSettings;
     fMainSettings: TKMainSettings;
     fResolutions: TKMResolutions;
     fMapCacheUpdater: TTMapsCacheUpdater;
@@ -36,7 +35,14 @@ type
     procedure DoDeactivate(Sender: TObject);
     procedure DoIdle(Sender: TObject; var Done: Boolean);
 
+    function GetRenderInterval: Cardinal;
+    function ForcedRenderRequired: Boolean;
+
+    procedure DoRender;
+    procedure SleepUntilNextSchedule;
+
     procedure MapCacheUpdate;
+    procedure UpdateFPS(latestFrameTime: Cardinal);
 
     procedure GameSpeedChange(aSpeed: Single);
     function DoHaveGenericPermission: Boolean;
@@ -63,8 +69,6 @@ type
     function ClientRect(aPixelsCntToReduce: Integer = 0): TRect;
     function ClientToScreen(aPoint: TPoint): TPoint;
     function ReinitRender(aReturnToOptions: Boolean): Boolean;
-    procedure FlashingStart;
-    procedure FlashingStop;
 
     property FPSString: String read fFPSString;
 
@@ -74,6 +78,9 @@ type
     procedure UnlockMutex;
 
     procedure StatusBarText(aPanelIndex: Integer; const aText: UnicodeString);
+
+    procedure SetGameTickInterval(aInterval: Cardinal);
+    property GameTickInterval: Cardinal read fGameTickInterval;
 
     property Resolutions: TKMResolutions read fResolutions;
     property Settings: TKMainSettings read fMainSettings;
@@ -86,19 +93,33 @@ var
 
 implementation
 uses
-  Classes, Forms,
+  Classes, SysUtils, SysConst, StrUtils, Math,
+  Forms,
   {$IFDEF MSWindows} MMSystem, {$ENDIF}
   {$IFDEF USE_MAD_EXCEPT} KM_Exceptions, {$ENDIF}
-  SysUtils, StrUtils, Math, KromUtils, KM_FileIO,
-  KM_GameApp, KM_Helpers,
+  KromUtils, KM_FileIO,
+  KM_GameApp, KM_VclHelpers,
+  KM_System, KM_ResExporter,
   KM_Log, KM_CommonUtils, KM_Defaults, KM_Points, KM_DevPerfLog,
-  KM_CommonExceptions;
+  KM_CommonExceptions,
+  KromShellUtils, KM_MapTypes;
 
 
 const
   // Mutex is used to block duplicate app launch on the same PC
-  // Random GUID generated in Delphi by Ctrl+G
-  KAM_MUTEX = '07BB7CC6-33F2-44ED-AD04-1E255E0EDF0D';
+  // Random GUID generated in Delphi by Ctrl+Shift+G
+  // Generated for versions r13651+
+  // We can allow to have beta and r6720 versions to be opened at the same time
+  KAM_MUTEX = 'AAF80942-EC97-4D02-9339-07AB8FEFA187';
+
+
+{$OVERFLOWCHECKS OFF}
+function AddWithOverflow(A, B: Cardinal): Cardinal; inline;
+begin
+  Result := A + B;
+end;
+{$OVERFLOWCHECKS ON}
+
 
 { TKMMain }
 constructor TKMMain.Create;
@@ -106,6 +127,8 @@ var
   collapsed: Boolean;
 begin
   inherited;
+
+  fGameTickInterval := 100;
 
   // Create exception handler as soon as possible in case it crashes early on
   {$IFDEF USE_MAD_EXCEPT}gExceptions := TKMExceptions.Create;{$ENDIF}
@@ -138,6 +161,24 @@ begin
 end;
 
 
+// Assertion error handler
+procedure CustomAssertErrorHandler(const Message, Filename: string; LineNumber: Integer; ErrorAddr: Pointer);
+var
+  fileNameOnly: string;
+begin
+  // Show only filename in the error message
+  fileNameOnly := ExtractFileName(Filename);
+
+  if Message <> '' then
+    raise EAssertionFailed.CreateFmt(SAssertError,
+      [Message, fileNameOnly, LineNumber]) at ErrorAddr
+  else
+    raise EAssertionFailed.CreateFmt(SAssertError,
+      [SAssertionFailed, fileNameOnly, LineNumber]) at ErrorAddr;
+end;
+
+
+
 // Return False in case we had difficulties on the start
 function TKMMain.Start: Boolean;
 
@@ -153,8 +194,19 @@ function TKMMain.Start: Boolean;
     end;
   end;
 
+const
+  LOG_CREATE_TRY_CNT = 3;
+var
+  tryInd: Integer;
+  logsPath: UnicodeString;
 begin
   Result := True;
+
+  ExeDir := ExtractFilePath(ParamStr(0));
+
+  // Set custom AssertErrorhandler to avoid dev paths in the error messages, which could be seen by players
+  AssertErrorProc := @CustomAssertErrorHandler;
+
   //Random is only used for cases where order does not matter, e.g. shuffle tracks
   Randomize;
 
@@ -166,18 +218,27 @@ begin
   TimeBeginPeriod(1); //initialize timer precision
   {$ENDIF}
 
-  ExeDir := ExtractFilePath(ParamStr(0));
-
   if not BLOCK_FILE_WRITE then
   begin
-    try
-      CreateDir(ExeDir + 'Logs' + PathDelim);
-      gLog := TKMLog.Create(ExeDir + 'Logs' + PathDelim + 'KaM_' + FormatDateTime('yyyy-mm-dd_hh-nn-ss-zzz', Now) + '.log'); //First thing - create a log
-      gLog.DeleteOldLogs;
-    except
-      on E: Exception do
-        raise EGameInitError.Create('Error initializing logging:' + sLineBreak + E.Message);
+    tryInd := 0;
+    logsPath := ExeDir + 'Logs' + PathDelim + 'KaM_' + FormatDateTime('yyyy-mm-dd_hh-nn-ss-zzz', Now) + '.log';
+    // Try to create log several times
+    while (gLog = nil) and (tryInd < LOG_CREATE_TRY_CNT) do
+    begin
+      try
+        Inc(tryInd);
+        CreateDir(ExeDir + 'Logs' + PathDelim);
+        gLog := TKMLog.Create(logsPath); //First thing - create a log
+      except
+        on E: Exception do
+          if tryInd < LOG_CREATE_TRY_CNT then
+            Sleep(200) // Just wait a bit
+          else
+            raise EGameInitError.Create('Error initializing logging into file: ''' + logsPath + ''':' + sLineBreak + E.Message
+                                        {$IFDEF WDC} + sLineBreak + E.StackTrace {$ENDIF});
+      end;
     end;
+    gLog.DeleteOldLogs;
   end;
 
   //Resolutions are created first so that we could check Settings against them
@@ -185,7 +246,7 @@ begin
 
   //Only after we read settings (fullscreen property and resolutions)
   //we can decide whenever we want to create Game fullscreen or not (OpenGL init depends on that)
-  fGameAppSettings := TKMGameAppSettings.Create;
+  gGameAppSettings := TKMGameAppSettings.Create;
   fMainSettings := TKMainSettings.Create(Screen.Width, Screen.Height);
   //We need to verify INI values, as they can be from another display
   if not fResolutions.IsValid(fMainSettings.Resolution) then
@@ -195,15 +256,16 @@ begin
       fMainSettings.FullScreen := False;
   end;
 
-  gVideoPlayer := TKMVideoPlayer.Create;
+  gVideoPlayer := TKMVideoPlayer.Create(ENABLE_VIDEOS_UNDER_WINE or not IsUnderWine);
+  gResExporter := TKMResExporter.Create;
 
-  fFormMain.Caption := 'KaM Remake Gelwe warchamines mod - ' + UnicodeString(GAME_VERSION);
+  fFormMain.Caption := 'KaM Remake - ' + UnicodeString(GAME_VERSION);
   //Will make the form slightly higher, so do it before ReinitRender so it is reset
   fFormMain.ControlsSetVisibile(SHOW_DEBUG_CONTROLS);
 
   // Check INI window params, if not valid - set NeedResetToDefaults flag for future update
   if not fMainSettings.WindowParams.IsValid(GetScreenMonitorsInfo) then
-     fMainSettings.WindowParams.NeedResetToDefaults := True;
+    fMainSettings.WindowParams.NeedResetToDefaults := True;
 
   // Stop app if we did not ReinitRender properly (didn't pass game folder permissions test)
   //todo: refactor. Separate folder permissions check and render initialization
@@ -220,6 +282,9 @@ begin
 
   fFormMain.ControlsRefill; //Refill some of the debug controls from game settings
 
+  // Create gSystem before Application.OnActivate (it uses FlashingStop)
+  gSystem := TKMSystem.Create(fFormMain.Handle);
+
   Application.OnIdle := DoIdle;
   Application.OnActivate := DoActivate;
   Application.OnDeactivate := DoDeactivate;
@@ -235,7 +300,7 @@ begin
   Application.ProcessMessages;
   fFormLoading.Hide;
 
-  fFormMain.LoadDevSettings;
+  fFormMain.AfterFormCreated;
 end;
 
 
@@ -296,14 +361,16 @@ end;
 procedure TKMMain.Stop(Sender: TObject);
 begin
   try
+    FreeThenNil(gSystem);
     //Reset the resolution
     FreeThenNil(fResolutions);
     FreeThenNil(fMainSettings);
 
     if fMapCacheUpdater <> nil then
       fMapCacheUpdater.Stop;
+
     FreeThenNil(gGameApp);
-    FreeThenNil(fGameAppSettings); // After GameApp is destroyed
+    FreeThenNil(gGameAppSettings); // After GameApp is destroyed
     FreeThenNil(gLog);
 
     {$IFDEF MSWindows}
@@ -320,16 +387,16 @@ begin
     if Assigned(gVideoPlayer) then
       gVideoPlayer.Free;
 
-    fFormMain.SaveDevSettings;
+    FreeAndNil(gResExporter);
+
+    // fFormMain.DevSettingsSave; Moved into MainForm itself, since it's purely MainForms business. Rest of the app should know nothing about it
 
     if Sender <> fFormMain then
       fFormMain.Close;
   except
     on E: Exception do
-      begin
         gLog.AddTime('Exception while closing game app: ' + E.Message
                      {$IFDEF WDC} + sLineBreak + E.StackTrace {$ENDIF});
-      end;
   end;
 end;
 
@@ -345,7 +412,7 @@ end;
 procedure TKMMain.DoActivate(Sender: TObject);
 begin
   if Application.Active then
-    FlashingStop;
+    gSystem.FlashingStop;
 end;
 
 
@@ -365,33 +432,13 @@ begin
 end;
 
 
-procedure TKMMain.DoIdle(Sender: TObject; var Done: Boolean);
+procedure TKMMain.UpdateFPS(latestFrameTime: Cardinal);
 var
-  frameTime: Cardinal;
   fpsLag: Integer;
 begin
-  frameTime := 0;
-
-  if CHECK_8087CW then
-    //$1F3F is used to mask out reserved/undefined bits
-    Assert((Get8087CW and $1F3F = $133F), '8087CW is wrong');
-
-  //if not Form1.Active then exit;
-
-  //Counting FPS
   if fMainSettings <> nil then //fMainSettings could be nil on Game Exit ?? Just check if its not nil
   begin
-    frameTime  := TimeSince(fOldTimeFPS);
-    fOldTimeFPS := TimeGet;
-
-    fpsLag := Floor(1000 / fMainSettings.FPSCap);
-    if CAP_MAX_FPS and (fpsLag <> 1) and (frameTime < fpsLag) then
-    begin
-      Sleep(fpsLag - frameTime);
-      frameTime := fpsLag;
-    end;
-
-    Inc(fOldFrameTimes, frameTime);
+    Inc(fOldFrameTimes, latestFrameTime);
     Inc(fFrameCount);
     if fOldFrameTimes >= FPS_INTERVAL then
     begin
@@ -399,24 +446,133 @@ begin
       if gGameApp <> nil then
         gGameApp.FPSMeasurement(Round(fFPS));
 
+      fpsLag := 1000 div fMainSettings.FPSCap;
       fFPSString := Format('%.1f FPS', [fFPS]) + IfThen(CAP_MAX_FPS, ' (' + IntToStr(fpsLag) + ')');
       StatusBarText(SB_ID_FPS, fFPSString);
       fOldFrameTimes := 0;
       fFrameCount := 0;
     end;
   end;
-  //FPS calculation complete
+end;
+
+
+function TKMMain.GetRenderInterval: Cardinal;
+begin
+  Result := 0;
+  if CAP_MAX_FPS and (fMainSettings <> nil) then
+    Result := 1000 div fMainSettings.FPSCap;
+end;
+
+
+procedure TKMMain.DoRender;
+var renderDelta: Cardinal;
+begin
+  renderDelta := TimeSince(fLastRenderTime);
+  fLastRenderTime := TimeGet;
+  UpdateFPS(renderDelta);
+
+  gGameApp.UpdateStateIdle(renderDelta);
+  gGameApp.Render;
+end;
+
+
+procedure TKMMain.SleepUntilNextSchedule;
+var
+  nextTime, nextRender, nextTick, timeNow, sleepTime, renderInterval: Cardinal;
+begin
+  renderInterval := GetRenderInterval;
+
+  nextRender := AddWithOverflow(fRenderSchedule, renderInterval);
+  nextTick := AddWithOverflow(fTickSchedule, fGameTickInterval);
+
+  if nextRender > nextTick then
+    nextTime := nextRender
+  else
+    nextTime := nextTick;
+
+  timeNow := TimeGet;
+  if nextTime > timeNow then
+  begin
+    sleepTime := nextTime - timeNow;
+    //Check for TimeGet overflow (never sleep longer than the render interval)
+    if sleepTime < renderInterval then
+      Sleep(sleepTime);
+  end;
+end;
+
+
+function TKMMain.ForcedRenderRequired: Boolean;
+begin
+  Result := (fMainSettings <> nil)
+    and fMainSettings.IsNoRenderMaxTimeSet
+    and (TimeSince(fLastRenderTime) > gMain.Settings.NoRenderMaxTime);
+end;
+
+
+procedure TKMMain.DoIdle(Sender: TObject; var Done: Boolean);
+
+  function CalculateSchedule(aLastTime, aTimeSince, aInterval: Cardinal): Cardinal;
+  var
+    ticksBehind: Cardinal;
+  begin
+    ticksBehind := (aTimeSince div aInterval);
+    Result := AddWithOverflow(aLastTime, ticksBehind*aInterval);
+  end;
+
+const
+  MAX_TIME_BETWEEN_RENDERS = 1000; //Render at least 1 FPS
+  UI_UPDATE_INTERVAL = 100;
+var
+  renderInterval, timeSinceRender, timeSinceTick, timeSinceUpdateUI: Cardinal;
+begin
+  Done := False; //Repeats OnIdle asap without performing Form-specific idle code
+
+  if gGameApp = nil then
+  begin
+    Sleep(10);
+    Exit;
+  end;
+
+  if CHECK_8087CW then
+    //$1F3F is used to mask out reserved/undefined bits
+    Assert((Get8087CW and $1F3F = $133F), '8087CW is wrong');
 
   //Some PCs seem to change 8087CW randomly between events like Timers and OnMouse*,
   //so we need to set it right before we do game logic processing
   Set8087CW($133F);
-  if gGameApp <> nil then
-  begin
-    gGameApp.UpdateStateIdle(frameTime);
-    gGameApp.Render;
-  end;
 
-  Done := False; //Repeats OnIdle asap without performing Form-specific idle code
+  //Priority 1. Do we need to tick?
+  timeSinceTick := TimeSince(fTickSchedule);
+  if (timeSinceTick >= fGameTickInterval) and not ForcedRenderRequired then
+  begin
+    gGameApp.DoGameTick;
+    fTickSchedule := CalculateSchedule(fTickSchedule, timeSinceTick, fGameTickInterval);
+  end
+  else
+  begin
+    //Priority 2. UI update and render
+    timeSinceUpdateUI := TimeSince(fUpdateStateSchedule);
+    if timeSinceUpdateUI >= UI_UPDATE_INTERVAL then
+    begin
+      gGameApp.UpdateState;
+      fUpdateStateSchedule := CalculateSchedule(fUpdateStateSchedule, timeSinceUpdateUI, UI_UPDATE_INTERVAL);
+    end;
+
+    renderInterval := GetRenderInterval;
+    if renderInterval > 0 then
+    begin
+      timeSinceRender := TimeSince(fRenderSchedule);
+      if timeSinceRender >= renderInterval then
+      begin
+        DoRender;
+        fRenderSchedule := CalculateSchedule(fRenderSchedule, timeSinceRender, renderInterval);
+      end
+      else
+        SleepUntilNextSchedule;
+    end
+    else
+      DoRender; //No FPS cap so always render
+  end;
 end;
 
 
@@ -425,12 +581,16 @@ function TKMMain.DoHaveGenericPermission: Boolean;
 const
   GRANTED: array[Boolean] of string = ('blocked', 'granted');
 var
-  readAcc, writeAcc, execAcc: Boolean;
+  readAcc, writeAcc, execAcc, dirWritable: Boolean;
 begin
   CheckFolderPermission(ExeDir, readAcc, writeAcc, execAcc);
-  gLog.AddTime(Format('Check game folder ''%s'' generic permissions: READ: %s; WRITE: %s; EXECUTE: %s',
-                      [ExeDir, GRANTED[readAcc], GRANTED[writeAcc], GRANTED[execAcc]]));
-  Result := readAcc and writeAcc and execAcc;
+
+  dirWritable := IsDirectoryWriteable(ExeDir);
+
+  gLog.AddTime(Format('Check game folder ''%s'' generic permissions: READ: %s; WRITE: %s; EXECUTE: %s; folder is writable: ',
+                      [ExeDir, GRANTED[readAcc], GRANTED[writeAcc], GRANTED[execAcc], BoolToStr(dirWritable, True)]));
+
+  Result := dirWritable and readAcc and writeAcc and execAcc;
 end;
 
 
@@ -467,7 +627,7 @@ begin
   // Locale and texts could be loaded separetely to show proper translated error message
   if (gLog = nil)
     or (not aReturnToOptions and not DoHaveGenericPermission) then
-    Exit(False);
+    Exit(False); // Will show 'You have not enough permissions' message to the player
 
   gGameApp.OnGameSpeedActualChange := GameSpeedChange;
   gGameApp.AfterConstruction(aReturnToOptions);
@@ -487,8 +647,9 @@ begin
   fFormMain.Show;
 
   ForceResize; //Force everything to resize
+
   // Unlock window params if are no longer in FullScreen mode
-  if (not fMainSettings.FullScreen) then
+  if not fMainSettings.FullScreen then
     fMainSettings.WindowParams.UnlockParams;
 
   ApplyCursorRestriction;
@@ -515,7 +676,7 @@ end;
 procedure TKMMain.MapCacheUpdate;
 begin
   //Thread frees itself automatically
-  fMapCacheUpdater := TTMapsCacheUpdater.Create([mfSP, mfMP, mfDL]);
+  fMapCacheUpdater := TTMapsCacheUpdater.Create([mkSP, mkMP, mkDL]);
 end;
 
 
@@ -526,48 +687,6 @@ begin
     if fMutex = 0 then Exit; //Didn't have a mutex lock
     CloseHandle(fMutex);
     fMutex := 0;
-  {$ENDIF}
-end;
-
-
-procedure TKMMain.FlashingStart;
-{$IFNDEF FPC}
-var
-  flashInfo: TFlashWInfo;
-{$ENDIF}
-begin
-  {$IFNDEF FPC}
-  if (GetForegroundWindow <> gMain.FormMain.Handle) then
-  begin
-    flashInfo.cbSize := 20;
-    flashInfo.hwnd := Application.Handle;
-    flashInfo.dwflags := FLASHW_ALL;
-    flashInfo.ucount := 5; // Flash 5 times
-    flashInfo.dwtimeout := 0; // Use default cursor blink rate
-    fFlashing := True;
-    FlashWindowEx(flashInfo);
-  end
-  {$ENDIF}
-end;
-
-
-procedure TKMMain.FlashingStop;
-{$IFNDEF FPC}
-var
-  flashInfo: TFlashWInfo;
-{$ENDIF}
-begin
-  {$IFNDEF FPC}
-  if fFlashing then
-  begin
-    flashInfo.cbSize := 20;
-    flashInfo.hwnd := Application.Handle;
-    flashInfo.dwflags := FLASHW_STOP;
-    flashInfo.ucount := 0;
-    flashInfo.dwtimeout := 0;
-    fFlashing := False;
-    FlashWindowEx(flashInfo);
-  end
   {$ENDIF}
 end;
 
@@ -609,7 +728,7 @@ begin
   //Maximized is a special case, it can only be on one monitor. This is required because when maximized form.left = -9 (on Windows 7 anyway)
   if fFormMain.WindowState = wsMaximized then
   begin
-    for I:=0 to Screen.MonitorCount-1 do
+    for I := 0 to Screen.MonitorCount-1 do
       //Find the monitor with the left closest to the left of the form
       if (I = 0)
       or ((Abs(fFormMain.Left - Screen.Monitors[I].Left) <= Abs(fFormMain.Left - aBounds.Left)) and
@@ -703,6 +822,14 @@ begin
   if fMainSettings.WindowParams = nil then Exit; //just in case...
 
   fMainSettings.WindowParams.ApplyWindowParams(aWindowParams);
+end;
+
+
+procedure TKMMain.SetGameTickInterval(aInterval: Cardinal);
+begin
+  if Self = nil then Exit; // Could be nil in Runner
+  
+  fGameTickInterval := aInterval;
 end;
 
 

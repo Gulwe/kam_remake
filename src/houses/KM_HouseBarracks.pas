@@ -78,6 +78,7 @@ var
   U: TKMUnit;
 begin
   inherited;
+
   LoadStream.CheckMarker('HouseBarracks');
   LoadStream.Read(fResourceCount, SizeOf(fResourceCount));
   fRecruitsList := TList.Create;
@@ -98,6 +99,7 @@ var
   I: Integer;
 begin
   inherited;
+
   for I := 0 to RecruitsCount - 1 do
     fRecruitsList.Items[I] := gHands.GetUnitByUID(Cardinal(fRecruitsList.Items[I]));
 end;
@@ -134,14 +136,14 @@ end;
 
 procedure TKMHouseBarracks.DemolishHouse(aFrom: TKMHandID; IsSilent: Boolean = False);
 var
-  R: TKMWareType;
+  W: TKMWareType;
 begin
   //Recruits are no longer under our control so we forget about them (UpdateVisibility will sort it out)
   //Otherwise it can cause crashes while saving under the right conditions when a recruit is then killed.
   fRecruitsList.Clear;
 
-  for R := WARFARE_MIN to WARFARE_MAX do
-    gHands[Owner].Stats.WareConsumed(R, fResourceCount[R]);
+  for W := WARFARE_MIN to WARFARE_MAX do
+    gHands[Owner].Stats.WareConsumed(W, fResourceCount[W]);
 
   inherited;
 end;
@@ -336,8 +338,7 @@ begin
   fRecruitsList.Delete(0); //Delete first recruit in the list
 
   //Make new unit
-  soldier := TKMUnitWarrior(gHands[Owner].TrainUnit(aUnitType, Entrance));
-  soldier.InHouse := Self; //Put him in the barracks, so if it is destroyed while he is inside he is placed somewhere
+  soldier := TKMUnitWarrior(gHands[Owner].TrainUnit(aUnitType, Self));
   soldier.Visible := False; //Make him invisible as he is inside the barracks
   soldier.Condition := Round(TROOPS_TRAINED_CONDITION * UNIT_MAX_CONDITION); //All soldiers start with 3/4, so groups get hungry at the same time
   //Soldier.OrderLoc := KMPointBelow(Entrance); //Position in front of the barracks facing north
@@ -349,17 +350,17 @@ begin
 end;
 
 
-//Equip a new soldier and make him walk out of the house
-//Return the number of units successfully equipped
+// Equip a new soldier and make him walk out of the house
+// Return the number of units successfully equipped
 function TKMHouseBarracks.Equip(aUnitType: TKMUnitType; aCount: Integer): Integer;
 var
-  K: Integer;
+  I: Integer;
   soldier: TKMUnitWarrior;
 begin
   Result := 0;
   Assert(aUnitType in [WARRIOR_EQUIPABLE_BARRACKS_MIN..WARRIOR_EQUIPABLE_BARRACKS_MAX]);
 
-  for K := 0 to aCount - 1 do
+  for I := 0 to aCount - 1 do
   begin
     soldier := TKMUnitWarrior(EquipWarrior(aUnitType));
     if soldier = nil then
@@ -378,9 +379,8 @@ begin
     Inc(MapEdRecruitCount)
   else
   begin
-    U := gHands[Owner].TrainUnit(utRecruit, Entrance);
+    U := gHands[Owner].TrainUnit(utRecruit, Self);
     U.Visible := False;
-    U.InHouse := Self;
     U.Home := Self; //When walking out Home is used to remove recruit from barracks
     RecruitsAdd(U);
     gHands[Owner].Stats.UnitCreated(utRecruit, False);
@@ -393,6 +393,7 @@ var
   I: Integer;
 begin
   inherited;
+
   SaveStream.PlaceMarker('HouseBarracks');
   SaveStream.Write(fResourceCount, SizeOf(fResourceCount));
   SaveStream.Write(RecruitsCount);

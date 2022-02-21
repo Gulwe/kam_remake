@@ -2,7 +2,8 @@ unit KM_GUIMapEdHouse;
 {$I KaM_Remake.inc}
 interface
 uses
-   Classes, Controls, Math, StrUtils, SysUtils,
+   Classes, Math, StrUtils, SysUtils,
+   Controls,
    KM_Controls, KM_Defaults, KM_Pics, KM_Houses, KM_InterfaceGame, KM_ResHouses;
 
 type
@@ -98,9 +99,9 @@ uses
   {$IFDEF MSWindows} Windows, {$ENDIF}
   {$IFDEF Unix} LCLType, {$ENDIF}
   KM_HandsCollection, KM_ResTexts, KM_Resource, KM_RenderUI, KM_ResUnits,
-  KM_ResWares, KM_HouseBarracks, KM_HouseTownHall,
-  KM_ResFonts, KM_GameCursor, KM_Utils,
-  KM_ResTypes;
+  KM_HouseBarracks, KM_HouseTownHall, KM_HouseStore,
+  KM_ResWares, KM_ResFonts, KM_ResTypes,
+  KM_Cursor, KM_UtilsExt;
 
 
 { TKMMapEdHouse }
@@ -179,9 +180,9 @@ begin
     for I := 1 to STORE_RES_COUNT do
     begin
       Button_Store[I] := TKMButtonFlat.Create(Panel_HouseStore, 2 + ((I-1)mod 5)*36,8+((I-1)div 5)*42,32,36,0);
-      Button_Store[I].TexID := gRes.Wares[StoreResType[I]].GUIIcon;
+      Button_Store[I].TexID := gResWares[StoreResType[I]].GUIIcon;
       Button_Store[I].Tag := I;
-      Button_Store[I].Hint := gRes.Wares[StoreResType[I]].Title;
+      Button_Store[I].Hint := gResWares[StoreResType[I]].Title;
       Button_Store[I].OnClick := StoreSelectWare;
     end;
 
@@ -229,11 +230,11 @@ begin
     begin
       Button_Barracks[I] := TKMButtonFlat.Create(Panel_HouseBarracks, ((I-1)mod 6)*31,26+8+((I-1)div 6)*42,28,38,0);
       Button_Barracks[I].Tag := I;
-      Button_Barracks[I].TexID := gRes.Wares[BarracksResType[I]].GUIIcon;
+      Button_Barracks[I].TexID := gResWares[BarracksResType[I]].GUIIcon;
       Button_Barracks[I].TexOffsetX := 1;
       Button_Barracks[I].TexOffsetY := 1;
       Button_Barracks[I].CapOffsetY := 2;
-      Button_Barracks[I].Hint := gRes.Wares[BarracksResType[I]].Title;
+      Button_Barracks[I].Hint := gResWares[BarracksResType[I]].Title;
       Button_Barracks[I].OnClick := BarracksSelectWare;
     end;
     Button_Barracks_Recruit := TKMButtonFlat.Create(Panel_HouseBarracks, (BARRACKS_RES_COUNT mod 6)*31,26+8+(BARRACKS_RES_COUNT div 6)*42,28,38,0);
@@ -273,9 +274,9 @@ begin
 
     WaresRow_TH_Gold_Input := TKMWareOrderRow.Create(Panel_HouseTownHall, 0, 34, Panel_House.Width, TH_MAX_GOLDMAX_VALUE);
     WaresRow_TH_Gold_Input.WareRow.RX := rxGui;
-    WaresRow_TH_Gold_Input.Hint := gRes.Wares[wtGold].Title;
-    WaresRow_TH_Gold_Input.WareRow.TexID := gRes.Wares[wtGold].GUIIcon;
-    WaresRow_TH_Gold_Input.WareRow.Caption := gRes.Wares[wtGold].Title;
+    WaresRow_TH_Gold_Input.Hint := gResWares[wtGold].Title;
+    WaresRow_TH_Gold_Input.WareRow.TexID := gResWares[wtGold].GUIIcon;
+    WaresRow_TH_Gold_Input.WareRow.Caption := gResWares[wtGold].Title;
     WaresRow_TH_Gold_Input.OnChange := TownHallChange;
 end;
 
@@ -296,9 +297,9 @@ procedure TKMMapEdHouse.UpdateState;
 begin
   if Visible then
     case fHouse.HouseType of
-      htBarracks:    Button_Barracks_RallyPoint.Down := (gGameCursor.Mode = cmMarkers) and (gGameCursor.Tag1 = MARKER_RALLY_POINT);
-      htTownHall:    Button_TownHall_RallyPoint.Down := (gGameCursor.Mode = cmMarkers) and (gGameCursor.Tag1 = MARKER_RALLY_POINT);
-      htWoodcutters: Button_Woodcutters_CuttingPoint.Down := (gGameCursor.Mode = cmMarkers) and (gGameCursor.Tag1 = MARKER_RALLY_POINT);
+      htBarracks:    Button_Barracks_RallyPoint.Down := (gCursor.Mode = cmMarkers) and (gCursor.Tag1 = MARKER_RALLY_POINT);
+      htTownHall:    Button_TownHall_RallyPoint.Down := (gCursor.Mode = cmMarkers) and (gCursor.Tag1 = MARKER_RALLY_POINT);
+      htWoodcutters: Button_Woodcutters_CuttingPoint.Down := (gCursor.Mode = cmMarkers) and (gCursor.Tag1 = MARKER_RALLY_POINT);
     end;
 end;
 
@@ -323,17 +324,17 @@ var
   ware: TKMWareType; //todo: Change to wareSpec
   houseSpec: TKMHouseSpec;
 begin
-  houseSpec := gRes.Houses[fHouse.HouseType];
+  houseSpec := gResHouses[fHouse.HouseType];
 
   Label_House_Input.Hide;
   for I := 0 to 3 do
   begin
     ware := houseSpec.ResInput[I+1];
-    if gRes.Wares[ware].IsValid then
+    if gResWares[ware].IsValid then
     begin
-      ResRow_Ware_Input[I].WareRow.TexID := gRes.Wares[ware].GUIIcon;
-      ResRow_Ware_Input[I].WareRow.Caption := gRes.Wares[ware].Title;
-      ResRow_Ware_Input[I].Hint := gRes.Wares[ware].Title;
+      ResRow_Ware_Input[I].WareRow.TexID := gResWares[ware].GUIIcon;
+      ResRow_Ware_Input[I].WareRow.Caption := gResWares[ware].Title;
+      ResRow_Ware_Input[I].Hint := gResWares[ware].Title;
       ResRow_Ware_Input[I].WareRow.WareCount := fHouse.CheckResIn(ware);
       ResRow_Ware_Input[I].OrderCount := fHouse.CheckResIn(ware);
       ResRow_Ware_Input[I].Show;
@@ -347,11 +348,11 @@ begin
   for I := 0 to 3 do
   begin
     ware := houseSpec.ResOutput[I+1];
-    if gRes.Wares[ware].IsValid then
+    if gResWares[ware].IsValid then
     begin
-      ResRow_Ware_Output[I].WareRow.TexID := gRes.Wares[ware].GUIIcon;
-      ResRow_Ware_Output[I].WareRow.Caption := gRes.Wares[ware].Title;
-      ResRow_Ware_Output[I].Hint := gRes.Wares[ware].Title;
+      ResRow_Ware_Output[I].WareRow.TexID := gResWares[ware].GUIIcon;
+      ResRow_Ware_Output[I].WareRow.Caption := gResWares[ware].Title;
+      ResRow_Ware_Output[I].Hint := gResWares[ware].Title;
       ResRow_Ware_Output[I].WareRow.WareCount := fHouse.CheckResOut(ware);
       ResRow_Ware_Output[I].OrderCount := fHouse.CheckResOut(ware);
       ResRow_Ware_Output[I].Show;
@@ -370,7 +371,7 @@ begin
     Button_House_Worker.ShowImageEnabled := False;
     Image_House_Worker_Closed.Show;
   end else begin
-    Button_House_Worker.ShowImageEnabled := aHouse.HasOwner;
+    Button_House_Worker.ShowImageEnabled := aHouse.HasWorker;
     Image_House_Worker_Closed.Hide;
   end;
 end;
@@ -383,7 +384,7 @@ begin
   fHouse := aHouse;
   if fHouse = nil then Exit;
 
-  houseSpec := gRes.Houses[fHouse.HouseType];
+  houseSpec := gResHouses[fHouse.HouseType];
 
   {Common data}
   Label_House.Caption := houseSpec.HouseName;
@@ -437,12 +438,12 @@ end;
 
 procedure TKMMapEdHouse.StoreRefresh;
 var
-  I, Tmp: Integer;
+  I, tmp: Integer;
 begin
   for I := 1 to STORE_RES_COUNT do
   begin
-    Tmp := TKMHouseStore(fHouse).CheckResIn(StoreResType[I]);
-    Button_Store[I].Caption := IfThen(Tmp = 0, '-', IntToStr(Tmp));
+    tmp := TKMHouseStore(fHouse).CheckResIn(StoreResType[I]);
+    Button_Store[I].Caption := IfThen(tmp = 0, '-', IntToStr(tmp));
   end;
 end;
 
@@ -458,7 +459,7 @@ procedure TKMMapEdHouse.House_RefreshCommon;
 var
   houseSpec: TKMHouseSpec;
 begin
-  houseSpec := gRes.Houses[fHouse.HouseType];
+  houseSpec := gResHouses[fHouse.HouseType];
 
   House_UpdateDeliveryMode(fHouse.DeliveryMode);
   Button_HouseDeliveryMode.Enabled := fHouse.AllowDeliveryModeChange;
@@ -466,36 +467,36 @@ begin
 
   House_RefreshRepair;
 
-  Button_House_Worker.TexID  := gRes.Units[houseSpec.OwnerType].GUIIcon;
+  Button_House_Worker.TexID  := gRes.Units[houseSpec.WorkerType].GUIIcon;
   HandleHouseClosedForWorker(fHouse);
-  Button_House_Worker.Hint := Format(gResTexts[TX_HOUSES_CLOSED_FOR_WORKER_HINT], [gRes.Units[houseSpec.OwnerType].GUIName]);
+  Button_House_Worker.Hint := Format(gResTexts[TX_HOUSES_CLOSED_FOR_WORKER_HINT], [gRes.Units[houseSpec.WorkerType].GUIName]);
   Button_House_Worker.FlagColor := gHands[fHouse.Owner].FlagColor;
-  Button_House_Worker.Visible := gRes.Houses[fHouse.HouseType].OwnerType <> utNone;
-  Image_House_Worker.TexID := gRes.Units[houseSpec.OwnerType].GUIIcon;
+  Button_House_Worker.Visible := gResHouses[fHouse.HouseType].CanHasWorker;
+  Image_House_Worker.TexID := gRes.Units[houseSpec.WorkerType].GUIIcon;
   Image_House_Worker.FlagColor := gHands[fHouse.Owner].FlagColor;
-  Image_House_Worker.Hint := gRes.Units[houseSpec.OwnerType].GUIName;
+  Image_House_Worker.Hint := gRes.Units[houseSpec.WorkerType].GUIName;
   Image_House_Worker.Hide; // show it on special pages (like Barracks, f.e.)
 end;
 
 
 procedure TKMMapEdHouse.BarracksRefresh;
 var
-  I, Tmp: Integer;
+  I, tmp: Integer;
 begin
   for I := 1 to BARRACKS_RES_COUNT do
   begin
-    Tmp := TKMHouseBarracks(fHouse).CheckResIn(BarracksResType[I]);
-    Button_Barracks[I].Caption := IfThen(Tmp = 0, '-', IntToStr(Tmp));
+    tmp := TKMHouseBarracks(fHouse).CheckResIn(BarracksResType[I]);
+    Button_Barracks[I].Caption := IfThen(tmp = 0, '-', IntToStr(tmp));
   end;
-  Tmp := TKMHouseBarracks(fHouse).MapEdRecruitCount;
-  Button_Barracks_Recruit.Caption := IfThen(Tmp = 0, '-', IntToStr(Tmp));
-  Button_Barracks_RallyPoint.Down := (gGameCursor.Mode = cmMarkers) and (gGameCursor.Tag1 = MARKER_RALLY_POINT);
+  tmp := TKMHouseBarracks(fHouse).MapEdRecruitCount;
+  Button_Barracks_Recruit.Caption := IfThen(tmp = 0, '-', IntToStr(tmp));
+  Button_Barracks_RallyPoint.Down := (gCursor.Mode = cmMarkers) and (gCursor.Tag1 = MARKER_RALLY_POINT);
 end;
 
 
 procedure TKMMapEdHouse.TownHallRefresh;
 begin
-  Button_TownHall_RallyPoint.Down := (gGameCursor.Mode = cmMarkers) and (gGameCursor.Tag1 = MARKER_RALLY_POINT);
+  Button_TownHall_RallyPoint.Down := (gCursor.Mode = cmMarkers) and (gCursor.Tag1 = MARKER_RALLY_POINT);
   WaresRow_TH_Gold_Input.OrderCount := fHouse.CheckResIn(wtGold);
   WaresRow_TH_Gold_Input.WareRow.WareCount := Min(MAX_WARES_IN_HOUSE, WaresRow_TH_Gold_Input.OrderCount);
 end;
@@ -503,7 +504,7 @@ end;
 
 procedure TKMMapEdHouse.WoodcuttersRefresh;
 begin
-  Button_Woodcutters_CuttingPoint.Down := (gGameCursor.Mode = cmMarkers) and (gGameCursor.Tag1 = MARKER_RALLY_POINT);
+  Button_Woodcutters_CuttingPoint.Down := (gCursor.Mode = cmMarkers) and (gCursor.Tag1 = MARKER_RALLY_POINT);
 end;
 
 
@@ -514,7 +515,7 @@ begin
   if Sender = Button_HouseHealthDec then fHouse.AddDamage(GetMultiplicator(Shift), nil, True);
   if Sender = Button_HouseHealthInc then fHouse.AddRepair(GetMultiplicator(Shift));
 
-  houseSpec := gRes.Houses[fHouse.HouseType];
+  houseSpec := gResHouses[fHouse.HouseType];
   HealthBar_House.Caption := IntToStr(Round(fHouse.GetHealth)) + '/' + IntToStr(houseSpec.MaxHealth);
   HealthBar_House.Position := fHouse.GetHealth / houseSpec.MaxHealth;
 end;
@@ -554,7 +555,7 @@ var
 begin
   House_RefreshCommon;
 
-  houseSpec := gRes.Houses[fHouse.HouseType];
+  houseSpec := gResHouses[fHouse.HouseType];
   for I := 0 to 3 do
   begin
     ware := houseSpec.ResInput[I+1];
@@ -613,37 +614,37 @@ end;
 
 procedure TKMMapEdHouse.SetRallyPointClick(Sender: TObject);
 var
-  Btn: TKMButtonFlat;
+  btn: TKMButtonFlat;
 begin
   if (Sender <> Button_Barracks_RallyPoint)
   and (Sender <> Button_TownHall_RallyPoint)
   and (Sender <> Button_Woodcutters_CuttingPoint) then
     Exit;
 
-  Btn := TKMButtonFlat(Sender);
+  btn := TKMButtonFlat(Sender);
 
-  Btn.Down := not Btn.Down;
-  if Btn.Down then
+  btn.Down := not btn.Down;
+  if btn.Down then
   begin
-    gGameCursor.Mode := cmMarkers;
-    gGameCursor.Tag1 := MARKER_RALLY_POINT;
+    gCursor.Mode := cmMarkers;
+    gCursor.Tag1 := MARKER_RALLY_POINT;
   end else
-    gGameCursor.Mode := cmNone;
+    gCursor.Mode := cmNone;
 end;
 
 
 procedure TKMMapEdHouse.House_UpdateDeliveryMode(aMode: TKMDeliveryMode);
 var
-  TexId: Word;
+  texId: Word;
 begin
-  TexId := 0;
+  texId := 0;
 
   case aMode of
-    dmDelivery:  TexId := 37;
-    dmClosed:    TexId := 38;
-    dmTakeOut:   TexId := 664;
+    dmDelivery:  texId := 37;
+    dmClosed:    texId := 38;
+    dmTakeOut:   texId := 664;
   end;
-  Button_HouseDeliveryMode.TexID := TexId;
+  Button_HouseDeliveryMode.TexID := texId;
 end;
 
 
@@ -742,40 +743,40 @@ end;
 
 procedure TKMMapEdHouse.BarracksChange(Sender: TObject; Shift: TShiftState);
 var
-  Res: TKMWareType;
-  Barracks: TKMHouseBarracks;
-  NewCount: Word;
+  res: TKMWareType;
+  barracks: TKMHouseBarracks;
+  newCount: Word;
 begin
-  Barracks := TKMHouseBarracks(fHouse);
+  barracks := TKMHouseBarracks(fHouse);
   if fBarracksItem = -1 then
   begin
     //Recruits
     if (Sender = Button_BarracksDec100) or (Sender = Button_BarracksDec) then
-      Barracks.MapEdRecruitCount := Math.Max(0, Barracks.MapEdRecruitCount - GetMultiplicator(Shift) * TKMButton(Sender).Tag);
+      barracks.MapEdRecruitCount := Math.Max(0, barracks.MapEdRecruitCount - GetMultiplicator(Shift) * TKMButton(Sender).Tag);
 
     if (Sender = Button_BarracksInc100) or (Sender = Button_BarracksInc) then
-      Barracks.MapEdRecruitCount := Math.Min(High(Word), Barracks.MapEdRecruitCount + GetMultiplicator(Shift) * TKMButton(Sender).Tag);
+      barracks.MapEdRecruitCount := Math.Min(High(Word), barracks.MapEdRecruitCount + GetMultiplicator(Shift) * TKMButton(Sender).Tag);
 
-    Label_Barracks_WareCount.Caption := IntToStr(Barracks.MapEdRecruitCount);
+    Label_Barracks_WareCount.Caption := IntToStr(barracks.MapEdRecruitCount);
   end
   else
   begin
     //Wares
-    Res := BarracksResType[fBarracksItem];
+    res := BarracksResType[fBarracksItem];
 
     if (Sender = Button_BarracksDec100) or (Sender = Button_BarracksDec) then
     begin
-      NewCount := Math.Min(Barracks.CheckResIn(Res), GetMultiplicator(Shift) * TKMButton(Sender).Tag);
-      Barracks.ResTakeFromOut(Res, NewCount);
+      newCount := Math.Min(barracks.CheckResIn(res), GetMultiplicator(Shift) * TKMButton(Sender).Tag);
+      barracks.ResTakeFromOut(res, newCount);
     end;
 
     if (Sender = Button_BarracksInc100) or (Sender = Button_BarracksInc) then
     begin
-      NewCount := Math.Min(High(Word) - Barracks.CheckResIn(Res), GetMultiplicator(Shift) * TKMButton(Sender).Tag);
-      Barracks.ResAddToIn(Res, NewCount);
+      newCount := Math.Min(High(Word) - barracks.CheckResIn(res), GetMultiplicator(Shift) * TKMButton(Sender).Tag);
+      barracks.ResAddToIn(res, newCount);
     end;
 
-    Label_Barracks_WareCount.Caption := IntToStr(Barracks.CheckResIn(Res));
+    Label_Barracks_WareCount.Caption := IntToStr(barracks.CheckResIn(res));
   end;
   BarracksRefresh;
 end;
@@ -783,24 +784,24 @@ end;
 
 procedure TKMMapEdHouse.StoreChange(Sender: TObject; Shift: TShiftState);
 var
-  Res: TKMWareType;
-  Store: TKMHouseStore;
-  NewCount: Word;
+  res: TKMWareType;
+  store: TKMHouseStore;
+  newCount: Word;
 begin
-  Store := TKMHouseStore(fHouse);
-  Res := StoreResType[fStorehouseItem];
+  store := TKMHouseStore(fHouse);
+  res := StoreResType[fStorehouseItem];
 
   //We need to take no more than it is there, thats part of bugtracking idea
   if (Sender = Button_StoreDec100) or (Sender = Button_StoreDec) then begin
-    NewCount := Math.Min(Store.CheckResIn(Res), GetMultiplicator(Shift) * TKMButton(Sender).Tag);
-    Store.ResTakeFromOut(Res, NewCount);
+    newCount := Math.Min(store.CheckResIn(res), GetMultiplicator(Shift) * TKMButton(Sender).Tag);
+    store.ResTakeFromOut(res, newCount);
   end;
 
   //We can always add any amount of resource, it will be capped by Store
   if (Sender = Button_StoreInc100) or (Sender = Button_StoreInc) then
-    Store.ResAddToIn(Res, GetMultiplicator(Shift) * TKMButton(Sender).Tag);
+    store.ResAddToIn(res, GetMultiplicator(Shift) * TKMButton(Sender).Tag);
 
-  Label_Store_WareCount.Caption := inttostr(Store.CheckResIn(Res));
+  Label_Store_WareCount.Caption := inttostr(store.CheckResIn(res));
   StoreRefresh;
 end;
 

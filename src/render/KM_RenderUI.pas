@@ -9,8 +9,9 @@ uses
   {$IFDEF FPC}
   Generics.Collections,
   {$ENDIF}
-  Controls, Math, KromOGLUtils, StrUtils, SysUtils,
-  KM_Defaults, KM_CommonTypes, KM_Points, KM_Pics,
+  Math, StrUtils, SysUtils,
+  KromOGLUtils,
+  KM_Defaults, KM_CommonTypes, KM_Points, KM_ResTypes,
   KM_ResFonts, KM_ResSprites;
 
 type
@@ -41,7 +42,8 @@ type
     class procedure ReleaseClipY;
     class procedure Write3DButton  (aLeft, aTop, aWidth, aHeight: SmallInt; aRX: TRXType; aID: Word; aFlagColor: TColor4;
       aState: TKMButtonStateSet; aStyle: TKMButtonStyle; aImageEnabled: Boolean = True);
-    class procedure WriteBevel     (aLeft, aTop, aWidth, aHeight: SmallInt; aEdgeAlpha: Single = 1; aBackAlpha: Single = 0.5; aResetTexture: Boolean = True);
+    class procedure WriteBevel     (aLeft, aTop, aWidth, aHeight: SmallInt; aEdgeAlpha: Single = 1; aBackAlpha: Single = 0.5; aResetTexture: Boolean = True); overload;
+    class procedure WriteBevel     (aLeft, aTop, aWidth, aHeight: SmallInt; const aColor: TKMColor3f; aEdgeAlpha: Single = 1; aBackAlpha: Single = 0.5; aResetTexture: Boolean = True); overload;
     class procedure WritePercentBar(aLeft, aTop, aWidth, aHeight: SmallInt; aPos: Single; aSeam: Single;
       aMainColor: Cardinal = icBarColorGreen; aAddColor: Cardinal = icBarColorBlue; aResetTexture: Boolean = True);
     class procedure WriteReplayBar (aLeft, aTop, aWidth, aHeight: SmallInt; aPos, aPeacetime, aMaxValue: Integer; aMarks: TList<Integer>; aPattern: Word; aHighlightedMark: Integer = -1);
@@ -296,7 +298,13 @@ begin
 end;
 
 
-class procedure TKMRenderUI.WriteBevel(aLeft, aTop, aWidth, aHeight: SmallInt; aEdgeAlpha: Single = 1; aBackAlpha: Single = 0.5;
+class procedure TKMRenderUI.WriteBevel(aLeft, aTop, aWidth, aHeight: SmallInt; aEdgeAlpha: Single = 1; aBackAlpha: Single = 0.5; aResetTexture: Boolean = True);
+begin
+  WriteBevel(aLeft, aTop, aWidth, aHeight, COLOR3F_BLACK, aEdgeAlpha, aBackAlpha, aResetTexture);
+end;
+
+
+class procedure TKMRenderUI.WriteBevel(aLeft, aTop, aWidth, aHeight: SmallInt; const aColor: TKMColor3f; aEdgeAlpha: Single = 1; aBackAlpha: Single = 0.5;
                                        aResetTexture: Boolean = True);
 begin
   if (aWidth < 0) or (aHeight < 0) then Exit;
@@ -308,7 +316,7 @@ begin
     glTranslatef(aLeft, aTop, 0);
 
     //Background
-    glColor4f(0, 0, 0, aBackAlpha);
+    glColor4f(aColor.R, aColor.G, aColor.B, aBackAlpha);
     glBegin(GL_QUADS);
       glkRect(1, 1, aWidth-1, aHeight-1);
     glEnd;
@@ -721,7 +729,7 @@ var
 var
   setupClipXApplied: Boolean;
 begin
-  if (aText = '') or (aColor = $00000000) then Exit;
+  if (aText = '') or (aColor = $00000000) or (SKIP_RENDER_TEXT) then Exit;
 
   if aResetTexture then
     TRender.BindTexture(0); // We have to reset texture to default (0), because it could be bind to any other texture (atlas)

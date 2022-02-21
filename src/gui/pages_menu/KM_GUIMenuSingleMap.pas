@@ -2,10 +2,10 @@ unit KM_GUIMenuSingleMap;
 {$I KaM_Remake.inc}
 interface
 uses
-  Controls, Math, SysUtils,
+  Math, SysUtils,
   KM_Defaults,
   KM_Maps, KM_MapTypes, KM_GameTypes,
-  KM_Controls, KM_Pics, KM_InterfaceDefaults, KM_Minimap, KM_CommonTypes;
+  KM_Controls, KM_Pics, KM_InterfaceDefaults, KM_InterfaceTypes, KM_MinimapMission, KM_CommonTypes;
 
 
 const
@@ -18,7 +18,7 @@ type
     fOnPageChange: TKMMenuChangeEventText;
 
     fMaps: TKMapsCollection;
-    fMinimap: TKMMinimap;
+    fMinimap: TKMMinimapMission;
 
     fLastMapCRC: Cardinal; //CRC of selected map
 
@@ -31,6 +31,7 @@ type
     fDifficulty: TKMMissionDifficulty;
     fAIType: TKMAIType;
 
+    function GetPlayerLoc(aMap: TKMMapInfo): TKMHandID;
     function GetPanelHalf: Integer;
 
     procedure Create_SingleMap(aParent: TKMPanel);
@@ -52,6 +53,7 @@ type
     procedure StartClick(Sender: TObject);
     procedure ListSort(aColumn: Integer);
     procedure MinimapLocClick(aValue: Integer);
+    procedure ReadmeClick(Sender: TObject);
 
     procedure BackClick(Sender: TObject);
   protected
@@ -70,14 +72,19 @@ type
         DropBox_AIPlayerType: TKMDropList;
         Image_Allies: array [0..MAX_HANDS-1] of TKMImage;
         Image_Enemies: array [0..MAX_HANDS-1] of TKMImage;
-        Image_VictGoal: array [0..MAX_UI_GOALS-1] of TKMImage;
-        Label_VictGoal: array [0..MAX_UI_GOALS-1] of TKMLabel;
-        Image_VictGoalSt: array [0..MAX_UI_GOALS-1] of TKMImage;
-        Image_SurvGoal: array [0..MAX_UI_GOALS-1] of TKMImage;
-        Label_SurvGoal: array [0..MAX_UI_GOALS-1] of TKMLabel;
-        Image_SurvGoalSt: array [0..MAX_UI_GOALS-1] of TKMImage;
+        Panel_VictGoal: array [0..MAX_UI_GOALS-1] of TKMPanel;
+          Bevel_VictGoal: array [0..MAX_UI_GOALS-1] of TKMBevel;
+          Image_VictGoal: array [0..MAX_UI_GOALS-1] of TKMImage;
+          Label_VictGoal: array [0..MAX_UI_GOALS-1] of TKMLabel;
+          Image_VictGoalSt: array [0..MAX_UI_GOALS-1] of TKMImage;
+        Panel_SurvGoal: array [0..MAX_UI_GOALS-1] of TKMPanel;
+          Bevel_SurvGoal: array [0..MAX_UI_GOALS-1] of TKMBevel;
+          Image_SurvGoal: array [0..MAX_UI_GOALS-1] of TKMImage;
+          Label_SurvGoal: array [0..MAX_UI_GOALS-1] of TKMLabel;
+          Image_SurvGoalSt: array [0..MAX_UI_GOALS-1] of TKMImage;
       ColumnBox_Maps: TKMColumnBox;
       Button_Back, Button_Start: TKMButton;
+      Button_SetupReadme: TKMButton;
   public
     OnNewSingleMap: TKMNewSingleMapEvent;
 
@@ -91,7 +98,9 @@ type
 
 implementation
 uses
-  KM_ResTexts, KM_CommonUtils, KM_RenderUI, KM_ResFonts, KM_GameSettings;
+  KM_ResTexts, KM_ResFonts, KM_ResTypes,
+  KM_CommonUtils, KM_RenderUI, KM_GameSettings,
+  KM_MapUtils, KM_MapUtilsExt;
 
 const
   PAD_VERT = 44; //Padding from top/bottom
@@ -104,12 +113,12 @@ const
 constructor TKMMenuSingleMap.Create(aParent: TKMPanel; aOnPageChange: TKMMenuChangeEventText);
 begin
   inherited Create(gpSingleMap);
-              
+
   fOnPageChange := aOnPageChange;
   OnEscKeyDown := BackClick;
 
-  fMaps := TKMapsCollection.Create([mfSP, mfMP, mfDL]);
-  fMinimap := TKMMinimap.Create(True, True);
+  fMaps := TKMapsCollection.Create([mkSP, mkMP, mkDL]);
+  fMinimap := TKMMinimapMission.Create(True);
 
   Create_SingleMap(aParent);
 end;
@@ -134,6 +143,12 @@ begin
 end;
 
 
+function TKMMenuSingleMap.GetPlayerLoc(aMap: TKMMapInfo): TKMHandID;
+begin
+  Result := IfThen(fSingleLoc = -1, aMap.DefaultHuman, fSingleLoc);
+end;
+
+
 function TKMMenuSingleMap.GetPanelHalf: Integer;
 begin
   Result := (Panel_Single.Width - PAD_SIDE) div 2 - PAD_SIDE;
@@ -143,21 +158,22 @@ end;
 procedure TKMMenuSingleMap.Create_SingleMap(aParent: TKMPanel);
 var
   I: Integer;
-  Half, ButtonW: Word; //Half width for panes
+  half, descL, buttonW: Word; //Half width for panes
   L: TKMLabel;
   B: TKMBevel;
+  backCol: TKMColor4f;
 begin
   Panel_Single := TKMPanel.Create(aParent, 0, 0, aParent.Width, aParent.Height);
   Panel_Single.AnchorsStretch;
 
-    Half := GetPanelHalf;
+    half := GetPanelHalf;
 
-    TKMBevel.Create(Panel_Single, (aParent.Width + PAD_SIDE) div 2, PAD_VERT + 20, Half, 70);
+    TKMBevel.Create(Panel_Single, (aParent.Width + PAD_SIDE) div 2, PAD_VERT + 20, half, 70);
 
-    Label_MapType := TKMLabel.Create(Panel_Single, (aParent.Width + PAD_SIDE) div 2 + 5, PAD_VERT, gResTexts[TX_MENU_MAP_TYPE], fntOutline, taLeft); 
+    Label_MapType := TKMLabel.Create(Panel_Single, (aParent.Width + PAD_SIDE) div 2 + 5, PAD_VERT, gResTexts[TX_MENU_MAP_TYPE], fntOutline, taLeft);
 
-    Radio_MapType := TKMRadioGroup.Create(Panel_Single, (aParent.Width + PAD_SIDE) div 2 + 5, PAD_VERT + 25, Half - 10, 60, fntMetal);
-    Radio_MapType.Add(gResTexts[TX_MENU_SP_MAP_SCENARIO]); 
+    Radio_MapType := TKMRadioGroup.Create(Panel_Single, (aParent.Width + PAD_SIDE) div 2 + 5, PAD_VERT + 25, half - 10, 60, fntMetal);
+    Radio_MapType.Add(gResTexts[TX_MENU_SP_MAP_SCENARIO]);
     Radio_MapType.Add(gResTexts[TX_LOBBY_MAP_BUILD]);
     Radio_MapType.Add(gResTexts[TX_LOBBY_MAP_FIGHT]);
     Radio_MapType.Add(gResTexts[TX_LOBBY_MAP_SPECIAL]);
@@ -167,10 +183,12 @@ begin
     ColumnBox_Maps := TKMColumnBox.Create(Panel_Single,
                                                   (aParent.Width + PAD_SIDE) div 2,
                                                   PAD_VERT + Radio_MapType.Height + 35,
-                                                  Half,
+                                                  half,
                                                   aParent.Height - PAD_VERT*2 - Radio_MapType.Height - 15,
                                                   fntMetal, bsMenu);
     ColumnBox_Maps.Anchors := [anTop, anBottom];
+    ColumnBox_Maps.ShowHintWhenShort := True;
+    ColumnBox_Maps.HintBackColor := TKMColor4f.New(75, 60, 35);
     ColumnBox_Maps.SetColumns(fntOutline, ['', '', gResTexts[TX_MENU_MAP_TITLE], gResTexts[TX_MENU_MAP_SIZE]], [0, 50, 100, 380]);
     ColumnBox_Maps.Columns[2].Font := fntMetal;
     ColumnBox_Maps.Columns[2].HintFont := fntGrey;
@@ -187,31 +205,33 @@ begin
     ColumnBox_Maps.OnChange := ListClick;
     ColumnBox_Maps.OnDoubleClick := StartClick;
 
-    Panel_Desc := TKMPanel.Create(Panel_Single, PAD_SIDE, PAD_VERT, Half, aParent.Height - PAD_VERT*2);
+    Panel_Desc := TKMPanel.Create(Panel_Single, PAD_SIDE, PAD_VERT, half, aParent.Height - PAD_VERT*2);
     Panel_Desc.Anchors := [anTop, anBottom];
 
       //Description
-      Label_Title := TKMLabel.Create(Panel_Desc, Half div 2, 0, '', fntOutline, taCenter);
-      Memo_Desc  := TKMMemo.Create(Panel_Desc, 0, 20, Half, 300, fntMetal, bsMenu);
+      Label_Title := TKMLabel.Create(Panel_Desc, half div 2, 0, '', fntOutline, taCenter);
+      Memo_Desc  := TKMMemo.Create(Panel_Desc, 0, 20, half, 300, fntMetal, bsMenu);
       Memo_Desc.Anchors := [anTop, anBottom];
       Memo_Desc.AutoWrap := True;
 
       //Minimap preview
-      MinimapView := TKMMinimapView.Create(Panel_Desc, 2, 332, 191, 191, True);
+      MinimapView := TKMMinimapView.Create(fMinimap, Panel_Desc, 4, 332, 191, 191, True);
       MinimapView.Anchors := [anLeft, anBottom];
       MinimapView.OnLocClick := MinimapLocClick;
 
+      descL := MinimapView.Right + 10;
+
       //Setup (loc and flag placed alongside just like in MP lobby)
       //Other setup settings can go below
-      L := TKMLabel.Create(Panel_Desc, 200, 330, 150, 20, gResTexts[TX_LOBBY_HEADER_STARTLOCATION], fntMetal, taLeft);
+      L := TKMLabel.Create(Panel_Desc, descL, 330, 150, 20, gResTexts[TX_LOBBY_HEADER_STARTLOCATION], fntMetal, taLeft);
       L.Anchors := [anLeft, anBottom];
-      DropBox_Loc := TKMDropList.Create(Panel_Desc, 200, 350, 150, 20, fntMetal, gResTexts[TX_MENU_MAP_LOCATION], bsMenu);
+      DropBox_Loc := TKMDropList.Create(Panel_Desc, descL, 350, 150, 20, fntMetal, gResTexts[TX_MENU_MAP_LOCATION], bsMenu);
       DropBox_Loc.Anchors := [anLeft, anBottom];
       DropBox_Loc.OnChange := OptionsChange;
 
-      L := TKMLabel.Create(Panel_Desc, 360, 330, 80, 20, gResTexts[TX_LOBBY_HEADER_FLAGCOLOR], fntMetal, taLeft);
+      L := TKMLabel.Create(Panel_Desc, half - 80, 330, 80, 20, gResTexts[TX_LOBBY_HEADER_FLAGCOLOR], fntMetal, taLeft);
       L.Anchors := [anLeft, anBottom];
-      DropBox_Color := TKMDropColumns.Create(Panel_Desc, 360, 350, 80, 20, fntGrey, '', bsMenu);
+      DropBox_Color := TKMDropColumns.Create(Panel_Desc, half - 80, 350, 80, 20, fntGrey, '', bsMenu);
       DropBox_Color.Anchors := [anLeft, anBottom];
       DropBox_Color.SetColumns(fntOutline, [''], [0]);
       DropBox_Color.List.ShowHeader := False;
@@ -219,56 +239,72 @@ begin
       DropBox_Color.Add(MakeListRow([''], [$FFFFFFFF], [MakePic(rxGuiMain, 31)], 0));
       DropBox_Color.OnChange := OptionsChange;
 
-      Label_Difficulty := TKMLabel.Create(Panel_Desc, 200, 385, gResTexts[TX_MISSION_DIFFICULTY], fntMetal, taLeft);
+      Label_Difficulty := TKMLabel.Create(Panel_Desc, descL, 385, gResTexts[TX_MISSION_DIFFICULTY], fntMetal, taLeft);
       Label_Difficulty.Anchors := [anLeft, anBottom];
       Label_Difficulty.Hide;
-      DropBox_Difficulty := TKMDropList.Create(Panel_Desc, 200, 405, 150, 20, fntMetal, gResTexts[TX_MISSION_DIFFICULTY], bsMenu);
+      DropBox_Difficulty := TKMDropList.Create(Panel_Desc, descL, 405, 150, 20, fntMetal, gResTexts[TX_MISSION_DIFFICULTY], bsMenu);
       DropBox_Difficulty.Anchors := [anLeft, anBottom];
       DropBox_Difficulty.OnChange := OptionsChange;
       DropBox_Difficulty.Hide;
 
-      Label_AIPlayerType := TKMLabel.Create(Panel_Desc, 200, 440, gResTexts[TX_AI_PLAYER_TYPE], fntMetal, taLeft);
+      Label_AIPlayerType := TKMLabel.Create(Panel_Desc, descL, 435, gResTexts[TX_AI_PLAYER_TYPE], fntMetal, taLeft);
       Label_AIPlayerType.Anchors := [anLeft, anBottom];
       Label_AIPlayerType.Hide;
-      DropBox_AIPlayerType := TKMDropList.Create(Panel_Desc, 200, 460, 240, 20, fntMetal, gResTexts[TX_AI_PLAYER_TYPE], bsMenu);
+      DropBox_AIPlayerType := TKMDropList.Create(Panel_Desc, descL, 455, half - descL, 20, fntMetal, gResTexts[TX_AI_PLAYER_TYPE], bsMenu);
       DropBox_AIPlayerType.Anchors := [anLeft, anBottom];
       DropBox_AIPlayerType.OnChange := OptionsChange;
       DropBox_AIPlayerType.Hide;
 
+      Button_SetupReadme := TKMButton.Create(Panel_Desc, descL, 523 - 25, half - descL, 25, gResTexts[TX_LOBBY_VIEW_README], bsMenu);
+      Button_SetupReadme.Anchors := [anLeft,anBottom];
+      Button_SetupReadme.OnClick := ReadmeClick;
+      Button_SetupReadme.Hide;
+
       //Goals
-      B := TKMBevel.Create(Panel_Desc, 0, 530, Half, 30);
+      B := TKMBevel.Create(Panel_Desc, 0, 530, half, 30);
       B.Anchors := [anLeft, anBottom];
       L := TKMLabel.Create(Panel_Desc, 4, 538, 190, 30, gResTexts[TX_MENU_WIN_CONDITION], fntMetal, taLeft);
       L.Anchors := [anLeft, anBottom];
-      B := TKMBevel.Create(Panel_Desc, 0, 560, Half, 30);
+      B := TKMBevel.Create(Panel_Desc, 0, 560, half, 30);
       B.Anchors := [anLeft, anBottom];
       L := TKMLabel.Create(Panel_Desc, 4, 568, 190, 30, gResTexts[TX_MENU_DEFEAT_CONDITION], fntMetal, taLeft);
       L.Anchors := [anLeft, anBottom];
+      backCol := TKMColor4f.New(50, 40, 25);
       for I := 0 to MAX_UI_GOALS - 1 do
       begin
-        Image_VictGoal[I] := TKMImage.Create(Panel_Desc, 200 + I*35, 530, 30, 30, 41);
-        Image_VictGoal[I].Anchors := [anLeft, anBottom];
-        Image_VictGoal[I].ImageCenter;
-        Label_VictGoal[I] := TKMLabel.Create(Panel_Desc, 215 + I*35, 535, '', fntGrey, taCenter);
-        Label_VictGoal[I].Anchors := [anLeft, anBottom];
-        Image_VictGoalSt[I] := TKMImage.Create(Panel_Desc, 217 + I*35, 545, 20, 20, 371, rxGui);
-        Image_VictGoalSt[I].Anchors := [anLeft, anBottom];
+        Panel_VictGoal[I] := TKMPanel.Create(Panel_Desc, 200 + I*35, 530, 35, 35);
+        Panel_VictGoal[I].Anchors := [anLeft, anBottom];
+          Image_VictGoal[I] := TKMImage.Create(Panel_VictGoal[I], 0, 0, 30, 30, 41);
+          Image_VictGoal[I].ImageCenter;
+          Label_VictGoal[I] := TKMLabel.Create(Panel_VictGoal[I], 15, 5, '', fntGrey, taCenter);
+          Image_VictGoalSt[I] := TKMImage.Create(Panel_VictGoal[I], 17, 15, 20, 20, 371, rxGui);
+          // Bevel used just for a unified hint when hover over any goal part
+          // Thus its added last
+          Bevel_VictGoal[I] := TKMBevel.Create(Panel_VictGoal[I], 0, 0, Panel_VictGoal[I].Width, Panel_VictGoal[I].Height);
+          Bevel_VictGoal[I].BackAlpha := 0;
+          Bevel_VictGoal[I].EdgeAlpha := 0;
+          Bevel_VictGoal[I].HintBackColor := backCol;
 
-        Image_SurvGoal[I] := TKMImage.Create(Panel_Desc, 200 + I*35, 560, 30, 30, 41);
-        Image_SurvGoal[I].Anchors := [anLeft, anBottom];
-        Image_SurvGoal[I].ImageCenter;
-        Label_SurvGoal[I] := TKMLabel.Create(Panel_Desc, 215 + I*35, 565, '', fntGrey, taCenter);
-        Label_SurvGoal[I].Anchors := [anLeft, anBottom];
-        Image_SurvGoalSt[I] := TKMImage.Create(Panel_Desc, 218 + I*35, 575, 20, 20, 44, rxGui);
-        Image_SurvGoalSt[I].Anchors := [anLeft, anBottom];
+        Panel_SurvGoal[I] := TKMPanel.Create(Panel_Desc, 200 + I*35, 560, 35, 35);
+        Panel_SurvGoal[I].Anchors := [anLeft, anBottom];
+          Image_SurvGoal[I] := TKMImage.Create(Panel_SurvGoal[I], 0, 0, 30, 30, 41);
+          Image_SurvGoal[I].ImageCenter;
+          Label_SurvGoal[I] := TKMLabel.Create(Panel_SurvGoal[I], 15, 5, '', fntGrey, taCenter);
+          Image_SurvGoalSt[I] := TKMImage.Create(Panel_SurvGoal[I], 18, 15, 20, 20, 44, rxGui);
+          // Bevel used just for a unified hint when hover over any goal part
+          // Thus its added last
+          Bevel_SurvGoal[I] := TKMBevel.Create(Panel_SurvGoal[I], 0, 0, Panel_SurvGoal[I].Width, Panel_SurvGoal[I].Height);
+          Bevel_SurvGoal[I].BackAlpha := 0;
+          Bevel_SurvGoal[I].EdgeAlpha := 0;
+          Bevel_SurvGoal[I].HintBackColor := backCol;
       end;
 
       //Alliances
-      B := TKMBevel.Create(Panel_Desc, 0, 590, Half, 20);
+      B := TKMBevel.Create(Panel_Desc, 0, 590, half, 20);
       B.Anchors := [anLeft, anBottom];
       L := TKMLabel.Create(Panel_Desc, 4, 594, 190, 20, gResTexts[TX_MENU_ALLIES], fntMetal, taLeft);
       L.Anchors := [anLeft, anBottom];
-      B := TKMBevel.Create(Panel_Desc, 0, 610, Half, 20);
+      B := TKMBevel.Create(Panel_Desc, 0, 610, half, 20);
       B.Anchors := [anLeft, anBottom];
       L := TKMLabel.Create(Panel_Desc, 4, 614, 190, 20, gResTexts[TX_MENU_ENEMIES], fntMetal, taLeft);
       L.Anchors := [anLeft, anBottom];
@@ -281,13 +317,13 @@ begin
         Image_Enemies[I].Anchors := [anLeft, anBottom];
       end;
 
-    ButtonW := (Half - BUTTON_DIST) div 2;
+    buttonW := (half - BUTTON_DIST) div 2;
     Button_Back := TKMButton.Create(Panel_Single, PAD_SIDE, aParent.Height - PAD_VERT - 30,
-                                    ButtonW, 30, gResTexts[TX_MENU_BACK], bsMenu);
+                                    buttonW, 30, gResTexts[TX_MENU_BACK], bsMenu);
     Button_Back.Anchors := [anLeft, anBottom];
     Button_Back.OnClick := BackClick;
-    Button_Start := TKMButton.Create(Panel_Single, PAD_SIDE + BUTTON_DIST + ButtonW, aParent.Height - PAD_VERT - 30,
-                                     ButtonW, 30, gResTexts[TX_MENU_SINGLE_START_MAP], bsMenu);
+    Button_Start := TKMButton.Create(Panel_Single, PAD_SIDE + BUTTON_DIST + buttonW, aParent.Height - PAD_VERT - 30,
+                                     buttonW, 30, gResTexts[TX_MENU_SINGLE_START_MAP], bsMenu);
     Button_Start.Anchors := [anLeft, anBottom];
     Button_Start.OnClick := StartClick;
 end;
@@ -315,49 +351,48 @@ end;
 
 procedure TKMMenuSingleMap.ListRefresh(aJumpToSelected: Boolean);
 var
-  I, ListI, PrevTop: Integer;
+  I, listI, prevTop: Integer;
   R: TKMListRow;
 begin
-  PrevTop := ColumnBox_Maps.TopIndex;
+  prevTop := ColumnBox_Maps.TopIndex;
   ColumnBox_Maps.Clear;
-
   fMaps.Lock;
   try
-    ListI := 0;
+    listI := 0;
     for I := 0 to fMaps.Count - 1 do
     begin
       //Ignore not SP maps in list
       if not fMaps[I].IsPlayableForSP then Continue;
 
       case Radio_MapType.ItemIndex of
-        0:  if not ((fMaps[I].MapFolder = mfSP) and fMaps[I].IsNormalMission and not fMaps[I].TxtInfo.IsSpecial) then
+        0:  if not (fMaps[I].IsSinglePlayerKind and fMaps[I].IsBuildingMission and not fMaps[I].TxtInfo.IsSpecial) then
               Continue;
-        1:  if not ((fMaps[I].MapFolder <> mfSP) and fMaps[I].IsNormalMission and not fMaps[I].TxtInfo.IsSpecial) then
+        1:  if not (not fMaps[I].IsSinglePlayerKind and fMaps[I].IsBuildingMission and not fMaps[I].TxtInfo.IsSpecial) then
               Continue;
-        2:  if not (fMaps[I].IsTacticMission and not fMaps[I].TxtInfo.IsSpecial) then
+        2:  if not (fMaps[I].IsFightingMission and not fMaps[I].TxtInfo.IsSpecial) then
               Continue;
         3:  if not fMaps[I].TxtInfo.IsSpecial then
               Continue;
       end;
 
-      R := MakeListRow(['', IntToStr(fMaps[I].LocCount), fMaps[I].FileName, MapSizeText(fMaps[I].MapSizeX, fMaps[I].MapSizeY)]);
+      R := MakeListRow(['', IntToStr(fMaps[I].LocCount), fMaps[I].Name, MapSizeText(fMaps[I].MapSizeX, fMaps[I].MapSizeY)]);
       R.Cells[2].SubTxt := fMaps[I].TxtInfo.SmallDesc;
-      R.Cells[0].Pic := MakePic(rxGui, 28 + Byte(fMaps[I].MissionMode <> mmTactic) * 14);
+      R.Cells[0].Pic := MakePic(rxGui, 28 + Byte(fMaps[I].MissionMode <> mmFighting) * 14);
       R.Tag := I;
       ColumnBox_Maps.AddItem(R);
 
       if (fMaps[I].MapAndDatCRC = fLastMapCRC) then
       begin
-        ColumnBox_Maps.ItemIndex := ListI;
+        ColumnBox_Maps.ItemIndex := listI;
         ListClick(nil);
       end;
-      Inc(ListI);
+      Inc(listI);
     end;
   finally
     fMaps.Unlock;
   end;
 
-  ColumnBox_Maps.TopIndex := PrevTop;
+  ColumnBox_Maps.TopIndex := prevTop;
   if aJumpToSelected
     and not InRange(ColumnBox_Maps.ItemIndex - ColumnBox_Maps.TopIndex, 0, ColumnBox_Maps.GetVisibleRows - 1)
   then
@@ -371,21 +406,22 @@ end;
 
 procedure TKMMenuSingleMap.ListClick(Sender: TObject);
 var
-  MapId: Integer;
   I: Integer;
-  LastColor: Integer;
+  mapId: Integer;
+  lastColor: Integer;
   MD: TKMMissionDifficulty;
-  AIColors: TKMCardinalArray;
+  aiColors: TKMCardinalArray;
+  map: TKMMapInfo;
 begin
   fMaps.Lock;
   try
     if ColumnBox_Maps.IsSelected then
-      MapId := ColumnBox_Maps.SelectedItem.Tag
+      mapId := ColumnBox_Maps.SelectedItem.Tag
     else
-      MapId := -1;
+      mapId := -1;
 
     //User could have clicked on empty space in list and we get -1 or unused MapId
-    if not InRange(MapId, 0, fMaps.Count - 1) then
+    if not InRange(mapId, 0, fMaps.Count - 1) then
     begin
       fLastMapCRC := 0;
       Label_Title.Caption   := '';
@@ -400,6 +436,8 @@ begin
       Label_Difficulty.Hide;
       DropBox_Difficulty.Hide;
 
+      Button_SetupReadme.Hide;
+
       Label_AIPlayerType.Hide;
       DropBox_AIPlayerType.Hide;
 
@@ -407,33 +445,34 @@ begin
     end
     else
     begin
+      map := fMaps[mapId];
       //Prepare extra data we are about to display
-      fMaps[MapId].LoadExtra;
+      map.LoadExtra(True);
 
-      fLastMapCRC := fMaps[MapId].MapAndDatCRC;
+      fLastMapCRC := map.MapAndDatCRC;
       case Radio_MapType.ItemIndex of
-        0:  gGameSettings.MenuSPScenarioMapCRC := fLastMapCRC;
-        1:  gGameSettings.MenuSPMissionMapCRC := fLastMapCRC;
-        2:  gGameSettings.MenuSPTacticMapCRC := fLastMapCRC;
-        3:  gGameSettings.MenuSPSpecialMapCRC := fLastMapCRC;
+        0:  gGameSettings.MenuSPScenarioMapCRC  := fLastMapCRC;
+        1:  gGameSettings.MenuSPMissionMapCRC   := fLastMapCRC;
+        2:  gGameSettings.MenuSPTacticMapCRC    := fLastMapCRC;
+        3:  gGameSettings.MenuSPSpecialMapCRC   := fLastMapCRC;
       end;
 
-      Label_Title.Caption   := fMaps[MapId].FileName;
-      Memo_Desc.Text        := fMaps[MapId].BigDesc;
+      Label_Title.Caption := map.Name;
+      Memo_Desc.Text      := map.BigDesc;
       MinimapView.Show;
 
       //Location
       DropBox_Loc.Clear;
-      for I := 0 to fMaps[MapId].LocCount - 1 do
-        if fMaps[MapId].CanBeHuman[I] or ALLOW_TAKE_AI_PLAYERS then
-          DropBox_Loc.Add(fMaps[MapId].LocationName(I), I);
+      for I := 0 to map.LocCount - 1 do
+        if map.CanBeHuman[I] or ALLOW_TAKE_AI_PLAYERS then
+          DropBox_Loc.Add(map.LocationName(I), I);
 
       //Difficulty levels
       DropBox_Difficulty.Clear;
-      if fMaps[MapId].TxtInfo.HasDifficultyLevels then
+      if map.TxtInfo.HasDifficultyLevels then
       begin
         I := 0;
-        for MD in fMaps[MapId].TxtInfo.DifficultyLevels do
+        for MD in map.TxtInfo.DifficultyLevels do
         begin
           DropBox_Difficulty.Add(gResTexts[DIFFICULTY_LEVELS_TX[MD]], Byte(MD));
           if MD = mdNormal then //Default difficulty is "Normal"
@@ -451,7 +490,7 @@ begin
 
       //AI type
       DropBox_AIPlayerType.Clear;
-      if fMaps[MapId].HasDifferentAITypes then
+      if map.HasDifferentAITypes then
       begin
         DropBox_AIPlayerType.Add(gResTexts[TX_AI_PLAYER_CLASSIC_SHORT], Byte(aitClassic));
         DropBox_AIPlayerType.Add(gResTexts[TX_AI_PLAYER_ADVANCED_SHORT], Byte(aitAdvanced));
@@ -466,37 +505,39 @@ begin
         DropBox_AIPlayerType.Hide;
       end;
 
-      DropBox_Loc.SelectByTag(fMaps[MapId].DefaultHuman);
+      Button_SetupReadme.Visible := map.HasReadme;
+
+      DropBox_Loc.SelectByTag(map.DefaultHuman);
 
       //Color
       //Fill in colors for each map individually
       //I plan to skip colors that are similar to those on a map already
-      LastColor := DropBox_Color.ItemIndex;
-      if LastColor = -1 then
-        LastColor := 0; //Default
+      lastColor := DropBox_Color.ItemIndex;
+      if lastColor = -1 then
+        lastColor := 0; //Default
       DropBox_Color.Clear;
       //Default colour chosen by map author
-      DropBox_Color.Add(MakeListRow([''], [fMaps[MapId].FlagColors[fMaps[MapId].DefaultHuman]], [MakePic(rxGuiMain, 30)]));
+      DropBox_Color.Add(MakeListRow([''], [map.FlagColors[map.DefaultHuman]], [MakePic(rxGuiMain, 30)]));
       //Separator
       DropBox_Color.Add(MakeListRow([''], [$FF000000], [MakePic(rxGuiMain, 0)]));
-      AIColors := fMaps[MapId].AIOnlyLocsColors; // save it locally to avoid multiple calculations
+      aiColors := map.AIOnlyLocsColors; // save it locally to avoid multiple calculations
       //MP colours
       for I := Low(MP_TEAM_COLORS) to High(MP_TEAM_COLORS) do
       begin
         // Do not add used AI colors to the list
-        if IsColorCloseToColors(MP_TEAM_COLORS[I], AIColors, MIN_PLAYER_COLOR_DIST) then
+        if IsColorCloseToColors(MP_TEAM_COLORS[I], aiColors, MIN_PLAYER_COLOR_DIST) then
           Continue;
 
         DropBox_Color.Add(MakeListRow([''], [MP_TEAM_COLORS[I]], [MakePic(rxGuiMain, 30)]));
       end;
-      DropBox_Color.ItemIndex := LastColor; //Keep previous selection
+      DropBox_Color.ItemIndex := lastColor; //Keep previous selection
     end;
 
     //Block options if there's nothing to choose there
     DropBox_Loc.Enabled := DropBox_Loc.Count > 1;
     MinimapView.ShowLocs := DropBox_Loc.Count > 1;
-    DropBox_Color.Enabled := not fMaps[MapId].TxtInfo.BlockColorSelection and (DropBox_Color.Count > 1);
-    Button_Start.Enabled := fMaps[MapId].IsValid;
+    DropBox_Color.Enabled := not fMaps[mapId].TxtInfo.BlockColorSelection and (DropBox_Color.Count > 1);
+    Button_Start.Enabled := fMaps[mapId].IsValid;
 
     DoOptionsChange;
   finally
@@ -509,6 +550,13 @@ procedure TKMMenuSingleMap.DoOptionsChange(aForceUpdate: Boolean = False);
 begin
   UpdateDropBoxes;
   Update(aForceUpdate);
+end;
+
+
+procedure TKMMenuSingleMap.ReadmeClick(Sender: TObject);
+begin
+  if ColumnBox_Maps.IsSelected then
+    TryOpenMapPDF(fMaps[ColumnBox_Maps.SelectedItemTag]);
 end;
 
 
@@ -547,6 +595,9 @@ begin
   DropBox_Difficulty.Clear;
   Label_Difficulty.Hide;
   DropBox_Difficulty.Hide;
+  Label_AIPlayerType.Hide;
+  DropBox_AIPlayerType.Hide;
+  Button_SetupReadme.Hide;
 
   ResetExtraInfo;
 end;
@@ -559,12 +610,8 @@ begin
   //Clear all so that later we fill only used
   for I := 0 to MAX_UI_GOALS - 1 do
   begin
-    Image_VictGoal[I].TexID := 0;
-    Label_VictGoal[I].Caption := '';
-    Image_VictGoalSt[I].Hide;
-    Image_SurvGoal[I].TexID := 0;
-    Label_SurvGoal[I].Caption := '';
-    Image_SurvGoalSt[I].Hide;
+    Panel_VictGoal[I].Hide;
+    Panel_SurvGoal[I].Hide;
   end;
   for I := 0 to MAX_HANDS - 1 do
   begin
@@ -604,35 +651,42 @@ end;
 procedure TKMMenuSingleMap.Update(aForceUpdate: Boolean = False);
 const
   GOAL_CONDITION_PIC: array [TKMGoalCondition] of Word = (
-    41, 39, 592, 38, 62, 41, 303, 141, 312);
+    41,   // gcUnknown0         - Not used/unknown
+    39,   // gcBuildTutorial    - Must build a tannery (and other buildings from tutorial?) for it to be true. In KaM tutorial messages will be dispalyed if this is a goal
+    592,  // gcTime             - A certain time must pass
+    38,   // + (allowed) gcBuildings        - Storehouse, school, barracks, TownHall
+    62,   // + (allowed) gcTroops           - All troops
+    41,   // gcUnknown5         - Not used/unknown
+    303,  // gcMilitaryAssets   - All Troops, Coal mine, Weapons Workshop, Tannery, Armory workshop, Stables, Iron mine, Iron smithy, Weapons smithy, Armory smithy, Barracks, Town hall and Vehicles Workshop
+    141,  // gcSerfsAndSchools  - Serfs (possibly all citizens?) and schoolhouses
+    312); // gcEconomyBuildings - School, Inn and Storehouse
 var
-  I,J,K: Integer;
-  MapId: Integer;
-  M: TKMapInfo;
+  I, J, K: Integer;
+  mapId: Integer;
+  M: TKMMapInfo;
   G: TKMMapGoalInfo;
 begin
   if (fSingleLoc = -1) or not ColumnBox_Maps.IsSelected then Exit;
-  MapId := ColumnBox_Maps.SelectedItem.Tag;
-  if (fUpdatedLastListId = MapId) and not aForceUpdate then Exit; // Do not update same item several times
+  mapId := ColumnBox_Maps.SelectedItem.Tag;
+  if (fUpdatedLastListId = mapId) and not aForceUpdate then Exit; // Do not update same item several times
 
-  fUpdatedLastListId := MapId;
+  fUpdatedLastListId := mapId;
 
   ResetExtraInfo;
 
   fMaps.Lock;
   try
-    M := fMaps[MapId];
+    M := fMaps[mapId];
 
     //Set default colour for this location
-    DropBox_Color.List.Rows[0].Cells[0].Color := fMaps[MapId].FlagColors[fSingleLoc];
+    DropBox_Color.List.Rows[0].Cells[0].Color := fMaps[mapId].FlagColors[fSingleLoc];
     if DropBox_Color.ItemIndex = 0 then
-      fSingleColor := fMaps[MapId].FlagColors[fSingleLoc];
+      fSingleColor := fMaps[mapId].FlagColors[fSingleLoc];
 
     //Refresh minimap with selected location and player color
     fMinimap.LoadFromMission(M.FullPath('.dat'), [TKMHandID(fSingleLoc)]);
     fMinimap.HandColors[fSingleLoc] := fSingleColor;
     fMinimap.Update;
-    MinimapView.SetMinimap(fMinimap);
 
     // Populate goals section
     for I := 0 to Min(MAX_UI_GOALS, M.GoalsVictoryCount[fSingleLoc]) - 1 do
@@ -642,6 +696,12 @@ begin
       Image_VictGoal[I].FlagColor := fSingleColor;
       Image_VictGoalSt[I].Show;
       Label_VictGoal[I].Caption := IntToStr(G.Play + 1);
+      Bevel_VictGoal[I].Hint := GetGoalDescription(GetPlayerLoc(M), G.Play,
+                                                   gltVictory, G.Cond,
+                                                   FlagColorToTextColor(fSingleColor),
+                                                   FlagColorToTextColor(M.FlagColors[G.Play]),
+                                                   icRoyalYellow, icLightOrange);
+      Panel_VictGoal[I].Show;
     end;
     for I := 0 to Min(MAX_UI_GOALS, M.GoalsSurviveCount[fSingleLoc]) - 1 do
     begin
@@ -650,6 +710,12 @@ begin
       Image_SurvGoal[I].FlagColor := fSingleColor;
       Image_SurvGoalSt[I].Show;
       Label_SurvGoal[I].Caption := IntToStr(G.Play + 1);
+      Bevel_SurvGoal[I].Hint := GetGoalDescription(GetPlayerLoc(M), G.Play,
+                                                   gltSurvive, G.Cond,
+                                                   FlagColorToTextColor(fSingleColor),
+                                                   FlagColorToTextColor(M.FlagColors[G.Play]),
+                                                   icRoyalYellow, icLightOrange);
+      Panel_SurvGoal[I].Show;
     end;
 
     // Populate alliances section
@@ -677,6 +743,7 @@ begin
       if Image_Enemies[I].Right > GetPanelHalf then
         Image_Enemies[I].Hide;
     end;
+
   finally
     fMaps.Unlock;
   end;
@@ -688,7 +755,7 @@ end;
 procedure TKMMenuSingleMap.StartClick(Sender: TObject);
 var
   I: Integer;
-  Map: TKMapInfo;
+  map: TKMMapInfo;
 begin
   //This is also called by double clicking on a list entry
   if not Button_Start.Enabled then
@@ -699,7 +766,7 @@ begin
     for I := 0 to fMaps.Count - 1 do
       if fLastMapCRC = fMaps[I].MapAndDatCRC then
       begin
-        Map := fMaps[I]; //save map locally, cause we will unlock fMaps before using it
+        map := fMaps[I]; //save map locally, cause we will unlock fMaps before using it
 
         //Unlock before TerminateScan,
         //or we can get deadlock when try to start game quickly while scanning is still in progress
@@ -710,7 +777,7 @@ begin
 
         //Provide mission FileName mask and title here
         if Assigned(OnNewSingleMap) then
-          OnNewSingleMap(Map.FullPath('.dat'), Map.FileName, fSingleLoc, fSingleColor, fDifficulty, fAIType);
+          OnNewSingleMap(map.FullPath('.dat'), map.Name, fSingleLoc, fSingleColor, fDifficulty, fAIType);
         Exit;
       end;
   finally
@@ -726,32 +793,32 @@ end;
 
 procedure TKMMenuSingleMap.ListSort(aColumn: Integer);
 var
-  Method: TKMapsSortMethod;
+  method: TKMapsSortMethod;
 begin
   //Set Descending order by default and invert it if same column selected again
   case aColumn of
     0:  if fMaps.SortMethod = smByMissionModeDesc then
-          Method := smByMissionModeAsc
+          method := smByMissionModeAsc
         else
-          Method := smByMissionModeDesc;
+          method := smByMissionModeDesc;
     1:  if fMaps.SortMethod = smByPlayersDesc then
-          Method := smByPlayersAsc
+          method := smByPlayersAsc
         else
-          Method := smByPlayersDesc;
+          method := smByPlayersDesc;
     2:  if fMaps.SortMethod = smByNameDesc then
-          Method := smByNameAsc
+          method := smByNameAsc
         else
-          Method := smByNameDesc;
+          method := smByNameDesc;
     3:  if fMaps.SortMethod = smBySizeDesc then
-          Method := smBySizeAsc
+          method := smBySizeAsc
         else
-          Method := smBySizeDesc;
+          method := smBySizeDesc;
     else
-        Method := smByNameAsc; //Default
+        method := smByNameAsc; //Default
   end;
 
   //Start sorting and wait for SortComplete event
-  fMaps.Sort(Method, SortUpdate);
+  fMaps.Sort(method, SortUpdate);
 end;
 
 

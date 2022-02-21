@@ -4,7 +4,7 @@ interface
 uses
   {$IFDEF MSWindows} Windows, {$ENDIF}
   {$IFDEF Unix} LCLIntf, LCLType, {$ENDIF}
-  Classes, SysUtils, KM_Controls, KM_Units, KM_UnitGroup, KM_CommonTypes;//, KM_CommonClasses, KM_CommonTypes, KM_Defaults, KM_Pics,
+  Classes, Controls, SysUtils, KM_Controls, KM_Units, KM_UnitGroup, KM_CommonTypes;//, KM_CommonClasses, KM_CommonTypes, KM_Defaults, KM_Pics,
 
 type
   TKMGUIGameUnit = class
@@ -17,7 +17,7 @@ type
     procedure Unit_Dismiss(Sender: TObject);
     procedure Dismiss_Click(Sender: TObject);
     procedure Army_ActivateControls(aGroup: TKMUnitGroup);
-    procedure Army_Issue_Order(Sender: TObject);
+    procedure Army_Issue_Order(Sender: TObject; Shift: TShiftState);
     procedure ShowDismissBtn;
     procedure Unit_Scroll_Click(Sender: TObject);
     procedure Show_Common(aUnit: TKMUnit);
@@ -63,6 +63,8 @@ type
     procedure ShowUnitInfo(aUnit: TKMUnit; aAskDismiss: Boolean = False);
     procedure ShowGroupInfo(Sender: TKMUnitGroup; aAskDismiss: Boolean = False);
     procedure Army_HideJoinMenu(Sender: TObject);
+
+    procedure UpdateHotkeys;
   end;
   
 
@@ -70,9 +72,12 @@ type
 implementation
 uses
   Math,
-  KM_Game, KM_GameInputProcess, KM_HandsCollection, KM_Hand, KM_HandSpectator, KM_InterfaceGame, KM_RenderUI,
-  KM_Resource, KM_ResFonts, KM_ResTexts, KM_ResKeys, KM_ResSound, KM_ResCursors, KM_ResUnits, KM_Pics,
-  KM_UnitWarrior, KM_Utils, KM_Defaults, KM_Sound, KM_CommonUtils,
+  KM_System, 
+  KM_Game, KM_GameInputProcess,
+  KM_HandsCollection, KM_Hand, KM_HandSpectator, KM_HandTypes,
+  KM_InterfaceGame, KM_RenderUI,
+  KM_Resource, KM_ResFonts, KM_ResTexts, KM_ResKeys, KM_ResSound, KM_ResUnits, KM_Pics,
+  KM_UnitWarrior, KM_Utils, KM_UtilsExt, KM_Defaults, KM_Sound, KM_CommonUtils,
   KM_UnitGroupTypes,
   KM_ResTypes;
 
@@ -84,8 +89,6 @@ const
 { TKMGUIGameUnit }
 
 constructor TKMGUIGameUnit.Create(aParent: TKMPanel; aSetViewportEvent: TPointFEvent);
-var
-  SplitKeyStr: UnicodeString;
 begin
   fSetViewportEvent := aSetViewportEvent;
   fAnimStep := 0;
@@ -137,42 +140,21 @@ begin
 
     // All one-click-action (i.e. not attack, move, link up) army controls have a single procedure
     // that decides what to do based on Sender
-    Button_Army_GoTo.OnClick    := Army_Issue_Order;
-    Button_Army_Stop.OnClick    := Army_Issue_Order;
-    Button_Army_Attack.OnClick  := Army_Issue_Order;
-    Button_Army_RotCW.OnClick   := Army_Issue_Order;
-    Button_Army_Storm.OnClick   := Army_Issue_Order;
-    Button_Army_RotCCW.OnClick  := Army_Issue_Order;
-    Button_Army_ForDown.OnClick := Army_Issue_Order;
-    Button_Army_ForUp.OnClick   := Army_Issue_Order;
-    Button_Army_Split.OnClick   := Army_Issue_Order;
-    Button_Army_Join.OnClick    := Army_Issue_Order;
-    Button_Army_Feed.OnClick    := Army_Issue_Order;
+    Button_Army_GoTo.OnClickShift    := Army_Issue_Order;
+    Button_Army_Stop.OnClickShift    := Army_Issue_Order;
+    Button_Army_Attack.OnClickShift  := Army_Issue_Order;
+    Button_Army_RotCW.OnClickShift   := Army_Issue_Order;
+    Button_Army_Storm.OnClickShift   := Army_Issue_Order;
+    Button_Army_RotCCW.OnClickShift  := Army_Issue_Order;
+    Button_Army_ForDown.OnClickShift := Army_Issue_Order;
+    Button_Army_ForUp.OnClickShift   := Army_Issue_Order;
+    Button_Army_Split.OnClickShift   := Army_Issue_Order;
+    Button_Army_Join.OnClickShift    := Army_Issue_Order;
+    Button_Army_Feed.OnClickShift    := Army_Issue_Order;
 
     // Disable not working buttons
     Button_Army_GoTo.Hide;
     Button_Army_Attack.Hide;
-
-    // Hints
-    Button_Army_GoTo.Hint     := gResTexts[TX_ARMY_GOTO_HINT];
-    Button_Army_Stop.Hint     := GetHintWHotKey(TX_TROOP_HALT_HINT, kfArmyHalt);
-    Button_Army_Attack.Hint   := gResTexts[TX_ARMY_ATTACK_HINT];
-    Button_Army_RotCW.Hint    := GetHintWHotKey(TX_ARMY_ROTATE_CW_HINT, kfArmyRotateCw);
-    Button_Army_Storm.Hint    := GetHintWHotKey(TX_ARMY_STORM_HINT, kfArmyStorm);
-    Button_Army_RotCCW.Hint   := GetHintWHotKey(TX_ARMY_ROTATE_CCW_HINT, kfArmyRotateCcw);
-    Button_Army_ForDown.Hint  := GetHintWHotKey(TX_ARMY_LINE_ADD_HINT, kfArmyAddLine);
-    Button_Army_ForUp.Hint    := GetHintWHotKey(TX_ARMY_LINE_REM_HINT, kfArmyDelLine);
-
-    SplitKeyStr := gResKeys.GetKeyNameById(kfArmySplit);
-
-    //Check if we have new hint with separate 1 unit action hint (Ctrl + S)
-    if CountOccurrences('%s', gResTexts[TX_TROOP_SPLIT_HINT]) = 2 then
-      Button_Army_Split.Hint    := Format(gResTexts[TX_TROOP_SPLIT_HINT], [SplitKeyStr, SplitKeyStr])
-    else
-      Button_Army_Split.Hint     := GetHintWHotKey(TX_TROOP_SPLIT_HINT, SplitKeyStr); //Old hint
-
-    Button_Army_Join.Hint     := GetHintWHotKey(TX_TROOP_LINK_HINT, kfArmyLink);
-    Button_Army_Feed.Hint     := GetHintWHotKey(TX_ARMY_FEED_HINT, kfArmyFood);
 
     { Army controls...
     Go to     Stop      Attack
@@ -209,7 +191,7 @@ end;
 
 procedure TKMGUIGameUnit.Show_Common(aUnit: TKMUnit);
 var
-  HLabelWidth: Integer;
+  hLabelWidth: Integer;
 begin
   Image_PlayerFlag.FlagColor := gHands[aUnit.Owner].FlagColor;
   Image_PlayerFlag.Hint      := Format(gResTexts[TX_PLAYER_FLAG_HINT], [gHands[aUnit.Owner].OwnerName]);
@@ -224,19 +206,19 @@ begin
 
   ConditionBar_Unit.Position  := aUnit.Condition / UNIT_MAX_CONDITION;
 
-  HLabelWidth := gRes.Fonts[fntOutline].GetTextSize(Label_UnitName.Caption).X;
-  if HLabelWidth <= TB_WIDTH - 2*Image_PlayerFlag.Width then
+  hLabelWidth := gRes.Fonts[fntOutline].GetTextSize(Label_UnitName.Caption).X;
+  if hLabelWidth <= TB_WIDTH - 2*Image_PlayerFlag.Width then
     Label_UnitName.Left := 0
-  else if HLabelWidth <= TB_WIDTH - Image_PlayerFlag.Width then
+  else if hLabelWidth <= TB_WIDTH - Image_PlayerFlag.Width then
     Label_UnitName.Left := Image_PlayerFlag.Width
   else
-    Label_UnitName.Left := Max(TB_WIDTH - HLabelWidth, 0);
+    Label_UnitName.Left := Max(TB_WIDTH - hLabelWidth, 0);
 end;
 
 
 procedure TKMGUIGameUnit.ShowUnitInfo(aUnit: TKMUnit; aAskDismiss: Boolean = False);
 var
-  HasSchools: Boolean;
+  hasSchools: Boolean;
 begin
   Assert(gMySpectator.Selected = aUnit);
 
@@ -261,15 +243,15 @@ begin
     Button_Unit_Dismiss.Enabled := aUnit.IsDismissCancelAvailable;
     Panel_Unit_Dismiss.Visible := False;
   end else begin
-    HasSchools := gMySpectator.Hand.Stats.GetHouseQty(htSchool) > 0;
+    hasSchools := gMySpectator.Hand.Stats.GetHouseQty(htSchool) > 0;
 
     if fAskDismiss and not aUnit.IsDismissAvailable then
       fAskDismiss := False; //Hide dismiss panel if dismiss is not available anymore
 
-    Button_Unit_Dismiss.Enabled := not fAskDismiss and HasSchools and not aUnit.IsHungry and aUnit.IsDismissAvailable;
+    Button_Unit_Dismiss.Enabled := not fAskDismiss and hasSchools and not aUnit.IsHungry and aUnit.IsDismissAvailable;
     Button_Unit_Dismiss.TexID := 667;
 
-    if not HasSchools then
+    if not hasSchools then
       Button_Unit_Dismiss.Hint := gResTexts[TX_UNIT_TASK_DISMISS_NOSCHOOLS_HINT]
     else if aUnit.IsHungry then
       Button_Unit_Dismiss.Hint := gResTexts[TX_UNIT_TASK_DISMISS_HUNGRY_HINT]   
@@ -341,27 +323,27 @@ end;
 
 procedure TKMGUIGameUnit.Unit_Dismiss(Sender: TObject);
 var
-  IsGroup: Boolean;
+  isGroup: Boolean;
 begin
   if (gMySpectator.Selected = nil)
     or not ((gMySpectator.Selected is TKMUnit) or (gMySpectator.Selected is TKMUnitGroup)) then
     Exit;
 
-  IsGroup := gMySpectator.Selected is TKMUnitGroup;
+  isGroup := gMySpectator.Selected is TKMUnitGroup;
 
   if Sender = Button_Unit_DismissYes then
   begin
     // DISMISS UNIT
     fAskDismiss := False;
-    if IsGroup then
-      TKMUnitGroup(gMySpectator.Selected).SelectedUnit.Kill(PLAYER_NONE, True, False) //Debug option
+    if isGroup then
+      TKMUnitGroup(gMySpectator.Selected).SelectedUnit.Kill(HAND_NONE, True, False) //Debug option
     else
       SendUnitDismissCommand;
   end
   else
   begin
     fAskDismiss := False;
-    if IsGroup then
+    if isGroup then
       ShowGroupInfo(TKMUnitGroup(gMySpectator.Selected), False)  // Cancel and return to selected group
     else
       ShowUnitInfo(TKMUnit(gMySpectator.Selected), False);  // Cancel and return to selected unit
@@ -371,21 +353,14 @@ end;
 
 procedure TKMGUIGameUnit.Unit_Scroll_Click(Sender: TObject);
 var
-
   U: TKMUnit;
-
   G: TKMUnitGroup;
-
 begin
-
   if (gMySpectator.Selected = nil)
-
     or not ((gMySpectator.Selected is TKMUnit) or (gMySpectator.Selected is TKMUnitGroup)) then
     Exit;
 
-
   U := nil;
-
 
   if gMySpectator.Selected is TKMUnitGroup then
   begin
@@ -398,6 +373,33 @@ begin
 
   if Assigned(fSetViewportEvent) then
     fSetViewportEvent(U.PositionF);
+end;
+
+
+procedure TKMGUIGameUnit.UpdateHotkeys;
+var
+  splitKeyStr: UnicodeString;
+begin
+  // Hints
+  Button_Army_GoTo.Hint     := gResTexts[TX_ARMY_GOTO_HINT];
+  Button_Army_Stop.Hint     := GetHintWHotkey(TX_TROOP_HALT_HINT, kfArmyHalt);
+  Button_Army_Attack.Hint   := gResTexts[TX_ARMY_ATTACK_HINT];
+  Button_Army_RotCW.Hint    := GetHintWHotkey(TX_ARMY_ROTATE_CW_HINT, kfArmyRotateCw);
+  Button_Army_Storm.Hint    := GetHintWHotkey(TX_ARMY_STORM_HINT, kfArmyStorm);
+  Button_Army_RotCCW.Hint   := GetHintWHotkey(TX_ARMY_ROTATE_CCW_HINT, kfArmyRotateCcw);
+  Button_Army_ForDown.Hint  := GetHintWHotkey(TX_ARMY_LINE_ADD_HINT, kfArmyAddLine);
+  Button_Army_ForUp.Hint    := GetHintWHotkey(TX_ARMY_LINE_REM_HINT, kfArmyDelLine);
+
+  splitKeyStr := gResKeys.GetKeyNameById(kfArmySplit);
+
+  //Check if we have new hint with separate 1 unit action hint (Ctrl + S)
+  if CountOccurrences('%s', gResTexts[TX_TROOP_SPLIT_HINT]) = 2 then
+    Button_Army_Split.Hint    := Format(gResTexts[TX_TROOP_SPLIT_HINT], [splitKeyStr, splitKeyStr])
+  else
+    Button_Army_Split.Hint     := GetHintWHotkey(TX_TROOP_SPLIT_HINT, splitKeyStr); //Old hint
+
+  Button_Army_Join.Hint     := GetHintWHotkey(TX_TROOP_LINK_HINT, kfArmyLink);
+  Button_Army_Feed.Hint     := GetHintWHotkey(TX_ARMY_FEED_HINT, kfArmyFood);
 end;
 
 
@@ -416,55 +418,73 @@ begin
 end;
 
 
-procedure TKMGUIGameUnit.Army_Issue_Order(Sender: TObject);
+procedure TKMGUIGameUnit.Army_Issue_Order(Sender: TObject; Shift: TShiftState);
 var
-  Group: TKMUnitGroup;
+  group: TKMUnitGroup;
+  rotCnt: ShortInt;
 begin
   if (gMySpectator.Selected = nil)
     or not (gMySpectator.Selected is TKMUnitGroup) then Exit;
 
-  Group := TKMUnitGroup(gMySpectator.Selected);
+  group := TKMUnitGroup(gMySpectator.Selected);
 
   // if Sender = Button_Army_GoTo    then ; // This command makes no sense unless player has no right-mouse-button
+
   if Sender = Button_Army_Stop    then
   begin
-    gGame.GameInputProcess.CmdArmy(gicArmyHalt, Group);
-    gSoundPlayer.PlayWarrior(Group.UnitType, spHalt);
+    gGame.GameInputProcess.CmdArmy(gicArmyHalt, group);
+    gSoundPlayer.PlayWarrior(group.UnitType, spHalt);
   end;
+
   // if Sender = Button_Army_Attack  then ; // This command makes no sense unless player has no right-mouse-button
-  if Sender = Button_Army_RotCW   then
+
+  if (Sender = Button_Army_RotCW) or (Sender = Button_Army_RotCCW) then
   begin
-    gGame.GameInputProcess.CmdArmy(gicArmyFormation, Group, tdCW, 0);
-    gSoundPlayer.PlayWarrior(Group.UnitType, spRotRight);
+    if ssShift in Shift then
+      rotCnt := 4
+    else
+    if ssRight in Shift then
+      rotCnt := 2
+    else
+      rotCnt := 1;
+
+    rotCnt := rotCnt * (2 * Byte(Sender = Button_Army_RotCW) - 1);
+
+    gGame.GameInputProcess.CmdArmy(gicArmyFormation, group, rotCnt, 0);
+
+    if Sender = Button_Army_RotCW then
+      gSoundPlayer.PlayWarrior(group.UnitType, spRotRight)
+    else
+      gSoundPlayer.PlayWarrior(group.UnitType, spRotLeft);
   end;
+
   if Sender = Button_Army_Storm   then
   begin
-    gGame.GameInputProcess.CmdArmy(gicArmyStorm, Group);
-    gSoundPlayer.PlayWarrior(Group.UnitType, spStormAttack);
+    gGame.GameInputProcess.CmdArmy(gicArmyStorm, group);
+    gSoundPlayer.PlayWarrior(group.UnitType, spStormAttack);
   end;
-  if Sender = Button_Army_RotCCW  then
-  begin
-    gGame.GameInputProcess.CmdArmy(gicArmyFormation, Group, tdCCW, 0);
-    gSoundPlayer.PlayWarrior(Group.UnitType, spRotLeft);
-  end;
+
   if Sender = Button_Army_ForDown then
   begin
-    gGame.GameInputProcess.CmdArmy(gicArmyFormation, Group, tdNone, 1);
-    gSoundPlayer.PlayWarrior(Group.UnitType, spFormation);
+    gGame.GameInputProcess.CmdArmy(gicArmyFormation, group, 0, GetMultiplicator(Shift, 5));
+    gSoundPlayer.PlayWarrior(group.UnitType, spFormation);
   end;
+
   if Sender = Button_Army_ForUp   then
   begin
-    gGame.GameInputProcess.CmdArmy(gicArmyFormation, Group, tdNone, -1);
-    gSoundPlayer.PlayWarrior(Group.UnitType, spFormation);
+    gGame.GameInputProcess.CmdArmy(gicArmyFormation, group, 0, -GetMultiplicator(Shift, 5));
+    gSoundPlayer.PlayWarrior(group.UnitType, spFormation);
   end;
+
   if Sender = Button_Army_Split   then
   begin
-    if GetKeyState(VK_CONTROL) < 0 then
-      gGame.GameInputProcess.CmdArmy(gicArmySplitSingle, Group)
+    if ssCtrl in Shift then
+      gGame.GameInputProcess.CmdArmy(gicArmySplitSingle, group)
     else
-      gGame.GameInputProcess.CmdArmy(gicArmySplit, Group);
-    gSoundPlayer.PlayWarrior(Group.UnitType, spSplit);
+      gGame.GameInputProcess.CmdArmy(gicArmySplit, group);
+    gSoundPlayer.PlayWarrior(group.UnitType, spSplit);
   end;
+
   if (Sender = Button_Army_Join)
     and ((gMySpectator.Selected <> nil) and gMySpectator.IsSelectedMyObj) then // Do not allow to command ally's army
   begin
@@ -472,41 +492,43 @@ begin
     Panel_Army_JoinGroups.Show;
     fJoiningGroups := True;
   end;
+
   if Sender = Button_Army_Feed    then
   begin
-    gGame.GameInputProcess.CmdArmy(gicArmyFeed, Group);
-    gSoundPlayer.PlayWarrior(Group.UnitType, spEat);
+    gGame.GameInputProcess.CmdArmy(gicArmyFeed, group);
+    gSoundPlayer.PlayWarrior(group.UnitType, spEat);
   end;
 end;
 
 
 procedure TKMGUIGameUnit.Army_ActivateControls(aGroup: TKMUnitGroup);
-var AcceptOrders: Boolean;
+var
+  acceptOrders: Boolean;
 begin
-  AcceptOrders :=     aGroup.CanTakeOrders
+  acceptOrders :=     aGroup.CanTakeOrders
                   and OnArmyCanTakeOrder(nil)
                   and (gMySpectator.Selected <> nil) // just in case
                   and gMySpectator.IsSelectedMyObj;  // do not allow orders for allied units (for now)
 
-  // Button_Army_GoTo.Enabled    := AcceptOrders;
-  Button_Army_Stop.Enabled    := AcceptOrders;
-  // Button_Army_Attack.Enabled  := AcceptOrders;
-  Button_Army_RotCW.Enabled   := AcceptOrders;
-  Button_Army_Storm.Enabled   := AcceptOrders and (aGroup.GroupType = gtMelee);
-  Button_Army_RotCCW.Enabled  := AcceptOrders;
-  Button_Army_ForUp.Enabled   := AcceptOrders and (aGroup.Count > 1);
-  Button_Army_ForDown.Enabled := AcceptOrders and (aGroup.Count > 1);
-  Button_Army_Split.Enabled   := AcceptOrders and (aGroup.Count > 1);
-  Button_Army_Join.Enabled    := AcceptOrders;
-  Button_Army_Feed.Enabled    := AcceptOrders;
+  // Button_Army_GoTo.Enabled    := acceptOrders;
+  Button_Army_Stop.Enabled    := acceptOrders;
+  // Button_Army_Attack.Enabled  := acceptOrders;
+  Button_Army_RotCW.Enabled   := acceptOrders;
+  Button_Army_Storm.Enabled   := acceptOrders and (aGroup.GroupType = gtMelee);
+  Button_Army_RotCCW.Enabled  := acceptOrders;
+  Button_Army_ForUp.Enabled   := acceptOrders and (aGroup.Count > 1);
+  Button_Army_ForDown.Enabled := acceptOrders and (aGroup.Count > 1);
+  Button_Army_Split.Enabled   := acceptOrders and (aGroup.Count > 1);
+  Button_Army_Join.Enabled    := acceptOrders;
+  Button_Army_Feed.Enabled    := acceptOrders;
 end;
 
 
 procedure TKMGUIGameUnit.Army_HideJoinMenu(Sender: TObject);
 begin
   fJoiningGroups := False;
-  if gRes.Cursors.Cursor in [kmcJoinYes, kmcJoinNo] then // Do not override non-joining cursors
-    gRes.Cursors.Cursor := kmcDefault; // In case this is run with keyboard shortcut, mouse move won't happen
+  if gSystem.Cursor in [kmcJoinYes, kmcJoinNo] then // Do not override non-joining cursors
+    gSystem.Cursor := kmcDefault; // In case this is run with keyboard shortcut, mouse move won't happen
   Panel_Army_JoinGroups.Hide;
   if gMySpectator.Selected is TKMUnitWarrior then
     Panel_Army.Show;
@@ -521,21 +543,21 @@ begin
   if Key = gResKeys[kfArmyHalt].Key then
     if Panel_Army.Visible and Button_Army_Stop.Enabled and not OnSelectingTroopDirection(nil) then
     begin
-      Button_Army_Stop.Click;
+      Army_Issue_Order(Button_Army_Stop, Shift);
       aHandled := True;
     end;
 
   if Key = gResKeys[kfArmyLink].Key then
     if Panel_Army.Visible and Button_Army_Join.Enabled and not OnSelectingTroopDirection(nil) then
     begin
-      Button_Army_Join.Click;
+      Army_Issue_Order(Button_Army_Join, Shift);
       aHandled := True;
     end;
 
   if Key = gResKeys[kfArmySplit].Key then
     if Panel_Army.Visible and Button_Army_Split.Enabled and not OnSelectingTroopDirection(nil) then
     begin
-      Button_Army_Split.Click;
+      Army_Issue_Order(Button_Army_Split, Shift);
       aHandled := True;
     end;
 
@@ -543,42 +565,42 @@ begin
   if Key = gResKeys[kfArmyFood].Key then
     if Panel_Army.Visible and Button_Army_Feed.Enabled and not OnSelectingTroopDirection(nil) then
     begin
-      Button_Army_Feed.Click;
+      Army_Issue_Order(Button_Army_Feed, Shift);
       aHandled := True;
     end;
 
   if Key = gResKeys[kfArmyStorm].Key then
     if Panel_Army.Visible and Button_Army_Storm.Enabled and not OnSelectingTroopDirection(nil) then
     begin
-      Button_Army_Storm.Click;
+      Army_Issue_Order(Button_Army_Storm, Shift);
       aHandled := True;
     end;
 
   if Key = gResKeys[kfArmyAddLine].Key then
     if Panel_Army.Visible and Button_Army_ForDown.Enabled and not OnSelectingTroopDirection(nil) then
     begin
-      Button_Army_ForDown.Click;
+      Army_Issue_Order(Button_Army_ForDown, Shift);
       aHandled := True;
     end;
 
   if Key = gResKeys[kfArmyDelLine].Key then
     if Panel_Army.Visible and Button_Army_ForUp.Enabled and not OnSelectingTroopDirection(nil) then
     begin
-      Button_Army_ForUp.Click;
+      Army_Issue_Order(Button_Army_ForUp, Shift);
       aHandled := True;
     end;
 
   if Key = gResKeys[kfArmyRotateCw].Key then
     if Panel_Army.Visible and Button_Army_RotCW.Enabled and not OnSelectingTroopDirection(nil) then
     begin
-      Button_Army_RotCW.Click;
+      Army_Issue_Order(Button_Army_RotCW, Shift);
       aHandled := True;
     end;
 
   if Key = gResKeys[kfArmyRotateCcw].Key then
     if Panel_Army.Visible and Button_Army_RotCCW.Enabled and not OnSelectingTroopDirection(nil) then
     begin
-      Button_Army_RotCCW.Click;
+      Army_Issue_Order(Button_Army_RotCCW, Shift);
       aHandled := True;
     end;
 end;

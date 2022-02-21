@@ -3,7 +3,7 @@ unit KM_DevPerfLog;
 interface
 uses
   Classes, Math, StrUtils, SysUtils,
-  Vcl.Forms, Vcl.Controls,
+  Forms, Controls,
   KM_DevPerfLogSingle, KM_DevPerfLogStack, KM_DevPerfLogTypes;
 
 
@@ -25,6 +25,7 @@ type
     Enabled: Boolean;
     Scale: Integer;
     Smoothing: Boolean;
+    ClearOnGameStart: Boolean; // Clear all graphs for every game
     SaveOnExit: Boolean;
 
     constructor Create(aSections: TPerfSectionSet; aHighPrecision: Boolean);
@@ -35,8 +36,11 @@ type
     property StackGFX: TKMPerfLogStackGFX read GetStackGFX;
 
     procedure SectionEnter(aSection: TPerfSectionDev); overload;//; aTick: Integer = -1; aTag: Integer = 0);
-
     procedure SectionLeave(aSection: TPerfSectionDev);
+
+    procedure SectionAddValue(aSection: TPerfSectionDev; aValue: Int64; aTick: Integer; aTagS: string = '');
+
+    procedure GameCreated;
 
     procedure Clear;
 
@@ -65,13 +69,15 @@ uses
 { TKMPerfLogs }
 constructor TKMPerfLogs.Create(aSections: TPerfSectionSet; aHighPrecision: Boolean);
 {$IFDEF PERFLOG}
+const
+  DEFAULT_PF_SCALE = 30;
 var
   I: TPerfSectionDev;
 {$ENDIF}
 begin
   inherited Create;
   {$IFDEF PERFLOG}
-  Scale := 20;
+  Scale := DEFAULT_PF_SCALE;
 
   for I := LOW_PERF_SECTION to High(TPerfSectionDev) do
   begin
@@ -144,6 +150,14 @@ begin
 end;
 
 
+procedure TKMPerfLogs.SectionAddValue(aSection: TPerfSectionDev; aValue: Int64; aTick: Integer; aTagS: string = '');
+begin
+  if Self = nil then Exit;
+
+  fItems[aSection].SectionAddValue(aValue, aTick, aTagS);
+end;
+
+
 procedure TKMPerfLogs.SectionEnter(aSection: TPerfSectionDev);
 begin
   if (Self = nil) or not Enabled then Exit;
@@ -178,6 +192,15 @@ begin
     fStackCPU.SectionRollback(aSection)
   else
     fStackGFX.SectionRollback(aSection);
+end;
+
+
+procedure TKMPerfLogs.GameCreated;
+begin
+  if Self = nil then Exit;
+
+  if ClearOnGameStart then
+    Clear;
 end;
 
 
@@ -359,7 +382,7 @@ begin
   // (f.e. for game save)
   // that will make 'rare' graphs move at the same positions as other 'every tick' graphs
   for I := LOW_PERF_SECTION to High(TPerfSectionDev) do
-    if IsCPUSection(I) then
+    if IsCPUSection(I) and IsTimerSection(I) then
     begin
       fItems[I].SectionEnter(fTick);
       fItems[I].SectionLeave;

@@ -2,28 +2,19 @@ unit KM_Utils;
 {$I KaM_Remake.inc}
 interface
 uses
-  {$IFDEF MSWindows}
-  Windows,
-  {$ENDIF}
-  {$IFDEF Unix}
-  unix, baseunix, UnixUtil,
-  {$ENDIF}
   {$IFDEF FPC} FileUtil, {$ENDIF}
   {$IFDEF WDC} IOUtils, {$ENDIF}
-	SysUtils, StrUtils, Classes, Controls,
-  KM_Terrain,
+	SysUtils, StrUtils, Classes,
+//  Controls,
+  KM_TerrainTypes,
   KM_Defaults, KM_CommonTypes, KM_CommonClasses, KM_Points,
   KM_ResTypes;
 
   function KMPathLength(aNodeList: TKMPointList): Single;
 
-  function GetHintWHotKey(const aText: String; aKeyFunc: TKMKeyFunction): String; overload;
-  function GetHintWHotKey(aTextId: Integer; const aHotkeyStr: String): String; overload;
-  function GetHintWHotKey(aTextId: Integer; aKeyFunc: TKMKeyFunction): String; overload;
-
-	function GetShiftState(aButton: TMouseButton): TShiftState;
-  function GetMultiplicator(aButton: TMouseButton): Word; overload;
-  function GetMultiplicator(aShift: TShiftState): Word; overload;
+  function GetHintWHotkey(const aText: String; aKeyFunc: TKMKeyFunction): String; overload;
+  function GetHintWHotkey(aTextId: Integer; const aHotkeyStr: String): String; overload;
+  function GetHintWHotkey(aTextId: Integer; aKeyFunc: TKMKeyFunction): String; overload;
 
   function RoundToTilePixel(aVal: Single): Single; inline; overload;
   function RoundToTilePixel(aVal: TKMPointF): TKMPointF; inline; overload;
@@ -32,16 +23,18 @@ uses
   procedure LoadMapHeader(aStream: TKMemoryStream; var aMapX: Integer; var aMapY: Integer; var aGameRev: Integer); overload;
   procedure LoadMapHeader(aStream: TKMemoryStream; var aMapX: Integer; var aMapY: Integer; var aGameRev: Integer; var aMapDataSize: Cardinal); overload;
 
-  function GetGameObjectOwnerIndex(aObject: TObject): TKMHandID;
-
   function GetTerrainTileBasic(aTile: TKMTerrainTile): TKMTerrainTileBasic;
 
   procedure IterateOverArea(const aStartCell: TKMPoint; aSize: Integer; aIsSquare: Boolean; aOnCell: TPointEventSimple; aAroundArea: Boolean = False);
 
+  function GetLocalizedFilePath(aPath: string; aLocale, aFallbackLocale, aExt: AnsiString): string;
+
+  function CompareTextLogical(A, B: UnicodeString): Integer;
+
 
 implementation
 uses
-  Math, KM_ResTexts, KM_ResKeys, KM_Houses, KM_Units, KM_UnitGroup;
+  Math, KM_ResTexts, KM_ResKeys;
 
 
 function RoundToTilePixel(aVal: Single): Single; inline;
@@ -83,15 +76,16 @@ begin
 end;
 
 
+//@Rey: Should we change "var" to "out" here and above? It would be more semantically correct in these cases
 procedure LoadMapHeader(aStream: TKMemoryStream; var aMapX: Integer; var aMapY: Integer; var aGameRev: Integer; var aMapDataSize: Cardinal);
 var
   GameRevision: UnicodeString;
   GameRev: Integer;
 begin
-  aStream.Read(aMapX); //Get map header to determine old (r6720 and earlier) or newer format
+  aStream.Read(aMapX); // Get map header to determine old (r6720 and earlier) or newer format
 
   aGameRev := 0;
-  if aMapX = 0 then //Means we have not standart KaM format map, but our own KaM_Remake format
+  if aMapX = 0 then // Means we have not a standart KaM format map, but our own KaM_Remake format
   begin
     aStream.ReadW(GameRevision);
     if TryStrToInt(Copy(GameRevision, 2, Length(GameRevision) - 1), GameRev) then
@@ -257,57 +251,7 @@ begin
 end;
 
 
-function GetGameObjectOwnerIndex(aObject: TObject): TKMHandID;
-begin
-  Result := -1;
-  if aObject is TKMHouse then
-  begin
-    Result := TKMHouse(aObject).Owner;
-    Exit;
-  end;
-  if aObject is TKMUnit then
-  begin
-    Result := TKMUnit(aObject).Owner;
-    Exit;
-  end;
-  if aObject is TKMUnitGroup then
-  begin
-    Result := TKMUnitGroup(aObject).Owner;
-    Exit;
-  end;
-end;
-
-
-function GetShiftState(aButton: TMouseButton): TShiftState;
-begin
-  Result := [];
-  case aButton of
-    mbLeft:   Include(Result, ssLeft);
-    mbRight:  Include(Result, ssRight);
-  end;
-
-  if GetKeyState(VK_SHIFT) < 0 then
-    Include(Result, ssShift);
-end;
-
-
-function GetMultiplicator(aButton: TMouseButton): Word;
-begin
-  Result := GetMultiplicator(GetShiftState(aButton));
-end;
-
-
-function GetMultiplicator(aShift: TShiftState): Word;
-begin
-  Exclude(aShift, ssCtrl); //Ignore Ctrl
-  Result := Byte(aShift = [ssLeft])
-          + Byte(aShift = [ssRight]) * 10
-          + Byte(aShift = [ssShift,ssLeft]) * 100
-          + Byte(aShift = [ssShift,ssRight]) * 1000;
-end;
-
-
-function GetHintWHotKey(const aText: String; aKeyFunc: TKMKeyFunction): String; overload;
+function GetHintWHotkey(const aText: String; aKeyFunc: TKMKeyFunction): String;
 var
   hotKeyStr: String;
 begin
@@ -318,7 +262,7 @@ begin
 end;
 
 
-function GetHintWHotKey(aTextId: Integer; const aHotkeyStr: String): String;
+function GetHintWHotkey(aTextId: Integer; const aHotkeyStr: String): String;
 var
   hotKeyStr: string;
 begin
@@ -329,9 +273,55 @@ begin
 end;
 
 
-function GetHintWHotKey(aTextId: Integer; aKeyFunc: TKMKeyFunction): String;
+function GetHintWHotkey(aTextId: Integer; aKeyFunc: TKMKeyFunction): String;
 begin
-  Result := GetHintWHotKey(aTextId, gResKeys.GetKeyNameById(aKeyFunc));
+  Result := GetHintWHotkey(aTextId, gResKeys.GetKeyNameById(aKeyFunc));
+end;
+
+
+// Try to find path to file with local suffixes, f.e. TSK01.waterfall.eng.wav
+function GetLocalizedFilePath(aPath: string; aLocale, aFallbackLocale, aExt: AnsiString): string;
+begin
+  Result := aPath + '.' + String(aLocale) + String(aExt); // Try to file with our locale first
+  if FileExists(Result) then
+    Exit
+  else
+  begin
+    Result := aPath + '.' + String(aFallbackLocale) + String(aExt); // then with fallback locale
+    if FileExists(Result) then
+      Exit
+    else
+    begin
+      Result := aPath + '.' + String(DEFAULT_LOCALE) + String(aExt); // then with default locale (eng)
+      if FileExists(Result) then
+        Exit
+      else
+      begin
+        Result := aPath + String(aExt); // and finally without any locale
+        if FileExists(Result) then
+          Exit
+        else
+          Exit('');
+      end;
+    end;
+  end;
+end;
+
+
+{$IFDEF MSWindows}
+// Logical comparison of the string, as Windows do
+// taken from https://stackoverflow.com/questions/10108789/is-there-a-compare-function-for-file-name-sorting
+function StrCmpLogicalW(psz1, psz2: PWideChar): Integer; stdcall; external 'shlwapi.dll';
+{$ENDIF}
+
+
+function CompareTextLogical(A, B: UnicodeString): Integer;
+begin
+  {$IFDEF MSWindows}
+  Result := StrCmpLogicalW(PWideChar(A), PWideChar(B));
+  {$ELSE}
+  Result := CompareText(A, B);
+  {$ENDIF}
 end;
 
 

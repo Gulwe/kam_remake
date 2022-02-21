@@ -343,7 +343,7 @@ var
         v := KMPoint(-v.X,-v.Y);
       end
       else
-        break;
+        Break;
       // Add corrected point (correction secure that point have unique coords)
       if InnerTile then
         CorrP := KMPointAdd( KMPoint(X,Y), DirCorrInnerTileArr[v.X+v.Y*2] )
@@ -402,7 +402,7 @@ var
   procedure FilterEdges();
   var
     ShapeCheck: Boolean;
-    K,L,M,X,Y, StartIdx, EndIdx, StartBorderIdx, Overflow1, Overflow2: Integer;
+    K,L,X,Y, StartIdx, EndIdx, StartBorderIdx, Overflow1, Overflow2: Integer;
     InvDenominator, a,b,c: Single;
     StrP,EndP: TKMPoint;
   begin
@@ -435,7 +435,7 @@ var
             begin
               ShapeCheck := False;
               Dec(EndIdx);
-              break;
+              Break;
             end;
           // Check if new line does not intersect with existing line
           if ShapeCheck then
@@ -454,11 +454,11 @@ var
                   begin
                     ShapeCheck := False;
                     Dec(EndIdx);
-                    break;
+                    Break;
                   end;
                 end;
               if not ShapeCheck then
-                break;
+                Break;
             end;
           end;
         until ShapeCheck OR (Overflow2 > 65536);
@@ -545,7 +545,7 @@ begin
   FillChar(W, SizeOf(W), #0);
   for Y := 1 to fMapY - 1 do
   for X := 1 to fMapX - 1 do
-    if not (tpOwn in gTerrain.Land[Y,X].Passability) then
+    if not (tpOwn in gTerrain.Land^[Y,X].Passability) then
       W[Y,X] := UNVISITED_OBSTACLE;
   // Fill borders
   for Y := 0 to fMapY do
@@ -916,7 +916,7 @@ var
     PActLine := LineArray[aLineIdx]^.FirstLine;
     repeat
       if (fNodes[ PActLine^.Node ].X >= Point.X ) then
-        break;
+        Break;
       PPrevLine := PActLine;
       PActLine := PActLine^.Next;
     until (PActLine = nil);
@@ -957,7 +957,7 @@ var
         OR (  IsRightSide(FutureLeftP,LeftP,Point) AND IsRightSide(RightP,FutureRightP,Point)  ) then
       begin
         Inserted := InsertPoint(aIdx, I, aBorder);
-        break;
+        Break;
       end;
     end;
     if not Inserted AND aBorder then // This must be border point or the point will be ignored
@@ -1047,7 +1047,7 @@ var
           else
           begin
             CP2 := Indices[L];
-            break;
+            Break;
           end;
         end;
     with fPolygons[aNode1] do

@@ -1,6 +1,8 @@
 unit KM_RenderTypes;
 {$I KaM_Remake.inc}
 interface
+uses
+  KM_CommonGameTypes, KM_Points;
 
 type
   TTexFormat = (
@@ -13,6 +15,8 @@ type
     ftNearest,
     ftLinear
   );
+
+  TKMRenderPoolAddProjectileEvent = procedure (aProj: TKMProjectileType; const aRenderPos, aTilePos: TKMPointF; aDir: TKMDirection; aFlight: Single) of object;
 
 implementation
 

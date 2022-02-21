@@ -2,7 +2,7 @@ unit KM_GUIMapEdTownDefence;
 {$I KaM_Remake.inc}
 interface
 uses
-   Classes, Controls, Math, StrUtils, SysUtils,
+   Classes, Math, StrUtils, SysUtils,
    KM_InterfaceDefaults,
    KM_Controls, KM_Defaults, KM_GUIMapEdTownFormationsPopUp;
 
@@ -33,6 +33,7 @@ type
     procedure Show;
     procedure Hide;
     function Visible: Boolean; override;
+    procedure UpdateHotkeys;
     procedure UpdateState;
     procedure UpdatePlayer(aIndex: TKMHandID);
   end;
@@ -40,7 +41,7 @@ type
 
 implementation
 uses
-  KM_Game, KM_HandsCollection, KM_ResTexts, KM_GameCursor, KM_RenderUI, KM_ResFonts, KM_InterfaceGame,
+  KM_Game, KM_HandsCollection, KM_ResTexts, KM_Cursor, KM_RenderUI, KM_ResFonts, KM_InterfaceGame,
   KM_Hand, KM_Utils;
 
 
@@ -54,16 +55,13 @@ begin
     Anchors := [anLeft, anTop, anRight];
   Button_DefencePosAdd := TKMButtonFlat.Create(Panel_Defence, TB_PAD, 30, 33, 33, 338);
   Button_DefencePosAdd.OnClick := Town_DefenceAddClick;
-  Button_DefencePosAdd.Hint := GetHintWHotKey(TX_MAPED_AI_DEFENSE_HINT, MAPED_SUBMENU_ACTIONS_HOTKEYS[0]);
-
+  
   with TKMLabel.Create(Panel_Defence, 0, 65, TB_MAP_ED_WIDTH, 0, gResTexts[TX_MAPED_AI_DEFENSE_OPTIONS], fntOutline, taCenter) do
     Anchors := [anLeft, anTop, anRight];
   CheckBox_AutoDefence := TKMCheckBox.Create(Panel_Defence, TB_PAD, 90, Panel_Defence.Width - TB_PAD, 20, gResTexts[TX_MAPED_AI_DEFENSE_AUTO], fntMetal);
-  CheckBox_AutoDefence.Hint := GetHintWHotKey(TX_MAPED_AI_DEFENSE_AUTO_HINT, MAPED_SUBMENU_ACTIONS_HOTKEYS[1]);
   CheckBox_AutoDefence.OnClick := Town_DefenceChange;
 
   CheckBox_DefendAllies := TKMCheckBox.Create(Panel_Defence, TB_PAD, 110, Panel_Defence.Width - TB_PAD, 20, gResTexts[TX_MAPED_AI_DEFEND_ALLIES], fntMetal);
-  CheckBox_DefendAllies.Hint := GetHintWHotKey(TX_MAPED_AI_DEFEND_ALLIES_HINT, MAPED_SUBMENU_ACTIONS_HOTKEYS[2]);
   CheckBox_DefendAllies.OnClick := Town_DefenceChange;
 
   TrackBar_AutoAttackRange := TKMTrackBar.Create(Panel_Defence, TB_PAD, 136, Panel_Defence.Width - TB_PAD, 1, 20);
@@ -88,7 +86,6 @@ begin
   NumEdit_RecruitDelay.OnChange := Town_DefenceChange;
 
   CheckBox_MaxSoldiers := TKMCheckBox.Create(Panel_Defence, TB_PAD, 274, Panel_Defence.Width - TB_PAD, 20, gResTexts[TX_MAPED_AI_MAX_SOLDIERS], fntMetal);
-  CheckBox_MaxSoldiers.Hint := GetHintWHotKey(TX_MAPED_AI_MAX_SOLDIERS_ENABLE_HINT, MAPED_SUBMENU_ACTIONS_HOTKEYS[3]);
   CheckBox_MaxSoldiers.OnClick := Town_DefenceChange;
 
   NumEdit_MaxSoldiers := TKMNumericEdit.Create(Panel_Defence, TB_PAD + 20, 292, 0, 500);
@@ -100,7 +97,6 @@ begin
   Button_EditFormations := TKMButton.Create(Panel_Defence, TB_PAD, 322, Panel_Defence.Width - TB_PAD, 25, gResTexts[TX_MAPED_AI_FORMATIONS], bsGame);
   Button_EditFormations.Anchors := [anLeft, anTop, anRight];
   Button_EditFormations.OnClick := Town_DefenceFormations;
-  Button_EditFormations.Hint := GetHintWHotKey(TX_MAPED_AI_FORMATIONS, MAPED_SUBMENU_ACTIONS_HOTKEYS[4]);
 
   fSubMenuActionsEvents[0] := Town_DefenceAddClick;
   fSubMenuActionsEvents[1] := Town_DefenceChange;
@@ -119,15 +115,16 @@ end;
 procedure TKMMapEdTownDefence.Town_DefenceAddClick(Sender: TObject);
 begin
   //Press the button
-  Button_DefencePosAdd.Down := not Button_DefencePosAdd.Down and (Sender = Button_DefencePosAdd);
+  if (Sender = Button_DefencePosAdd) then
+    Button_DefencePosAdd.Down := not Button_DefencePosAdd.Down;
 
   if Button_DefencePosAdd.Down then
   begin
-    gGameCursor.Mode := cmMarkers;
-    gGameCursor.Tag1 := MARKER_DEFENCE;
+    gCursor.Mode := cmMarkers;
+    gCursor.Tag1 := MARKER_DEFENCE;
   end
   else
-    gGameCursor.Mode := cmNone;
+    gCursor.Mode := cmNone;
 end;
 
 
@@ -156,18 +153,18 @@ end;
 
 procedure TKMMapEdTownDefence.Town_DefenceRefresh;
 var
-  OnlyAdvancedAIHand: Boolean;
+  onlyAdvancedAIHand: Boolean;
 begin
-  OnlyAdvancedAIHand := gGame.MapEditor.OnlyAdvancedAIHand(gMySpectator.HandID);
+  onlyAdvancedAIHand := gGame.MapEditor.OnlyAdvancedAIHand(gMySpectator.HandID);
 
   CheckBox_AutoDefence.Checked := gMySpectator.Hand.AI.Setup.AutoDefend;
   CheckBox_DefendAllies.Checked := gMySpectator.Hand.AI.Setup.DefendAllies;
   TrackBar_AutoAttackRange.Position := gMySpectator.Hand.AI.Setup.AutoAttackRange;
-  TrackBar_AutoAttackRange.Enabled := not OnlyAdvancedAIHand;
+  TrackBar_AutoAttackRange.Enabled := not onlyAdvancedAIHand;
   TrackBar_RecruitCount.Position := gMySpectator.Hand.AI.Setup.RecruitCount;
-  TrackBar_RecruitCount.Enabled := not OnlyAdvancedAIHand;
+  TrackBar_RecruitCount.Enabled := not onlyAdvancedAIHand;
   NumEdit_RecruitDelay.Value := Round(gMySpectator.Hand.AI.Setup.RecruitDelay / 600);
-  Button_EditFormations.Enabled := not OnlyAdvancedAIHand;
+  Button_EditFormations.Enabled := not onlyAdvancedAIHand;
 
   CheckBox_MaxSoldiers.Checked := (gMySpectator.Hand.AI.Setup.MaxSoldiers >= 0);
   NumEdit_MaxSoldiers.Enabled := CheckBox_MaxSoldiers.Checked;
@@ -179,7 +176,7 @@ begin
   if CheckBox_AutoDefence.Checked then
   begin
     Button_DefencePosAdd.Down := False;
-    gGameCursor.Mode := cmNone;
+    gCursor.Mode := cmNone;
   end;
 end;
 
@@ -206,9 +203,19 @@ end;
 
 procedure TKMMapEdTownDefence.UpdateState;
 begin
-  Button_DefencePosAdd.Down := (gGameCursor.Mode = cmMarkers)
-                                and (gGameCursor.Tag1 = MARKER_DEFENCE)
+  Button_DefencePosAdd.Down := (gCursor.Mode = cmMarkers)
+                                and (gCursor.Tag1 = MARKER_DEFENCE)
                                 and not CheckBox_AutoDefence.Checked;
+end;
+
+
+procedure TKMMapEdTownDefence.UpdateHotkeys;
+begin
+  Button_DefencePosAdd.Hint  := GetHintWHotkey(TX_MAPED_AI_DEFENSE_HINT,             MAPED_SUBMENU_ACTIONS_HOTKEYS[0]);
+  CheckBox_AutoDefence.Hint  := GetHintWHotkey(TX_MAPED_AI_DEFENSE_AUTO_HINT,        MAPED_SUBMENU_ACTIONS_HOTKEYS[1]);
+  CheckBox_DefendAllies.Hint := GetHintWHotkey(TX_MAPED_AI_DEFEND_ALLIES_HINT,       MAPED_SUBMENU_ACTIONS_HOTKEYS[2]);
+  CheckBox_MaxSoldiers.Hint  := GetHintWHotkey(TX_MAPED_AI_MAX_SOLDIERS_ENABLE_HINT, MAPED_SUBMENU_ACTIONS_HOTKEYS[3]);
+  Button_EditFormations.Hint := GetHintWHotkey(TX_MAPED_AI_FORMATIONS,               MAPED_SUBMENU_ACTIONS_HOTKEYS[4]);
 end;
 
 

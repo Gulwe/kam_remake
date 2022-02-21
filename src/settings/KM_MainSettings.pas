@@ -12,8 +12,8 @@ uses
   KM_GameAppSettings;
 
 type
-  //Settings that are irrelevant to the game (game does not cares about them)
-  //Everything gets written through setter to set fNeedsSave flag
+  // Settings that are irrelevant to the game (game does not cares about them)
+  // Everything gets written through setter to set fNeedsSave flag
   TKMainSettings = class(TKMGameAppSettingsPart)
   private
     //Not a setting, used to properly set default Resolution value
@@ -50,9 +50,7 @@ type
 
 implementation
 uses
-  SysUtils, INIfiles, Math,
-
-  KM_XmlHelper;
+  SysUtils, INIfiles, Math;
 
 const
   NO_RENDER_MAX_TIME_MIN = 10; //in ms
@@ -60,7 +58,7 @@ const
   NO_RENDER_MAX_TIME_UNDEF = -1; //undefined
 
 
-{ TMainSettings }
+{ TKMainSettings }
 constructor TKMainSettings.Create(aScreenWidth, aScreenHeight: Integer);
 begin
   // Prepare all data containers for settings load first
@@ -91,7 +89,7 @@ end;
 
 procedure TKMainSettings.LoadFromXML;
 var
-  nMainSettings, nGFX, nWindow, nMisc: TXMLNode;
+  nMainSettings, nGFX, nWindow, nMisc: TKMXmlNode;
 begin
   if Self = nil then Exit;
 
@@ -137,7 +135,7 @@ end;
 //Don't rewrite the file for each individual change, do it in one batch for simplicity
 procedure TKMainSettings.SaveToXML;
 var
-  nMainSettings, nGFX, nWindow, nMisc: TXMLNode;
+  nMainSettings, nGFX, nWindow, nMisc: TKMXmlNode;
 begin
   if Self = nil then Exit;
   if BLOCK_FILE_WRITE or SKIP_SETTINGS_SAVE then Exit;
@@ -178,21 +176,18 @@ end;
 procedure TKMainSettings.SetFullScreen(aValue: boolean);
 begin
   fFullScreen := aValue;
-  Changed;
 end;
 
 
 procedure TKMainSettings.SetResolution(const Value: TKMScreenRes);
 begin
   fResolution := Value;
-  Changed;
 end;
 
 
 procedure TKMainSettings.SetVSync(aValue: boolean);
 begin
   fVSync := aValue;
-  Changed;
 end;
 
 

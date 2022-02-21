@@ -3,15 +3,12 @@ unit KM_ResMapElements;
 interface
 uses
   Classes, SysUtils, KromUtils,
+  KM_ResTypes,
   KM_CommonTypes, KM_Defaults;
 
 
 type
   TKMKillByRoad = (kbrNever, kbrNWCorner, kbrWest);
-
-  TKMChopableAge = (caAge1, caAge2, caAge3, caAgeFull, caAgeFall, caAgeStump);
-
-  TKMChopableAgeSet = set of TKMChopableAge;
 
   TKMMapElement = packed record
     Anim: TKMAnimLoop;          //Animation loop info
@@ -34,9 +31,9 @@ type
     property Count: Integer read fCount;
     property CRC: Cardinal read fCRC;
 
-    procedure LoadFromFile(const FileName: string);
-    procedure SaveToFile(const FileName: string);
-    procedure ExportToText(const FileName: string);
+    procedure LoadFromFile(const aFileName: string);
+    procedure SaveToFile(const aFileName: string);
+    procedure ExportToText(const aFileName: string);
   end;
 
 
@@ -61,7 +58,7 @@ var
 const
   //Chopable tree, Chopdown animation,
   //Age1, Age2, Age3, Age4, Falling, Stump
-  ChopableTrees: array [1..13, TKMChopableAge] of Word = (
+  CHOPABLE_TREES: array [1..13, TKMChopableAge] of Word = (
   //For grass
   (  88,  89,  90,  90,  91,  37), //These two are very look alike
   (  97,  98,  99, 100, 101,  41), //yet different in small detail and fall direction
@@ -106,7 +103,8 @@ const
 implementation
 
 const
-  ObjKillByRoads : array [Byte] of Byte = (
+  // We use Byte instead of TKMKillByRoad to have a shorter table
+  OBJ_KILL_BY_ROAD: array [Byte] of Byte {TKMKillByRoad} = (
     1, 2, 2, 2, 2, 2, 1, 1, 0, 0, 2, 2, 2, 1, 1, 1,
     1, 2, 2, 2, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,
@@ -125,22 +123,22 @@ const
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
 { TKMResMapElements }
-//Reading map elements properties and animation data
-procedure TKMResMapElements.LoadFromFile(const FileName: string);
+// Reading map elements properties and animation data
+procedure TKMResMapElements.LoadFromFile(const aFileName: string);
 const
   ELEMENT_SIZE = 99; // Old size of TKMMapElement (before we have added our fields to it)
 var
   S: TMemoryStream;
   I: Integer;
 begin
-  if not FileExists(FileName) then Exit;
+  if not FileExists(aFileName) then Exit;
 
   S := TMemoryStream.Create;
-  S.LoadFromFile(FileName);
+  S.LoadFromFile(aFileName);
   for I := Low(gMapElements) to High(gMapElements) do
   begin
     S.Read(gMapElements[I], ELEMENT_SIZE);
-    gMapElements[I].KillByRoad := TKMKillByRoad(ObjKillByRoads[I]);
+    gMapElements[I].KillByRoad := TKMKillByRoad(OBJ_KILL_BY_ROAD[I]);
   end;
   fCount := S.Size div ELEMENT_SIZE; //254 by default
   fCRC := Adler32CRC(S);
@@ -157,36 +155,37 @@ begin
   gMapElements[63].Stump := -1;
   gMapElements[63].CanBeRemoved := True;
 
-  //Save ti file if we want to have it there. For now hardcoded is ok
-  //SaveToFile(FileName);
+  // Save to file if we want to have it there. For now hardcoded is ok
+  //SaveToFile(aFileName);
 end;
 
 
-procedure TKMResMapElements.SaveToFile(const FileName: string);
+procedure TKMResMapElements.SaveToFile(const aFileName: string);
 var
   S: TMemoryStream;
 begin
   S := TMemoryStream.Create;
   S.Write(gMapElements[0], fCount * SizeOf(TKMMapElement));
-  S.SaveToFile(FileName);
+  S.SaveToFile(aFileName);
   S.Free;
 end;
 
 
-procedure TKMResMapElements.ExportToText(const FileName: string);
+procedure TKMResMapElements.ExportToText(const aFileName: string);
 var
-  I: Integer; ft: TextFile;
-  Str1, Str2, Str3, Str4, Str5, Str6, Str7: String;
+  I: Integer;
+  ft: TextFile;
+  str1, str2, str3, str4, str5, str6, str7: string;
 begin
-  AssignFile(ft, ExeDir + 'Trees.txt');
+  AssignFile(ft, ExeDir + aFileName);
   Rewrite(ft);
-  Str1 := 'not AllBlocked and Block Build: ';
-  Str2 := 'AllBlocked and Allow Build: ';
-  Str3 := 'DiagonalBlocked and AllBlocked: ';
-  Str4 := 'DiagonalBlocked and Can Build: ';
-  Str5 := 'DiagonalBlocked and Can not build: ';
-  Str6 := 'AllBlocked and and Block Build: ';
-  Str7 := 'Stump <> -1: ';
+  str1 := 'not AllBlocked and Block Build: ';
+  str2 := 'AllBlocked and Allow Build: ';
+  str3 := 'DiagonalBlocked and AllBlocked: ';
+  str4 := 'DiagonalBlocked and Can Build: ';
+  str5 := 'DiagonalBlocked and Can not build: ';
+  str6 := 'AllBlocked and and Block Build: ';
+  str7 := 'Stump <> -1: ';
   for I := 1 to fCount do
   begin
     //Writeln(ft);
@@ -206,26 +205,26 @@ begin
       and (gMapElements[I].Stump = -1) then
     begin
       if not gMapElements[I].AllBlocked and not gMapElements[I].CanBeRemoved then
-        Str1 := Str1 + IntToStr(I) + ' ';
+        str1 := str1 + IntToStr(I) + ' ';
 
       if gMapElements[I].AllBlocked and gMapElements[I].CanBeRemoved then
-        Str2 := Str2 + IntToStr(I) + ' ';
+        str2 := str2 + IntToStr(I) + ' ';
 
       if gMapElements[I].AllBlocked and not gMapElements[I].CanBeRemoved then
-        Str6 := Str6 + IntToStr(I) + ' ';
+        str6 := str6 + IntToStr(I) + ' ';
 
       if gMapElements[I].DiagonalBlocked and gMapElements[I].AllBlocked then
-        Str3 := Str3 + IntToStr(I) + ' ';
+        str3 := str3 + IntToStr(I) + ' ';
 
       if gMapElements[I].DiagonalBlocked and gMapElements[I].CanBeRemoved then
-        Str4 := Str4 + IntToStr(I) + ' ';
+        str4 := str4 + IntToStr(I) + ' ';
 
       if gMapElements[I].DiagonalBlocked and not gMapElements[I].CanBeRemoved then
-        Str5 := Str5 + IntToStr(I) + ' ';
+        str5 := str5 + IntToStr(I) + ' ';
     end;
 
     if gMapElements[I].Stump <> -1 then
-      Str7 := Str7 + IntToStr(I) + ' ';
+      str7 := str7 + IntToStr(I) + ' ';
     // for K:=1 to 16 do
     // write(ft,MapElem[I].CuttableTree,''); //Those are 1/0 so we can ommit space between them
 
@@ -233,19 +232,19 @@ begin
     //Writeln(ft);
   end;
   Writeln(ft);
-  Writeln(ft, Str1);
+  Writeln(ft, str1);
   Writeln(ft);
-  Writeln(ft, Str2);
+  Writeln(ft, str2);
   Writeln(ft);
-  Writeln(ft, Str6);
+  Writeln(ft, str6);
   Writeln(ft);
-  Writeln(ft, Str3);
+  Writeln(ft, str3);
   Writeln(ft);
-  Writeln(ft, Str4);
+  Writeln(ft, str4);
   Writeln(ft);
-  Writeln(ft, Str5);
+  Writeln(ft, str5);
   Writeln(ft);
-  Writeln(ft, Str7);
+  Writeln(ft, str7);
   CloseFile(ft);
 end;
 
@@ -257,9 +256,9 @@ var
 begin
   Result := True;
 
-  for I := 1 to Length(ChopableTrees) do
+  for I := 1 to Length(CHOPABLE_TREES) do
     for K := Low(TKMChopableAge) to High(TKMChopableAge) do
-      if (aObjId = ChopableTrees[I,K]) then Exit;
+      if (aObjId = CHOPABLE_TREES[I,K]) then Exit;
 
   Result := False;
 end;
@@ -271,8 +270,8 @@ var
 begin
   Result := True;
 
-  for I := 1 to Length(ChopableTrees) do
-    if (aObjId = ChopableTrees[I, aStage]) then Exit;
+  for I := 1 to Length(CHOPABLE_TREES) do
+    if (aObjId = CHOPABLE_TREES[I, aStage]) then Exit;
 
   Result := False;
 end;
@@ -281,13 +280,13 @@ end;
 function ObjectIsChoppableTree(aObjId: Integer; aStages: TKMChopableAgeSet): Boolean;
 var
   I: Integer;
-  Stage: TKMChopableAge;
+  stage: TKMChopableAge;
 begin
   Result := True;
 
-  for I := 1 to Length(ChopableTrees) do
-    for Stage in aStages do
-      if (aObjId = ChopableTrees[I, Stage]) then Exit;
+  for I := 1 to Length(CHOPABLE_TREES) do
+    for stage in aStages do
+      if (aObjId = CHOPABLE_TREES[I, stage]) then Exit;
 
   Result := False;
 end;

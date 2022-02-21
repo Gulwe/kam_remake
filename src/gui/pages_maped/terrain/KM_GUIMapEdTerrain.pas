@@ -29,6 +29,7 @@ type
     fGuiOverlays: TKMMapEdTerrainOverlays;
 
     procedure PageChange(Sender: TObject);
+    function GetGuiTiles: TKMMapEdTerrainTiles;
   protected
     Panel_Terrain: TKMPanel;
     Button_Terrain: array [TKMTerrainTab] of TKMButton;
@@ -41,7 +42,7 @@ type
     procedure KeyUp(Key: Word; Shift: TShiftState; var aHandled: Boolean);
     procedure MouseWheel(Shift: TShiftState; WheelSteps: Integer; X,Y: Integer; var aHandled: Boolean);
 
-    property GuiTiles: TKMMapEdTerrainTiles read fGuiTiles;
+    property GuiTiles: TKMMapEdTerrainTiles read GetGuiTiles;
     property GuiSelection: TKMMapEdTerrainSelection read fGuiSelection;
 
     procedure Show(aTab: TKMTerrainTab);
@@ -50,6 +51,7 @@ type
     function Visible: Boolean;  override;
     function IsFocused: Boolean;  override;
     procedure Resize;
+    procedure UpdateHotkeys;
     procedure UpdateState;
     procedure Cancel_Clicked(var aHandled: Boolean);
   end;
@@ -57,25 +59,18 @@ type
 
 implementation
 uses
-  KM_ResTexts, KM_GameCursor, KM_RenderUI, KM_InterfaceGame, KM_Utils;
+  KM_ResTexts, KM_ResTypes,
+  KM_Cursor, KM_RenderUI, KM_InterfaceGame, KM_Utils;
 
 
 { TKMMapEdTerrain }
 constructor TKMMapEdTerrain.Create(aParent: TKMPanel; aOnPageChange: TNotifyEvent; aHideAllPages: TEvent);
 const
-  BtnGlyph: array [TKMTerrainTab] of Word = (383, 388, 382, 400, 385, 384);
-  BtnHint: array [TKMTerrainTab] of Word = (
-    TX_MAPED_TERRAIN_HINTS_BRUSHES,
-    TX_MAPED_TERRAIN_HINTS_HEIGHTS,
-    TX_MAPED_TERRAIN_HINTS_TILES,
-    TX_MAPED_TERRAIN_HINTS_OVERLAYS,
-    TX_MAPED_TERRAIN_HINTS_OBJECTS,
-    TX_MAPED_COPY_TITLE);
-
+  TAB_GLYPH: array [TKMTerrainTab] of Word = (383, 388, 382, 400, 385, 384);
   TB_PAD_TERRAIN_BTN_L = 9;
 
 var
-  I: TKMTerrainTab;
+  TT: TKMTerrainTab;
 begin
   inherited Create;
 
@@ -83,12 +78,11 @@ begin
 
   Panel_Terrain := TKMPanel.Create(aParent, 0, 45, aParent.Width, aParent.Height - 45);
   Panel_Terrain.AnchorsStretch;
-    for I := Low(TKMTerrainTab) to High(TKMTerrainTab) do
+    for TT := Low(TKMTerrainTab) to High(TKMTerrainTab) do
     begin
-      Button_Terrain[I] := TKMButton.Create(Panel_Terrain, TB_PAD_TERRAIN_BTN_L + (SMALL_PAD_W + 4) * Byte(I), 0,
-                                            SMALL_TAB_W + 4, SMALL_TAB_H + 4, BtnGlyph[I], rxGui, bsGame);
-      Button_Terrain[I].Hint := GetHintWHotKey(BtnHint[I], MAPED_SUBMENU_HOTKEYS[Ord(I)]);
-      Button_Terrain[I].OnClick := PageChange;
+      Button_Terrain[TT] := TKMButton.Create(Panel_Terrain, TB_PAD_TERRAIN_BTN_L + (SMALL_PAD_W + 4) * Byte(TT), 0,
+                                            SMALL_TAB_W + 4, SMALL_TAB_H + 4, TAB_GLYPH[TT], rxGui, bsGame);
+      Button_Terrain[TT].OnClick := PageChange;
     end;
 
     fGuiBrushes := TKMMapEdTerrainBrushes.Create(Panel_Terrain);
@@ -134,13 +128,14 @@ procedure TKMMapEdTerrain.MouseWheel(Shift: TShiftState; WheelSteps, X, Y: Integ
 begin
   fGuiBrushes.MouseWheel(Shift, WheelSteps, X, Y, aHandled);
   fGuiHeights.MouseWheel(Shift, WheelSteps, X, Y, aHandled);
+  fGuiObjects.MouseWheel(Shift, WheelSteps, X, Y, aHandled);
 end;
 
 
 procedure TKMMapEdTerrain.PageChange(Sender: TObject);
 begin
   //Reset cursor mode
-  gGameCursor.Mode := cmNone;
+  gCursor.Mode := cmNone;
 
   //Hide existing pages
   fGuiBrushes.Hide;
@@ -190,6 +185,14 @@ begin
 end;
 
 
+function TKMMapEdTerrain.GetGuiTiles: TKMMapEdTerrainTiles;
+begin
+  if Self = nil then Exit(nil);
+
+  Result := fGuiTiles;
+end;
+
+
 procedure TKMMapEdTerrain.DoExecuteSubMenuAction(aIndex: Byte; var aHandled: Boolean);
 begin
   inherited;
@@ -234,7 +237,6 @@ end;
 
 procedure TKMMapEdTerrain.Resize;
 begin
-  fGuiTiles.Resize;
   fGuiObjects.Resize;
 end;
 
@@ -245,6 +247,29 @@ begin
 
   fGuiObjects.Cancel_Clicked(aHandled);
   fGuiBrushes.Cancel_Clicked(aHandled);
+end;
+
+
+procedure TKMMapEdTerrain.UpdateHotkeys;
+const
+  TAB_HINT: array [TKMTerrainTab] of Word = (
+    TX_MAPED_TERRAIN_HINTS_BRUSHES,
+    TX_MAPED_TERRAIN_HINTS_HEIGHTS,
+    TX_MAPED_TERRAIN_HINTS_TILES,
+    TX_MAPED_TERRAIN_HINTS_OVERLAYS,
+    TX_MAPED_TERRAIN_HINTS_OBJECTS,
+    TX_MAPED_COPY_TITLE);
+var
+  TT: TKMTerrainTab;
+begin
+  for TT := Low(TKMTerrainTab) to High(TKMTerrainTab) do
+    Button_Terrain[TT].Hint := GetHintWHotkey(TAB_HINT[TT], MAPED_SUBMENU_HOTKEYS[Ord(TT)]);
+
+  fGuiBrushes.UpdateHotkeys;
+  fGuiHeights.UpdateHotkeys;
+  fGuiTiles.UpdateHotkeys;
+  fGuiObjects.UpdateHotkeys;
+  fGuiSelection.UpdateHotkeys;
 end;
 
 

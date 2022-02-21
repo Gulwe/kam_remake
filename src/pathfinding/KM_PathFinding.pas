@@ -11,6 +11,9 @@ const
   PATH_CACHE_NO_ROUTES_AVOID_LOCKED_MAX = 24; //Size of avoid routes cache
   PATH_CACHE_INIT_WEIGHT = 5; //New path weight
   PATH_CACHE_NODES_MIN_CNT = 30; //Min number of noder to put route in cache
+  // Minimum distance on the map to start using PathCache. Otherwise we could get some odd paths
+  // F.e. we want to get just to the next tile and use PFCache, because some of its routes goes through our start and dest
+  PATH_CACHE_MIN_DIST_TO_USE: Integer = 3;
   PATH_CACHE_NO_ROUTES_AVOID_LOCKED_TTL = 100; //AvoidLockedCache item Time to live
 
 type
@@ -61,8 +64,8 @@ type
     function CanWalkTo(const aFrom: TKMPoint; bX, bY: SmallInt): Boolean; virtual;
     function DestinationReached(aX, aY: Word): Boolean; virtual;
     function IsWalkableTile(aX, aY: Word): Boolean; virtual;
-    function MovementCost(aFromX, aFromY, aToX, aToY: Word): Word; virtual;
-    function EstimateToFinish(aX, aY: Word): Word; virtual;
+    function MovementCost(aFromX, aFromY, aToX, aToY: Word): Cardinal; virtual;
+    function EstimateToFinish(aX, aY: Word): Cardinal; virtual;
     function MakeRoute: Boolean; virtual; abstract;
     procedure ReturnRoute(NodeList: TKMPointList); virtual; abstract;
   public
@@ -150,7 +153,9 @@ begin
     end;
 
     //Try to find similar route in cache and reuse it
-    if CACHE_PATHFINDING and TryRouteFromCache(NodeList) then
+    if CACHE_PATHFINDING
+      and (KMLengthDiag(fLocA, fLocB) - fDistance > PATH_CACHE_MIN_DIST_TO_USE) // Don't use PF_Cache for very close destinations
+      and TryRouteFromCache(NodeList) then
       Result := True
     else
     if MakeRoute then
@@ -249,13 +254,13 @@ end;
 function TPathFinding.IsWalkableTile(aX, aY: Word): Boolean;
 begin
   //If cell meets Passability then estimate it
-  Result := ((fPass * gTerrain.Land[aY,aX].Passability) <> [])
+  Result := ((fPass * gTerrain.Land^[aY,aX].Passability) <> [])
             and ((fAvoidLocked <> palAvoidAsUnwalkable) or not gTerrain.TileIsLocked(KMPoint(aX,aY)));
 end;
 
 
 //How much it costs to move From -> To
-function TPathFinding.MovementCost(aFromX, aFromY, aToX, aToY: Word): Word;
+function TPathFinding.MovementCost(aFromX, aFromY, aToX, aToY: Word): Cardinal;
 var
   DX, DY: Word;
   U: TKMUnit;
@@ -270,7 +275,7 @@ begin
   //Do not add extra cost if the tile is the target, as it can cause a longer route to be chosen
   if (aToX <> fLocB.X) or (aToY <> fLocB.Y) then
   begin
-    U := gTerrain.Land[aToY,aToX].IsUnit;
+    U := gTerrain.Land^[aToY,aToX].IsUnit;
     //Always avoid congested areas on roads
     if DO_WEIGHT_ROUTES and (U <> nil) and ((tpWalkRoad in fPass) or U.PathfindingShouldAvoid) then
       Inc(Result, 15); //Unit = 1.5 extra tiles
@@ -280,7 +285,7 @@ begin
 end;
 
 
-function TPathFinding.EstimateToFinish(aX, aY: Word): Word;
+function TPathFinding.EstimateToFinish(aX, aY: Word): Cardinal;
 var
   DX, DY: Word;
 begin

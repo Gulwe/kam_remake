@@ -4,10 +4,12 @@ interface
 uses
   {$IFDEF MSWindows} Windows, {$ENDIF}
   {$IFDEF Unix} LCLType, {$ENDIF}
-  SysUtils, Controls, Classes, Math, KM_Defaults, KM_Controls, KM_Points,
+  SysUtils, Classes, Math,
+  Controls,
+  KM_Defaults, KM_Controls, KM_Points,
   KM_InterfaceDefaults, KM_CommonTypes, KM_AIDefensePos,
-  KM_GameCursor, KM_Render, KM_Minimap, KM_Viewport, KM_ResFonts,
-  KM_ResTypes;
+  KM_Cursor, KM_Render, KM_MinimapGame, KM_Viewport, KM_ResFonts,
+  KM_ResTypes, KM_CommonClassesExt, KM_AITypes;
 
 
 type
@@ -18,27 +20,39 @@ type
     fDragScrollingViewportPos: TKMPointF;
     fOnUserAction: TKMUserActionEvent;
 
+    fLogStringList: TKMLimitedList<string>;
+
+    function GetLogString(aLimit: Integer): string;
+    procedure LogMessageHappened(const aLogMessage: UnicodeString);
+
     procedure ResetDragScrolling;
     procedure PaintDefences;
   protected
-    fMinimap: TKMMinimap;
+    fMinimap: TKMMinimapGame;
     fViewport: TKMViewport;
     fDragScrolling: Boolean;
 
     fPaintDefences: Boolean;
 
+    Bevel_DebugInfo: TKMBevel;
+    Label_DebugInfo: TKMLabel;
+
     function IsDragScrollingAllowed: Boolean; virtual;
     function GetHintPositionBase: TKMPoint; override;
     function GetHintFont: TKMFont; override;
+    function GetHintKind: TKMHintKind; override;
 
-    function GetToolBarWidth: Integer; virtual; abstract;
+    function GetDebugInfo: string; virtual;
+
+    procedure InitDebugControls;
+
+    procedure ViewportPositionChanged(const aPos: TKMPointF);
   public
     constructor Create(aRender: TRender); reintroduce;
     destructor Destroy; override;
 
-    property Minimap: TKMMinimap read fMinimap;
+    property Minimap: TKMMinimapGame read fMinimap;
     property Viewport: TKMViewport read fViewport;
-    property ToolbarWidth: Integer read GetToolBarWidth;
     property OnUserAction: TKMUserActionEvent read fOnUserAction write fOnUserAction;
 
     function CursorToMapCoord(X, Y: Integer): TKMPointF;
@@ -53,11 +67,15 @@ type
     procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X,Y: Integer); override;
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X,Y: Integer); override;
 
+    procedure ShowDebugInfo;
+
     procedure GameSpeedChanged(aFromSpeed, aToSpeed: Single);
     procedure SyncUI(aMoveViewport: Boolean = True); virtual;
-    procedure SyncUIView(const aCenter: TKMPointF; aZoom: Single = 1);
+    procedure SyncUIView(const aCenter: TKMPointF); overload;
+    procedure SyncUIView(const aCenter: TKMPointF; aZoom: Single); overload;
     procedure UpdateGameCursor(X, Y: Integer; Shift: TShiftState);
     procedure UpdateStateIdle(aFrameTime: Cardinal); virtual; abstract;
+    procedure UpdateState(aGlobalTickCount: Cardinal); override;
 
     procedure Paint; override;
   end;
@@ -72,7 +90,7 @@ const
   TERRAIN_PAGE_TITLE_Y = PAGE_TITLE_Y + 2; // Terrain pages title offset
   STATS_LINES_CNT = 13; //Number of stats (F3) lines
 
-  DEFENCE_LINE_TYPE_COL: array [TAIDefencePosType] of Cardinal = ($FF80FF00, $FFFF8000);
+  DEFENCE_LINE_TYPE_COL: array [TKMAIDefencePosType] of Cardinal = ($FF80FF00, $FFFF8000);
 
   // Shortcuts
   // All shortcuts are in English and are the same for all languages to avoid
@@ -85,7 +103,7 @@ const
     htWineyard, htGoldMine, htCoalMine, htMetallurgists, htWeaponWorkshop,
     htTannery, htArmorWorkshop, htStables, htIronMine, htIronSmithy,
     htWeaponSmithy, htArmorSmithy, htBarracks, htStore, htWatchTower,
-    htFisherHut, htMarketplace, htTownHall, htSiegeWorkshop, htCharcoalFactory, htWall);
+    htFisherHut, htMarketplace, htTownHall, htSiegeWorkshop, htCharcoalFactory, htObsTower);
 
   // Template for how resources are shown in Barracks
   BARRACKS_RES_COUNT = 11;
@@ -103,11 +121,11 @@ const
      wtAxe,      wtSword,   wtPike,        wtHallebard, wtBow,
      wtArbalet,  wtHorse,   wtFish);
 
-    School_Order: array [0..13] of TKMUnitType = (
+  School_Order: array [0..13] of TKMUnitType = (
     utSerf, utWorker, utStoneCutter, utWoodcutter, utLamberjack,
     utFisher, utFarmer, utBaker, utAnimalBreeder, utButcher,
     utMiner, utMetallurgist, utSmith, utRecruit);
-    
+
     SiegeWorkshop_Order: array [0..1] of TKMUnitType = (
     utCatapult, utBallista);
 
@@ -115,9 +133,9 @@ const
     utMilitia, utAxeFighter, utMetalBarbarian ,utSwordsman, utBowman, utArbaletman,
     utPikeman, utHallebardman, utHorseman, utHorseScout, utCavalry);
 
-  TownHall_Order: array [0..6] of TKMUnitType = (
-    utPeasant, utSlingshot, utHorseman, utBarbarian, utMetalBarbarian, utCatapult, utBallista);
-   
+  TownHall_Order: array [0..4] of TKMUnitType = (
+    utPeasant, utSlingshot, utHorseman, utBarbarian, utMetalBarbarian);
+
       Soldiers_Order: array[0..15] of TKMUnitType = (
     utMilitia, utAxeFighter, utSwordsman, utBowman, utArbaletman,
     utPikeman, utHallebardman, utHorseScout, utCavalry,
@@ -138,7 +156,7 @@ const
     (HouseType: (htButchers, htTannery, htNone, htNone);                UnitType: (utButcher, utNone)),
     (HouseType: (htMetallurgists, htIronSmithy, htNone, htNone);        UnitType: (utMetallurgist, utNone)),
     (HouseType: (htArmorSmithy, htWeaponSmithy, htNone, htNone);        UnitType: (utSmith, utNone)),
-    (HouseType: (htCoalMine, htIronMine, htGoldMine, htCharcoalFactory);UnitType: (utMiner, utNone)),
+    (HouseType: (htCoalMine, htIronMine, htGoldMine, htNone);           UnitType: (utMiner, utNone)),
     (HouseType: (htSawmill, htWeaponWorkshop, htArmorWorkshop, htSiegeWorkshop); UnitType: (utLamberjack, utNone)),
     (HouseType: (htBarracks, htTownHall, htWatchTower, htNone);         UnitType: (utRecruit, utNone)),
     (HouseType: (htStore, htSchool, htInn, htMarketplace);              UnitType: (utSerf, utWorker))
@@ -146,8 +164,8 @@ const
 
   MapEd_Order: array [0..15] of TKMUnitType = (
     utMilitia, utAxeFighter, utSwordsman, utBowman, utArbaletman,
-    utPikeman, utHallebardman, utHorseScout, utCavalry,
-    utBarbarian, utPeasant, utSlingshot, utMetalBarbarian, utHorseman, utCatapult, utBallista);
+    utPikeman, utHallebardman, utHorseScout, utCavalry, utBarbarian,
+    utPeasant, utSlingshot, utMetalBarbarian, utHorseman, utCatapult, utBallista);
 
   MapEd_Icon: array [0..15] of Word = (
     61, 62, 63, 64, 65,
@@ -158,9 +176,9 @@ const
     utWolf, utFish,        utWatersnake, utSeastar,
     utCrab, utWaterflower, utWaterleaf,  utDuck);
 
-  Animal_Icon: array [0..9] of word = (
+  Animal_Icon: array [0..7] of word = (
     71, 72, 73, 74,
-    75, 76, 77, 78, 82, 82);
+    75, 76, 77, 78);
 
   MARKET_RES_HEIGHT = 35;
 
@@ -179,8 +197,15 @@ const
 
 implementation
 uses
-  KM_Main, KM_Terrain, KM_RenderPool, KM_Resource, KM_ResCursors, KM_ResKeys, KM_HandsCollection, KM_GameParams,
-  KM_RenderUI, KM_CommonUtils, KM_Pics, KM_GameSettings;
+  StrUtils, KromUtils,
+  KM_Main, KM_System, 
+  KM_GameParams, KM_GameSettings,
+  KM_HandsCollection, 
+  KM_Terrain, 
+  KM_RenderPool, KM_RenderUI, KM_Pics,  
+  KM_Resource, KM_ResKeys,
+  KM_Sound, KM_ScriptSound,
+  KM_CommonUtils, KM_Log;
 
 
 { TKMUserInterfaceGame }
@@ -188,8 +213,11 @@ constructor TKMUserInterfaceGame.Create(aRender: TRender);
 begin
   inherited Create(aRender.ScreenX, aRender.ScreenY);
 
-  fMinimap := TKMMinimap.Create(False, False);
-  fViewport := TKMViewport.Create(GetToolBarWidth, aRender.ScreenX, aRender.ScreenY);
+  fMinimap := TKMMinimapGame.Create(False);
+  fViewport := TKMViewport.Create(GetToolbarWidth, aRender.ScreenX, aRender.ScreenY, ViewportPositionChanged);
+
+  gLog.AddOnLogEventSub(LogMessageHappened);
+  fLogStringList := TKMLimitedList<string>.Create(80); // 50 lines max
 
   fDragScrolling := False;
   fDragScrollingCursorPos.X := 0;
@@ -204,6 +232,9 @@ end;
 
 destructor TKMUserInterfaceGame.Destroy;
 begin
+  gLog.RemoveOnLogEventSub(LogMessageHappened);
+  fLogStringList.Free;
+
   FreeAndNil(fMinimap);
   FreeAndNil(fViewport);
   FreeAndNil(gRenderPool);
@@ -222,13 +253,96 @@ end;
 
 function TKMUserInterfaceGame.GetHintPositionBase: TKMPoint;
 begin
-  Result := KMPoint(GetToolBarWidth, Panel_Main.Height);
+  Result := KMPoint(GetToolbarWidth + 35, Panel_Main.Height);
 end;
 
 
 function TKMUserInterfaceGame.GetHintFont: TKMFont;
 begin
   Result := fntOutline;
+end;
+
+
+function TKMUserInterfaceGame.GetHintKind: TKMHintKind;
+begin
+  Result := hkStatic;
+end;
+
+
+procedure TKMUserInterfaceGame.LogMessageHappened(const aLogMessage: UnicodeString);
+begin
+  if Self = nil then Exit;
+
+  if SHOW_LOG_IN_GUI or UPDATE_LOG_FOR_GUI then
+    fLogStringList.Add(ReplaceStr(DeleteDoubleSpaces(aLogMessage), EolW, '|'));
+end;
+
+
+
+function TKMUserInterfaceGame.GetLogString(aLimit: Integer): string;
+var
+  I: Integer;
+begin
+  Result := '';
+  // attach from the end, the most fresh log lines, till the limit
+  for I := fLogStringList.Count - 1 downto Max(fLogStringList.Count - aLimit - 1, 0) do
+    Result := fLogStringList[I] + '|' + Result;
+end;
+
+
+function TKMUserInterfaceGame.GetDebugInfo: string;
+begin
+  Result :='';
+
+  if SHOW_VIEWPORT_INFO then
+    Result := Result + 'Viewport: ' + fViewport.ToStr + '|';
+
+  if SHOW_FPS then
+    Result := Result + gMain.FPSString + '|';
+end;
+
+
+procedure TKMUserInterfaceGame.ShowDebugInfo;
+const
+  BEVEL_PAD = 20;
+var
+  S: string;
+  linesCnt: Integer;
+  textSize: TKMPoint;
+begin
+  S := GetDebugInfo;
+
+  // Add logs at the end
+  if SHOW_LOG_IN_GUI then
+  begin
+    linesCnt := (Bevel_DebugInfo.Parent.Height
+                  - Bevel_DebugInfo.Top
+                  - BEVEL_PAD
+                  - gRes.Fonts[Label_DebugInfo.Font].GetTextSize(S).Y)
+                div gRes.Fonts[Label_DebugInfo.Font].LineHeight;
+    S := S + '|Logs:|' + GetLogString(linesCnt - 1);
+  end;
+
+  Label_DebugInfo.Caption := S;
+  Label_DebugInfo.Visible := (Trim(S) <> '');
+
+  Assert(InRange(DEBUG_TEXT_FONT_ID, Ord(Low(TKMFont)), Ord(High(TKMFont))));
+  Label_DebugInfo.Font := TKMFont(DEBUG_TEXT_FONT_ID);
+
+  textSize := gRes.Fonts[Label_DebugInfo.Font].GetTextSize(S);
+
+  Bevel_DebugInfo.Width := IfThen(textSize.X <= 1, 0, textSize.X + BEVEL_PAD);
+  Bevel_DebugInfo.Height := IfThen(textSize.Y <= 1, 0, textSize.Y + BEVEL_PAD);
+
+  Bevel_DebugInfo.Visible := SHOW_DEBUG_OVERLAY_BEVEL and (Trim(S) <> '') ;
+end;
+
+
+procedure TKMUserInterfaceGame.ViewportPositionChanged(const aPos: TKMPointF);
+begin
+  gSoundPlayer.UpdateListener(aPos.X, aPos.Y);
+  if gScriptSounds <> nil then
+    gScriptSounds.UpdateListener(aPos.X, aPos.Y);
 end;
 
 
@@ -246,6 +360,8 @@ var
   windowRect: TRect;
   {$ENDIF}
 begin
+  inherited;
+
   if Assigned(fOnUserAction) then
     fOnUserAction(uatKeyDown);
 
@@ -275,11 +391,11 @@ begin
      windowRect := gMain.ClientRect(1); //Reduce ClientRect by 1 pixel, to fix 'jump viewport' bug when dragscrolling over the window border
      ClipCursor(@windowRect);
    {$ENDIF}
-   fDragScrollingCursorPos.X := gGameCursor.Pixel.X;
-   fDragScrollingCursorPos.Y := gGameCursor.Pixel.Y;
+   fDragScrollingCursorPos.X := gCursor.Pixel.X;
+   fDragScrollingCursorPos.Y := gCursor.Pixel.Y;
    fDragScrollingViewportPos.X := fViewport.Position.X;
    fDragScrollingViewportPos.Y := fViewport.Position.Y;
-   gRes.Cursors.Cursor := kmcDrag;
+   gSystem.Cursor := kmcDrag;
   end
   else
     aHandled := False;
@@ -323,8 +439,20 @@ end;
 procedure TKMUserInterfaceGame.ResetDragScrolling;
 begin
   fDragScrolling := False;
-  gRes.Cursors.Cursor := kmcDefault; //Reset cursor
+  gSystem.Cursor := kmcDefault; //Reset cursor
   gMain.ApplyCursorRestriction;
+end;
+
+
+procedure TKMUserInterfaceGame.InitDebugControls;
+begin
+  // Debugging displays
+  Bevel_DebugInfo := TKMBevel.Create(Panel_Main, ToolbarWidth + 8 - 10, 133 - 10, Panel_Main.Width - ToolbarWidth - 8, 0);
+  Bevel_DebugInfo.BackAlpha := 0.5;
+  Bevel_DebugInfo.Hitable := False;
+  Bevel_DebugInfo.Hide;
+  Label_DebugInfo := TKMLabel.Create(Panel_Main, ToolbarWidth + 8, 133, '', fntMonospaced, taLeft);
+  Label_DebugInfo.Hide;
 end;
 
 
@@ -391,15 +519,15 @@ begin
   if aHandled then Exit;
   
   UpdateGameCursor(X, Y, Shift); // Make sure we have the correct cursor position to begin with
-  prevCursor := gGameCursor.Float;
+  prevCursor := gCursor.Float;
   // +1 for ScrollSpeed = 0.
   // Sqrt to reduce Scroll speed importance
   // 11 = 10 + 1, 10 is default scroll speed
   fViewport.Zoom := fViewport.Zoom * (1 + WheelSteps * Sqrt((gGameSettings.ScrollSpeed + 1) / 11) / 12);
   UpdateGameCursor(X, Y, Shift); // Zooming changes the cursor position
   // Move the center of the screen so the cursor stays on the same tile, thus pivoting the zoom around the cursor
-  fViewport.Position := KMPointF(fViewport.Position.X + prevCursor.X-gGameCursor.Float.X,
-                                 fViewport.Position.Y + prevCursor.Y-gGameCursor.Float.Y);
+  fViewport.Position := KMPointF(fViewport.Position.X + prevCursor.X-gCursor.Float.X,
+                                 fViewport.Position.Y + prevCursor.Y-gCursor.Float.Y);
   UpdateGameCursor(X, Y, Shift); // Recentering the map changes the cursor position
   aHandled := True;
 end;
@@ -462,10 +590,19 @@ begin
     fViewport.ResizeMap(gTerrain.MapX, gTerrain.MapY, gTerrain.TopHill / CELL_SIZE_PX);
     fViewport.ResetZoom;
   end;
+
+  UpdateHotkeys;
 end;
 
 
-procedure TKMUserInterfaceGame.SyncUIView(const aCenter: TKMPointF; aZoom: Single = 1);
+procedure TKMUserInterfaceGame.SyncUIView(const aCenter: TKMPointF);
+begin
+  fViewport.Zoom := gGameSettings.DefaultZoom; // Set Zoom first, since it can apply restrictions on Position near map borders
+  fViewport.Position := aCenter;
+end;
+
+
+procedure TKMUserInterfaceGame.SyncUIView(const aCenter: TKMPointF; aZoom: Single);
 begin
   fViewport.Zoom := aZoom; // Set Zoom first, since it can apply restrictions on Position near map borders
   fViewport.Position := aCenter;
@@ -474,7 +611,7 @@ end;
 
 function TKMUserInterfaceGame.CursorToMapCoord(X, Y: Integer): TKMPointF;
 begin
-  Result.X := fViewport.Position.X + (X-fViewport.ViewRect.Right/2-GetToolBarWidth/2)/CELL_SIZE_PX/fViewport.Zoom;
+  Result.X := fViewport.Position.X + (X-fViewport.ViewRect.Right/2-GetToolbarWidth/2)/CELL_SIZE_PX/fViewport.Zoom;
   Result.Y := fViewport.Position.Y + (Y-fViewport.ViewRect.Bottom/2)/CELL_SIZE_PX/fViewport.Zoom;
   Result.Y := gTerrain.ConvertCursorToMapCoord(Result.X, Result.Y);
 end;
@@ -483,21 +620,28 @@ end;
 // Compute cursor position and store it in global variables
 procedure TKMUserInterfaceGame.UpdateGameCursor(X, Y: Integer; Shift: TShiftState);
 begin
-  with gGameCursor do
+  UpdateCursor(X, Y, Shift);
+
+  with gCursor do
   begin
-    Pixel.X := X;
-    Pixel.Y := Y;
     Float := CursorToMapCoord(X, Y);
 
     PrevCell := Cell; //Save previous cell
 
     // Cursor cannot reach row MapY or column MapX, they're not part of the map (only used for vertex height)
-    Cell.X := EnsureRange(round(Float.X+0.5), 1, gTerrain.MapX-1); // Cell below cursor in map bounds
-    Cell.Y := EnsureRange(round(Float.Y+0.5), 1, gTerrain.MapY-1);
+    Cell.X := EnsureRange(Round(Float.X+0.5), 1, gTerrain.MapX-1); // Cell below cursor in map bounds
+    Cell.Y := EnsureRange(Round(Float.Y+0.5), 1, gTerrain.MapY-1);
 
     ObjectUID := gRenderPool.RenderList.GetSelectionUID(Float);
-    SState := Shift;
   end;
+end;
+
+
+procedure TKMUserInterfaceGame.UpdateState(aGlobalTickCount: Cardinal);
+begin
+  inherited;
+
+  ShowDebugInfo;
 end;
 
 

@@ -64,8 +64,9 @@ const
 implementation
 uses
   Math,
-  KM_Hand, KM_AIFields, KM_AIInfluences,
-  KM_Terrain, KM_HandsCollection,
+  KM_HandsCollection, KM_Hand, KM_HandTypes,
+  KM_AIFields, KM_AIInfluences,
+  KM_Terrain,
   KM_Resource, KM_ResUnits, KM_NavMesh,
   KM_Houses, KM_CommonUtils, KM_CommonTypes;
 
@@ -569,20 +570,20 @@ var
 begin
   //Check for specific passabilities
   case FindType of
-    fnIron:   Result := (fPassability * gTerrain.Land[Y,X].Passability <> [])
+    fnIron:   Result := (fPassability * gTerrain.Land^[Y,X].Passability <> [])
                         or gTerrain.CanPlaceIronMine(X, Y);
 
-    fnGold:   Result := (fPassability * gTerrain.Land[Y,X].Passability <> [])
+    fnGold:   Result := (fPassability * gTerrain.Land^[Y,X].Passability <> [])
                         or gTerrain.TileGoodForGoldmine(X, Y);
 
-    else      Result := (fPassability * gTerrain.Land[Y,X].Passability <> []);
+    else      Result := (fPassability * gTerrain.Land^[Y,X].Passability <> []);
   end;
 
   if not Result then Exit;
 
   //Don't build on allies and/or enemies territory
   TerOwner := gAIFields.Influences.GetBestOwner(X,Y);
-  Result := ((TerOwner = fOwner) or (TerOwner = PLAYER_NONE));
+  Result := ((TerOwner = fOwner) or (TerOwner = HAND_NONE));
 end;
 
 

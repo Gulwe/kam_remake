@@ -15,12 +15,13 @@ type
     fMode: TKMGameMode;
     fMissionMode: TKMissionMode;
     fTick: Cardinal;
+    fTickFrac: Single;
     fVisibleLayers: TKMMapVisibleLayerSet;
 
     fName: UnicodeString;
     fMapSimpleCRC: Cardinal; //CRC of map (based on Map and Dat) used in MapEd
     fMapFullCRC: Cardinal; //CRC of map for reporting stats to master server. Also used in MapEd
-    fMissionFileSP: UnicodeString; //Relative pathname to mission we are playing, so it gets saved to crashreport. SP only, see GetMissionFile.
+    fMissionFileRelSP: UnicodeString; //Relative pathname to mission we are playing, so it gets saved to crashreport. SP only, see GetMissionFile.
 
     fMissionDifficulty: TKMMissionDifficulty;
 
@@ -28,43 +29,64 @@ type
 
     fBlockPointerOperations: Boolean;
 
+    fOnRecalcMapCRC: TEvent;
+
+    // Do not saved fields
+    // fMissionFullFilePath is not saved, so its only available when player start game, f.e. in the MapEditor
+    // not available on game load, since we could not have the mission files at all, but only sve files
+    fMissionFullFilePath: string;
+
     procedure SetTick(aGameTick: Cardinal);
+    procedure SetTickFrac(aGameTickFrac: Single);
     procedure SetMode(aGameMode: TKMGameMode);
-    function GetMissionFile: UnicodeString;
-    procedure SetMissionFileSP(const aMissionFileSP: UnicodeString);
+    function GetMissionFileRel: UnicodeString;
+    procedure SetMissionFileSP(const aMissionFileRelSP: UnicodeString);
 
     function GetDynamicFOW: Boolean;
     procedure SetDynamicFOW(const aDynamicFOW: Boolean);
     procedure SetBlockPointer(aBlockPointer: Boolean);
+    function GetMapFullCRC: Cardinal;
+    function GetMapSimpleCRC: Cardinal;
   public
-    constructor Create(aGameMode: TKMGameMode; out aSetGameTickEvent: TCardinalEvent; out aSetGameModeEvent: TKMGameModeSetEvent;
+    constructor Create(aGameMode: TKMGameMode; aOnRecalcMapCRC: TEvent; out aSetGameTickEvent: TCardinalEvent;
+                       out aSetGameTickFracEvent: TSingleEvent; out aSetGameModeEvent: TKMGameModeSetEvent;
                        out aSetMissionFileSP: TUnicodeStringEvent; out aSetBlockPointer: TBooleanEvent);
     destructor Destroy; override;
 
     property Mode: TKMGameMode read fMode;
     property MissionMode: TKMissionMode read fMissionMode write fMissionMode;
     property Tick: Cardinal read fTick;
+    property TickFrac: Single read fTickFrac;
     property VisibleLayers: TKMMapVisibleLayerSet read fVisibleLayers write fVisibleLayers;
 
     property Name: UnicodeString read fName write fName;
-    property MapSimpleCRC: Cardinal read fMapSimpleCRC write fMapSimpleCRC;
-    property MapFullCRC: Cardinal read fMapFullCRC write fMapFullCRC;
-    property MissionFileSP: UnicodeString read fMissionFileSP;
-    property MissionFile: UnicodeString read GetMissionFile;
+    property MapSimpleCRC: Cardinal read GetMapSimpleCRC write fMapSimpleCRC;
+    property MapFullCRC: Cardinal read GetMapFullCRC write fMapFullCRC;
+    property MissionFileRelSP: UnicodeString read fMissionFileRelSP;
+    property MissionFileRel: UnicodeString read GetMissionFileRel;
     property MissionDifficulty: TKMMissionDifficulty read fMissionDifficulty write fMissionDifficulty;
     property DynamicFOW: Boolean read GetDynamicFOW write SetDynamicFOW;
     property BlockPointerOperations: Boolean read fBlockPointerOperations;
+
+    property MissionFullFilePath: string read fMissionFullFilePath write fMissionFullFilePath;
+
+    function GuessMissionFullFilePath: string;
+
+    function IsCRCCalculated: Boolean;
 
     function IsMapEditor: Boolean;
     function IsCampaign: Boolean;
     function IsMultiPlayerOrSpec: Boolean;
     function IsMultiplayerGame: Boolean;
+    function IsSpectatorGame: Boolean;
     function IsMultiplayer: Boolean;
     function IsReplay: Boolean;
     function IsReplayOrSpectate: Boolean;
+    function IsSingle: Boolean;
     function IsSingleplayerGame: Boolean;
     function IsSingleplayer: Boolean;
     function IsNormalGame: Boolean;
+    function IsGame: Boolean;
 
     function IsTactic: Boolean;
     function IsNormalMission: Boolean;
@@ -88,10 +110,13 @@ uses
 
 
 { TKMGameParams }
-constructor TKMGameParams.Create(aGameMode: TKMGameMode; out aSetGameTickEvent: TCardinalEvent; out aSetGameModeEvent: TKMGameModeSetEvent;
+constructor TKMGameParams.Create(aGameMode: TKMGameMode; aOnRecalcMapCRC: TEvent; out aSetGameTickEvent: TCardinalEvent;
+                                 out aSetGameTickFracEvent: TSingleEvent; out aSetGameModeEvent: TKMGameModeSetEvent;
                                  out aSetMissionFileSP: TUnicodeStringEvent; out aSetBlockPointer: TBooleanEvent);
 begin
   inherited Create;
+
+  fOnRecalcMapCRC := aOnRecalcMapCRC;
 
   fVisibleLayers := [mlObjects, mlHouses, mlUnits, mlOverlays];
 
@@ -101,6 +126,7 @@ begin
   DynamicFOW := False;
 
   aSetGameTickEvent := SetTick;
+  aSetGameTickFracEvent := SetTickFrac;
   aSetGameModeEvent := SetMode;
   aSetMissionFileSP := SetMissionFileSP;
   aSetBlockPointer  := SetBlockPointer;
@@ -135,15 +161,46 @@ begin
 end;
 
 
-function TKMGameParams.GetMissionFile: UnicodeString;
+function TKMGameParams.GetMapFullCRC: Cardinal;
 begin
-  if not IsMultiplayer then
-    Result := MissionFileSP //In SP we store it
-  else
-    //In MP we can't store it since it will be MapsMP or MapsDL on different clients
-    Result := GuessMPPath(fName, '.dat', fMapFullCRC);
+  // Lazy load of MapCRC
+  if fMapFullCRC = 0 then
+    if Assigned(fOnRecalcMapCRC) then
+      fOnRecalcMapCRC;
+
+  Result := fMapFullCRC;
 end;
 
+
+function TKMGameParams.GetMapSimpleCRC: Cardinal;
+begin
+  // Lazy load of MapCRC
+  if fMapSimpleCRC = 0 then
+    if Assigned(fOnRecalcMapCRC) then
+      fOnRecalcMapCRC;
+
+  Result := fMapSimpleCRC;
+end;
+
+
+function TKMGameParams.GetMissionFileRel: UnicodeString;
+begin
+  Result := GuessMissionPathRel(fMissionFileRelSP, fName, fMapFullCRC, IsMultiplayer);
+end;
+
+
+function TKMGameParams.GuessMissionFullFilePath: string;
+var
+  missionRel: string;
+begin
+  if fMissionFullFilePath <> '' then Exit(fMissionFullFilePath);
+
+  Result := '';
+
+  missionRel := MissionFileRel;
+  if missionRel <> '' then
+    Result := ExeDir + missionRel;
+end;
 
 procedure TKMGameParams.SetBlockPointer(aBlockPointer: Boolean);
 begin
@@ -169,9 +226,15 @@ begin
 end;
 
 
-procedure TKMGameParams.SetMissionFileSP(const aMissionFileSP: UnicodeString);
+procedure TKMGameParams.SetTickFrac(aGameTickFrac: Single);
 begin
-  fMissionFileSP := aMissionFileSP;
+  fTickFrac := aGameTickFrac;
+end;
+
+
+procedure TKMGameParams.SetMissionFileSP(const aMissionFileRelSP: UnicodeString);
+begin
+  fMissionFileRelSP := aMissionFileRelSP;
 end;
 
 
@@ -187,21 +250,33 @@ begin
 end;
 
 
+function TKMGameParams.IsCRCCalculated: Boolean;
+begin
+  Result := (fMapSimpleCRC <> 0) and (fMapFullCRC <> 0);
+end;
+
+
 function TKMGameParams.IsTactic: Boolean;
 begin
-  Result := fMissionMode = mmTactic;
+  Result := fMissionMode = mmFighting;
 end;
 
 
 function TKMGameParams.IsNormalMission: Boolean;
 begin
-  Result := fMissionMode = mmNormal;
+  Result := fMissionMode = mmBuilding;
 end;
 
 
 function TKMGameParams.IsMultiplayerGame: Boolean;
 begin
   Result := fMode = gmMulti;
+end;
+
+
+function TKMGameParams.IsSpectatorGame: Boolean;
+begin
+  Result := fMode = gmMultiSpectate;
 end;
 
 
@@ -215,6 +290,12 @@ end;
 function TKMGameParams.IsMultiplayer: Boolean;
 begin
   Result := fMode in [gmMulti, gmMultiSpectate, gmReplayMulti];
+end;
+
+
+function TKMGameParams.IsSingle: Boolean;
+begin
+  Result := fMode = gmSingle;
 end;
 
 
@@ -233,6 +314,12 @@ end;
 function TKMGameParams.IsNormalGame: Boolean;
 begin
   Result := fMode in [gmSingle, gmCampaign, gmMulti];
+end;
+
+
+function TKMGameParams.IsGame: Boolean;
+begin
+  Result := fMode in [gmSingle, gmCampaign, gmMulti, gmMultiSpectate];
 end;
 
 
@@ -261,3 +348,4 @@ end;
 
 
 end.
+

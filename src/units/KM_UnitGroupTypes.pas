@@ -6,7 +6,6 @@ uses
 type
 
   // Unit Group types
-  TKMTurnDirection = (tdNone, tdCW, tdCCW);
   TKMGroupInitialOrder = (gioNoOrder, gioSendGroup, gioAttackPosition);
   TKMOrderWalkKind = (wtokNone,
                       wtokPlayerOrder,  //player order

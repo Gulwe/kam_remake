@@ -56,6 +56,7 @@ const
 constructor TKMMasterServer.Create(const aMasterServerAddress: string; aDedicated:Boolean);
 begin
   inherited Create;
+
   fHTTPClient := TKMHTTPClient.Create;
   fHTTPAnnouncementsClient := TKMHTTPClient.Create;
   fHTTPMapsClient := TKMHTTPClient.Create;
@@ -71,6 +72,7 @@ begin
   fHTTPClient.Free;
   fHTTPAnnouncementsClient.Free;
   fHTTPMapsClient.Free;
+
   inherited;
 end;
 
@@ -99,7 +101,7 @@ begin
   fHTTPClient.GetURL(fMasterServerAddress+'serveradd.php?name='+UrlEncode(aName)+'&port='+UrlEncode(IntToStr(aPort))
                      +'&playercount='+UrlEncode(IntToStr(aPlayerCount))+'&ttl='+UrlEncode(IntToStr(aTTL))
                      +'&rev='+UrlEncode(NET_PROTOCOL_REVISON)+'&coderev='+UrlEncode(GAME_REVISION)
-                     +'&os='+UrlEncode(OS)+'&compiler='+UrlEncode(COMPILER)+'&dedicated='+UrlEncode(IntToStr(byte(fIsDedicated)))
+                     +'&os='+UrlEncode(OS)+'&compiler='+UrlEncode(COMPILER)+'&dedicated='+UrlEncode(IntToStr(Ord(fIsDedicated)))
                      , False); //Result doesn't matter so ANSI is fine
 end;
 

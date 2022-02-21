@@ -24,7 +24,7 @@ object FormPerfLogs: TFormPerfLogs
   end
   object Label2: TLabel
     Left = 182
-    Top = 8
+    Top = 6
     Width = 49
     Height = 13
     Caption = 'Scale (ms)'
@@ -38,7 +38,7 @@ object FormPerfLogs: TFormPerfLogs
   end
   object cbStackedGFX: TCheckBox
     Left = 95
-    Top = 27
+    Top = 22
     Width = 81
     Height = 17
     Caption = 'Stacked GFX'
@@ -47,19 +47,19 @@ object FormPerfLogs: TFormPerfLogs
   end
   object seScale: TSpinEdit
     Left = 182
-    Top = 27
+    Top = 22
     Width = 49
     Height = 22
     MaxValue = 1000
     MinValue = 1
     TabOrder = 1
-    Value = 20
+    Value = 30
     OnChange = DoChange
     OnKeyDown = seScaleKeyDown
   end
   object cbStackedCPU: TCheckBox
     Left = 95
-    Top = 8
+    Top = 6
     Width = 81
     Height = 17
     Caption = 'Stacked CPU'
@@ -68,7 +68,7 @@ object FormPerfLogs: TFormPerfLogs
   end
   object cbSmoothLines: TCheckBox
     Left = 8
-    Top = 27
+    Top = 46
     Width = 81
     Height = 17
     Caption = 'Smooth lines'
@@ -98,11 +98,22 @@ object FormPerfLogs: TFormPerfLogs
   end
   object cbEnabled: TCheckBox
     Left = 8
-    Top = 8
+    Top = 6
     Width = 81
     Height = 17
     Caption = 'Enabled'
     TabOrder = 6
+    OnClick = DoChange
+  end
+  object cbClearOnGameStart: TCheckBox
+    Left = 95
+    Top = 46
+    Width = 122
+    Height = 17
+    Caption = 'Clear on game start'
+    Checked = True
+    State = cbChecked
+    TabOrder = 7
     OnClick = DoChange
   end
 end

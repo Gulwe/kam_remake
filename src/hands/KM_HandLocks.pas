@@ -4,23 +4,32 @@ interface
 uses
   KM_ResHouses, KM_ResWares,
   KM_CommonClasses, KM_Defaults,
-  KM_ResTypes;
+  KM_ResTypes, KM_HandTypes;
 
 
 type
+  TKMBoolHouseType = array [TKMHouseType] of Boolean;
+
   // Permissions to build, trade and train
   TKMHandLocks = class
   private
     fHouseUnlocked: array [TKMHouseType] of Boolean; //If building requirements performed
     fUnitBlocked: array [TKMUnitType] of Boolean;   //Allowance derived from mission script
-    fMilitiaBlockedInTH: Boolean; // special case for militia block to train in TownHall
-    procedure UpdateReqDone(aType: TKMHouseType);
-  public
-    HouseBlocked: array [TKMHouseType] of Boolean; //Allowance derived from mission script
-    HouseGranted: array [TKMHouseType] of Boolean; //Allowance derived from mission script
 
+    fHandHouseLock: array [TKMHouseType] of TKMHandHouseLock;
+    procedure UpdateReqDone(aType: TKMHouseType);
+
+    function GetHouseBlocked(aHouseType: TKMHouseType): Boolean;
+    function GetHouseGranted(aHouseType: TKMHouseType): Boolean;
+    function GetHandHouseLock(aHouseType: TKMHouseType): TKMHandHouseLock;
+    procedure SetHandHouseLock(aHouseType: TKMHouseType; const aValue: TKMHandHouseLock);
+  public
     AllowToTrade: array [WARE_MIN..WARE_MAX] of Boolean; //Allowance derived from mission script
     constructor Create;
+
+    property HouseBlocked[aHouseType: TKMHouseType]: Boolean read GetHouseBlocked;
+    property HouseGranted[aHouseType: TKMHouseType]: Boolean read GetHouseGranted;
+    property HouseLock[aHouseType: TKMHouseType]: TKMHandHouseLock read GetHandHouseLock write SetHandHouseLock;
 
     procedure HouseCreated(aType: TKMHouseType);
     function HouseCanBuild(aType: TKMHouseType): Boolean;
@@ -42,6 +51,7 @@ uses
 constructor TKMHandLocks.Create;
 var
   W: TKMWareType;
+  HT: TKMHouseType;
 begin
   inherited;
 
@@ -50,6 +60,9 @@ begin
 
   //Release Store at the start of the game by default
   fHouseUnlocked[htStore] := True;
+
+  for HT := Low(TKMHouseType) to High(TKMHouseType) do
+    fHandHouseLock[HT] := hlDefault;
 end;
 
 
@@ -58,7 +71,7 @@ var
   H: TKMHouseType;
 begin
   for H := HOUSE_MIN to HOUSE_MAX do
-    if gRes.Houses[H].ReleasedBy = aType then
+    if gResHouses[H].ReleasedBy = aType then
       fHouseUnlocked[H] := True;
 end;
 
@@ -73,33 +86,71 @@ end;
 // Get effective permission
 function TKMHandLocks.HouseCanBuild(aType: TKMHouseType): Boolean;
 begin
-  Result := (fHouseUnlocked[aType] or HouseGranted[aType]) and not HouseBlocked[aType];
+  Result := False;
+  case fHandHouseLock[aType] of
+    hlDefault: Result := fHouseUnlocked[aType];
+    hlBlocked: Result := False;
+    hlGranted: Result := True;
+  end;
 end;
+
+
+function TKMHandLocks.GetHouseBlocked(aHouseType: TKMHouseType): Boolean;
+begin
+  Result := fHandHouseLock[aHouseType] = hlBlocked;
+end;
+
+
+function TKMHandLocks.GetHouseGranted(aHouseType: TKMHouseType): Boolean;
+begin
+  Result := fHandHouseLock[aHouseType] = hlGranted;
+end;
+
+
+function TKMHandLocks.GetHandHouseLock(aHouseType: TKMHouseType): TKMHandHouseLock;
+begin
+  Result := fHandHouseLock[aHouseType];
+end;
+
+
+procedure TKMHandLocks.SetHandHouseLock(aHouseType: TKMHouseType; const aValue: TKMHandHouseLock);
+begin
+  Assert(aValue <> hlNone, 'Can''t set hlNone Hand House Lock');
+  fHandHouseLock[aHouseType] := aValue;
+end;
+
+
+//procedure TKMHandLocks.SetHouseBlocked(aHouseType: TKMHouseType; const aValue: Boolean);
+//begin
+//  if aValue then
+//    fPlayerHouseLock[aHouseType] := phlBlocked
+//  else
+//    fPlayerHouseLock[aHouseType] := phlDefault;
+//end;
+//
+//
+//procedure TKMHandLocks.SetHouseGranted(aHouseType: TKMHouseType; const aValue: Boolean);
+//begin
+//  fPlayerHouseLock[aHouseType] := phlGranted;
+//end;
 
 
 function TKMHandLocks.GetUnitBlocked(aUnitType: TKMUnitType; aInTownHall: Boolean = False): Boolean;
 begin
-  if aInTownHall and (aUnitType = utMilitia) then
-    Result := fMilitiaBlockedInTH
-  else
-    Result := fUnitBlocked[aUnitType];
+  Result := fUnitBlocked[aUnitType];
 end;
 
 
 procedure TKMHandLocks.SetUnitBlocked(aIsBlocked: Boolean; aUnitType: TKMUnitType; aInTownHall: Boolean = False);
 begin
-  if aInTownHall and (aUnitType = utMilitia) then
-    fMilitiaBlockedInTH := aIsBlocked
-  else
-    fUnitBlocked[aUnitType] := aIsBlocked;
+  fUnitBlocked[aUnitType] := aIsBlocked;
 end;
 
 
 procedure TKMHandLocks.Save(SaveStream: TKMemoryStream);
 begin
   SaveStream.PlaceMarker('HandLocks');
-  SaveStream.Write(HouseBlocked, SizeOf(HouseBlocked));
-  SaveStream.Write(HouseGranted, SizeOf(HouseGranted));
+  SaveStream.Write(fHandHouseLock, SizeOf(fHandHouseLock));
   SaveStream.Write(fUnitBlocked, SizeOf(fUnitBlocked));
   SaveStream.Write(AllowToTrade, SizeOf(AllowToTrade));
   SaveStream.Write(fHouseUnlocked, SizeOf(fHouseUnlocked));
@@ -109,8 +160,7 @@ end;
 procedure TKMHandLocks.Load(LoadStream: TKMemoryStream);
 begin
   LoadStream.CheckMarker('HandLocks');
-  LoadStream.Read(HouseBlocked, SizeOf(HouseBlocked));
-  LoadStream.Read(HouseGranted, SizeOf(HouseGranted));
+  LoadStream.Read(fHandHouseLock, SizeOf(fHandHouseLock));
   LoadStream.Read(fUnitBlocked, SizeOf(fUnitBlocked));
   LoadStream.Read(AllowToTrade, SizeOf(AllowToTrade));
   LoadStream.Read(fHouseUnlocked, SizeOf(fHouseUnlocked));

@@ -54,6 +54,7 @@ end;
 constructor TKMUnitActionAbandonWalk.Load(LoadStream: TKMemoryStream);
 begin
   inherited;
+
   LoadStream.CheckMarker('UnitActionAbandonWalk');
   LoadStream.Read(fWalkTo);
   LoadStream.Read(fVertexOccupied);
@@ -74,16 +75,17 @@ end;
 
 function TKMUnitActionAbandonWalk.Execute: TKMActionResult;
 var
-  DX, DY: ShortInt;
-  WalkX, WalkY, Distance: Single;
+  dx, dy: ShortInt;
+  walkX, walkY, distance: Single;
 begin
   Result := arActContinues;
 
   //Execute the route in series of moves
-  Distance := gRes.Units[fUnit.UnitType].Speed;
+  // Use umtWalk move type here, since we just want to evaluate if we are close enough
+  distance := gRes.Units[fUnit.UnitType].GetEffectiveWalkSpeed(False);
 
   //Check if unit has arrived on tile
-  if KMSamePointF(fUnit.PositionF, KMPointF(fWalkTo), Distance/2) then
+  if KMSamePointF(fUnit.PositionF, KMPointF(fWalkTo), distance/2) then
   begin
     fUnit.PositionF := KMPointF(fWalkTo); //Set precise position to avoid rounding errors
     fUnit.IsExchanging := False; //Disable sliding (in case it was set in previous step)
@@ -93,20 +95,18 @@ begin
       fVertexOccupied := KMPOINT_ZERO;
     end;
     StepDone := True;
-    Result := arActDone;
-    exit;
+    Exit(arActDone);
   end;
 
-  WalkX := fWalkTo.X - fUnit.PositionF.X;
-  WalkY := fWalkTo.Y - fUnit.PositionF.Y;
-  DX := sign(WalkX); //-1,0,1
-  DY := sign(WalkY); //-1,0,1
+  walkX := fWalkTo.X - fUnit.PositionF.X;
+  walkY := fWalkTo.Y - fUnit.PositionF.Y;
+  dx := sign(walkX); //-1,0,1
+  dy := sign(walkY); //-1,0,1
 
-  if (DX <> 0) and (DY <> 0) then
-    Distance := Distance / 1.41; {sqrt (2) = 1.41421 }
+  distance := gRes.Units[fUnit.UnitType].GetEffectiveWalkSpeed((dx <> 0) and (dy <> 0));
 
-  fUnit.PositionF := KMPointF(fUnit.PositionF.X + DX*Math.min(Distance,abs(WalkX)),
-                              fUnit.PositionF.Y + DY*Math.min(Distance,abs(WalkY)));
+  fUnit.PositionF := KMPointF(fUnit.PositionF.X + dx*Math.min(distance,abs(walkX)),
+                              fUnit.PositionF.Y + dy*Math.min(distance,abs(walkY)));
   Inc(fUnit.AnimStep);
 end;
 
@@ -114,6 +114,7 @@ end;
 procedure TKMUnitActionAbandonWalk.Save(SaveStream: TKMemoryStream);
 begin
   inherited;
+
   SaveStream.PlaceMarker('UnitActionAbandonWalk');
   SaveStream.Write(fWalkTo);
   SaveStream.Write(fVertexOccupied);

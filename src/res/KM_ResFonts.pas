@@ -2,7 +2,9 @@ unit KM_ResFonts;
 {$I KaM_Remake.inc}
 interface
 uses
-  Classes, Graphics, Math, StrUtils, SysUtils, KM_PNG, KM_RenderTypes,
+  Classes, Math, StrUtils, SysUtils,
+  Graphics,
+  KM_IoPNG, KM_RenderTypes,
   KM_CommonTypes, KM_Defaults, KM_Points, KM_ResPalettes
   {$IFDEF FPC}, zstream {$ENDIF}
   {$IFDEF WDC}, ZLib {$ENDIF};
@@ -172,12 +174,10 @@ function NameToFont(const aName: string): TKMFont;
 
 implementation
 uses
+  {$IFNDEF NO_OGL}
   KM_Render,
+  {$ENDIF}
   KM_CommonUtils, KM_Log;
-
-
-var
-  LOG_FONTS_RAM_USAGE: Boolean = False;
 
 
 function NameToFont(const aName: string): TKMFont;
@@ -297,38 +297,38 @@ end;
 
 procedure TKMFontSpec.LoadFontX(const aFileName: string; aLoadLevel: TKMFontLoadLevel = fllFull);
 var
-  InputStream: TFileStream;
-  DecompressionStream: TDecompressionStream;
-  Head: AnsiString;
+  inputStream: TFileStream;
+  decompressionStream: TDecompressionStream;
+  head: AnsiString;
   I: Integer;
 begin
   if not FileExists(aFileName) then Exit;
 
-  InputStream := TFileStream.Create(aFileName, fmOpenRead or fmShareDenyNone);
-  DecompressionStream := TDecompressionStream.Create(InputStream);
+  inputStream := TFileStream.Create(aFileName, fmOpenRead or fmShareDenyNone);
+  decompressionStream := TDecompressionStream.Create(inputStream);
   try
-    SetLength(Head, 4);
-    DecompressionStream.Read(Head[1], 4);
+    SetLength(head, 4);
+    decompressionStream.Read(head[1], 4);
 
-    Assert(Head = FNTX_HEAD);
+    Assert(head = FNTX_HEAD);
 
     fCodepage := 0;
     fIsUnicode := True;
     fCharCount := 65535;
 
-    DecompressionStream.Read(fBaseHeight, 2);
-    DecompressionStream.Read(fWordSpacing, 2);
-    DecompressionStream.Read(fCharSpacing, 2);
-    DecompressionStream.Read(fLineSpacing, 1);
+    decompressionStream.Read(fBaseHeight, 2);
+    decompressionStream.Read(fWordSpacing, 2);
+    decompressionStream.Read(fCharSpacing, 2);
+    decompressionStream.Read(fLineSpacing, 1);
 
-    DecompressionStream.Read(Used[0], Length(Used) * SizeOf(Used[0]));
+    decompressionStream.Read(Used[0], Length(Used) * SizeOf(Used[0]));
     for I := 0 to High(Word) do
     if Used[I] <> 0 then
-      DecompressionStream.Read(Letters[I], SizeOf(TKMLetter));
+      decompressionStream.Read(Letters[I], SizeOf(TKMLetter));
 
-    DecompressionStream.Read(fAtlasCount, 1);
-    DecompressionStream.Read(fTexSizeX, 2);
-    DecompressionStream.Read(fTexSizeY, 2);
+    decompressionStream.Read(fAtlasCount, 1);
+    decompressionStream.Read(fTexSizeX, 2);
+    decompressionStream.Read(fTexSizeY, 2);
 
     if aLoadLevel = fllMinimal then
     begin
@@ -341,11 +341,11 @@ begin
     for I := 0 to fAtlasCount - 1 do
     begin
       SetLength(fAtlases[I].TexData, fTexSizeX * fTexSizeY);
-      DecompressionStream.Read(fAtlases[I].TexData[0], fTexSizeX * fTexSizeY * 4);
+      decompressionStream.Read(fAtlases[I].TexData[0], fTexSizeX * fTexSizeY * 4);
     end;
   finally
-    DecompressionStream.Free;
-    InputStream.Free;
+    decompressionStream.Free;
+    inputStream.Free;
   end;
 end;
 
@@ -366,25 +366,29 @@ end;
 
 // Generate color texture from prepared data
 procedure TKMFontSpec.GenerateTextures(aTexMode: TTexFormat);
+{$IFNDEF NO_OGL}
 var
   I: Integer;
   textureRAM: Cardinal;
+{$ENDIF}
 begin
+  {$IFNDEF NO_OGL}
+  // We can compute RAM usage along the way, it's practically free
   textureRAM := 0;
-    
+
   for I := 0 to fAtlasCount - 1 do
     if fAtlases[I].TexID = 0 then //Don't load atlases twice if switching from minimal to full
       if Length(fAtlases[I].TexData) <> 0 then
       begin
         fAtlases[I].TexID := TRender.GenTexture(fTexSizeX, fTexSizeY, @fAtlases[I].TexData[0], aTexMode, ftNearest, ftNearest);
-        if LOG_FONTS_RAM_USAGE then        
-          Inc(textureRAM, fTexSizeX * fTexSizeY * TEX_FORMAT_SIZE[aTexMode]);
+        Inc(textureRAM, fTexSizeX * fTexSizeY * TEX_FORMAT_SIZE[aTexMode]);
       end
       else
         fAtlases[I].TexID := 0;
 
   if LOG_FONTS_RAM_USAGE then
     gLog.AddNoTime('Font RAM usage: ' + IntToStr(textureRAM));
+  {$ENDIF}
 end;
 
 
@@ -547,36 +551,36 @@ end;
 procedure TKMResFonts.LoadFonts(aLoadLevel: TKMFontLoadLevel = fllFull);
 var
   F: TKMFont;
-  FntPath: string;
-  StartTime, TotalTime: Cardinal;
+  fntPath: string;
+  startTime, totalTime: Cardinal;
 begin
   fLoadLevel := aLoadLevel;
-  StartTime := TimeGet;
+  startTime := TimeGet;
 
   for F := Low(TKMFont) to High(TKMFont) do
   begin
-    FntPath := ExeDir + TKMFontSpec.FONTS_FOLDER + FontTypeName[F] + '.' + TKMFontSpec.DEFAULT_EXT;
-    fFontData[F].LoadFontX(FntPath, aLoadLevel);
+    fntPath := ExeDir + TKMFontSpec.FONTS_FOLDER + FontTypeName[F] + '.' + TKMFontSpec.DEFAULT_EXT;
+    fFontData[F].LoadFontX(fntPath, aLoadLevel);
     fFontData[F].GenerateTextures(FONT_INFO[F].TexMode);
     fFontData[F].Compact;
   end;
 
-  TotalTime := TimeSince(StartTime);
-  gLog.AddTime('Font load took ' + IntToStr(TotalTime) + 'ms');
+  totalTime := TimeSince(startTime);
+  gLog.AddTime('Font load took ' + IntToStr(totalTime) + 'ms');
 end;
 
 
 procedure TKMResFonts.ExportFonts;
 var
   F: TKMFont;
-  FntPath: string;
+  fntPath: string;
   I: Integer;
 begin
   // We need to reload fonts to regenerate TexData
   for F := Low(TKMFont) to High(TKMFont) do
   begin
-    FntPath := ExeDir + TKMFontSpec.FONTS_FOLDER + FontTypeName[F] + '.' + TKMFontSpec.DEFAULT_EXT;
-    fFontData[F].LoadFontX(FntPath);
+    fntPath := ExeDir + TKMFontSpec.FONTS_FOLDER + FontTypeName[F] + '.' + TKMFontSpec.DEFAULT_EXT;
+    fFontData[F].LoadFontX(fntPath);
 
     for I := 0 to fFontData[F].AtlasCount - 1 do
       fFontData[F].ExportAtlasBmp(ExeDir + 'Export' + PathDelim + 'Fonts' + PathDelim + FontTypeName[F] + IntToStr(I) + '.bmp', I);
@@ -607,25 +611,27 @@ end;
 
 
 function TKMFontSpec.WordWrap(aText: UnicodeString; aMaxPxWidth: Integer; aForced: Boolean; aIndentAfterNL: Boolean;
-  aTabWidth: Integer = FONT_TAB_WIDTH): UnicodeString;
+                              aTabWidth: Integer = FONT_TAB_WIDTH): UnicodeString;
 const
   INDENT = '   ';
 var
-  I, LineWrapPos: Integer;
-  LastWrappable: Integer;
-  LastWrappableIsSpace: Boolean;
-  LastColorMarkup, AfterWrapClMarkup: UnicodeString;
-  dx, PrevX: Integer;
-  TmpColor: Integer;
+  I, lineWrapPos: Integer;
+  lastWrappable: Integer;
+  lastWrappableIsSpace: Boolean;
+  lastColorMarkup, afterWrapClMarkup: UnicodeString;
+  dx, prevX: Integer;
+  tmpColor: Integer;
 begin
   Assert(aMaxPxWidth > 0);
 
+  if aText = '' then Exit ('');
+
   dx := 0;
-  PrevX := 0;
-  LastWrappable := -1;
-  LastWrappableIsSpace := False;
-  LastColorMarkup := '';
-  AfterWrapClMarkup := '';
+  prevX := 0;
+  lastWrappable := -1;
+  lastWrappableIsSpace := False;
+  lastColorMarkup := '';
+  afterWrapClMarkup := '';
 
   I := 1;
   while I <= Length(aText) do
@@ -635,23 +641,23 @@ begin
     if ((Ord(aText[I]) >= 19968) and (Ord(aText[I]) <= 40870))
       or ((Ord(aText[I]) >= $3040) and (Ord(aText[I]) <= $30ff)) then
     begin
-      LastWrappable := I;
-      AfterWrapClMarkup := LastColorMarkup;
-      PrevX := dx; //dx does not include this char yet, since we are wrapping before it
-      LastWrappableIsSpace := False;
+      lastWrappable := I;
+      afterWrapClMarkup := lastColorMarkup;
+      prevX := dx; //dx does not include this char yet, since we are wrapping before it
+      lastWrappableIsSpace := False;
     end;
 
     //Ignore color markups [$FFFFFF][]
     if (aText[I] = '[') and (I+1 <= Length(aText)) and (aText[I+1] = ']') then
     begin
-      LastColorMarkup := '';
+      lastColorMarkup := '';
       Inc(I); //Skip past end of color markup
     end else
       if (aText[I] = '[') and (I+8 <= Length(aText))
         and (aText[I+1] = '$') and (aText[I+8] = ']')
-        and TryStrToInt(Copy(aText, I+1, 7), TmpColor) then
+        and TryStrToInt(Copy(aText, I+1, 7), tmpColor) then
       begin
-        LastColorMarkup := Copy(aText, I, 9);
+        lastColorMarkup := Copy(aText, I, 9);
         Inc(I,8); //Skip past start of color markup
       end else if (aText[I] = #9) then
         dx := (Floor(dx / aTabWidth) + 1) * aTabWidth
@@ -660,59 +666,59 @@ begin
 
     if SysUtils.CharInSet(aText[I], [#9,#32,#124]) then
     begin
-      LastWrappable := I;
-      AfterWrapClMarkup := LastColorMarkup;
-      PrevX := dx;
-      LastWrappableIsSpace := True;
+      lastWrappable := I;
+      afterWrapClMarkup := lastColorMarkup;
+      prevX := dx;
+      lastWrappableIsSpace := True;
     end;
 
     //This algorithm is not perfect, somehow line width is not within SizeX, but very rare
-    if ((dx > aMaxPxWidth) and (LastWrappable <> -1)) or (aText[I] = #124) then
+    if ((dx > aMaxPxWidth) and (lastWrappable <> -1)) or (aText[I] = #124) then
     begin
-      if LastWrappableIsSpace then
-        aText[LastWrappable] := #124 //Replace last whitespace with EOL
+      if lastWrappableIsSpace then
+        aText[lastWrappable] := #124 //Replace last whitespace with EOL
       else begin
-        Inc(LastWrappable);
-        Insert(#124, aText, LastWrappable); //Insert EOL after last wrappable char
+        Inc(lastWrappable);
+        Insert(#124, aText, lastWrappable); //Insert EOL after last wrappable char
       end;
 
-      if AfterWrapClMarkup <> '' then
+      if afterWrapClMarkup <> '' then
       begin
-        Insert('[]', aText, LastWrappable);
+        Insert('[]', aText, lastWrappable);
         Inc(I, 2);
-        Inc(LastWrappable, 2);
+        Inc(lastWrappable, 2);
       end;
 
       if (aText[I] <> #124) and aIndentAfterNL then
       begin
-        Insert(INDENT, aText, LastWrappable+1);
+        Insert(INDENT, aText, lastWrappable+1);
         Inc(I, Length(INDENT));
         Inc(dx, Length(INDENT) * WordSpacing);
       end;
 
-      if AfterWrapClMarkup <> '' then
+      if afterWrapClMarkup <> '' then
       begin
-        Insert(AfterWrapClMarkup, aText, LastWrappable+1);
-        Inc(I, Length(AfterWrapClMarkup));
+        Insert(afterWrapClMarkup, aText, lastWrappable+1);
+        Inc(I, Length(afterWrapClMarkup));
       end;
 
-      Dec(dx, PrevX); //Subtract width since replaced whitespace
+      Dec(dx, prevX); //Subtract width since replaced whitespace
 
-      LastWrappable := -1;
+      lastWrappable := -1;
     end;
     //Force an EOL part way through a word
-    if aForced and (dx > aMaxPxWidth) and (LastWrappable = -1) then
+    if aForced and (dx > aMaxPxWidth) and (lastWrappable = -1) then
     begin
       Insert(#124, aText, I); //Insert an EOL before this character
       dx := 0;
 
-      if LastColorMarkup <> '' then
+      if lastColorMarkup <> '' then
       begin
         Insert('[]', aText, I);
         Inc(I, 2);
       end;
 
-      LineWrapPos := I;
+      lineWrapPos := I;
 
       if aIndentAfterNL then
       begin
@@ -721,13 +727,13 @@ begin
         Inc(dx, Length(INDENT) * WordSpacing);
       end;
 
-      if LastColorMarkup <> '' then
+      if lastColorMarkup <> '' then
       begin
-        Insert(LastColorMarkup, aText, LineWrapPos+1);
-        Inc(I, Length(LastColorMarkup));
+        Insert(lastColorMarkup, aText, lineWrapPos+1);
+        Inc(I, Length(lastColorMarkup));
       end;
 
-      LastWrappable := -1;
+      lastWrappable := -1;
     end;
     Inc(I);
   end;
@@ -736,26 +742,26 @@ end;
 
 
 function TKMFontSpec.CharsThatFit(const aText: UnicodeString; aMaxPxWidth: Integer; aRound: Boolean = False;
-  aConsiderEolSymbol: Boolean = False; aTabWidth: Integer = FONT_TAB_WIDTH): Integer;
+                                  aConsiderEolSymbol: Boolean = False; aTabWidth: Integer = FONT_TAB_WIDTH): Integer;
 var
-  I, dx, PrevX, LastCharW: Integer;
+  I, dx, prevX, lastCharW: Integer;
 begin
   dx := 0;
   Result := Length(aText);
 
   for I := 1 to Length(aText) do
   begin
-    LastCharW := GetCharWidth(aText[I], aConsiderEolSymbol);
-    PrevX := dx;
+    lastCharW := GetCharWidth(aText[I], aConsiderEolSymbol);
+    prevX := dx;
     if aText[I] = #9 then
       dx := (Floor(dx / aTabWidth) + 1) * aTabWidth
     else
-      Inc(dx, LastCharW);
+      Inc(dx, lastCharW);
 
     if (dx > aMaxPxWidth) then
     begin
       // If we want to get approximate result, then check if total width is closer to prev width or to current
-      if aRound and (dx - aMaxPxWidth < aMaxPxWidth - PrevX) then
+      if aRound and (dx - aMaxPxWidth < aMaxPxWidth - prevX) then
         Result := I
       else
         Result := I - 1; //Previous character fits, this one does not
@@ -766,7 +772,7 @@ end;
 
 
 function TKMFontSpec.GetTextSize(const aText: UnicodeString; aCountMarkup: Boolean = False; aConsiderEolSymbol: Boolean = False;
-  aTabWidth: Integer = FONT_TAB_WIDTH): TKMPoint;
+                                 aTabWidth: Integer = FONT_TAB_WIDTH): TKMPoint;
 var
   lineCount: Integer;
 begin
@@ -775,11 +781,11 @@ end;
 
 
 function TKMFontSpec.GetTextSize(const aText: UnicodeString; var aLineCount: Integer; aCountMarkup: Boolean = False;
-  aConsiderEolSymbol: Boolean = False; aTabWidth: Integer = FONT_TAB_WIDTH): TKMPoint;
+                                 aConsiderEolSymbol: Boolean = False; aTabWidth: Integer = FONT_TAB_WIDTH): TKMPoint;
 var
   I: Integer;
-  LineWidthInc, TmpColor: Integer;
-  LineWidth: array of Integer; // Some fonts may have negative CharSpacing
+  lineWidthInc, tmpColor: Integer;
+  lineWidth: array of Integer; // Some fonts may have negative CharSpacing
 begin
   Result.X := 0;
   Result.Y := 0;
@@ -791,21 +797,21 @@ begin
     for I := 1 to Length(aText) do
       if aText[I] = #124 then Inc(aLineCount);
 
-  SetLength(LineWidth, aLineCount+2); //1..n+1 (for last line)
+  SetLength(lineWidth, aLineCount+2); //1..n+1 (for last line)
 
   aLineCount := 1;
   I := 1;
   while I <= Length(aText) do
   begin
-    LineWidthInc := 0;
+    lineWidthInc := 0;
     if aCountMarkup then
     begin
       //Count all characters including markup
       if aText[I] = #9 then // Tab char
-        LineWidthInc := (Floor(LineWidth[aLineCount] / aTabWidth) + 1) * aTabWidth - LineWidth[aLineCount]
+        lineWidthInc := (Floor(lineWidth[aLineCount] / aTabWidth) + 1) * aTabWidth - lineWidth[aLineCount]
       else
-        LineWidthInc := GetCharWidth(aText[I], aConsiderEolSymbol);
-      Inc(LineWidth[aLineCount], LineWidthInc);
+        lineWidthInc := GetCharWidth(aText[I], aConsiderEolSymbol);
+      Inc(lineWidth[aLineCount], lineWidthInc);
     end else
       //Ignore color markups [$FFFFFF][]
       if (aText[I]='[') and (I+1 <= Length(aText)) and (aText[I+1]=']') then
@@ -813,22 +819,22 @@ begin
       else
         if (aText[I]='[') and (I+8 <= Length(aText))
           and (aText[I+1] = '$') and (aText[I+8]=']')
-          and TryStrToInt(Copy(aText, I+1, 7), TmpColor) then
+          and TryStrToInt(Copy(aText, I+1, 7), tmpColor) then
           Inc(I,8) //Skip past this markup
         else begin
           //Not markup so count width normally
           if aText[I] = #9 then // Tab char
-            LineWidthInc := (Floor(LineWidth[aLineCount] / aTabWidth) + 1) * aTabWidth - LineWidth[aLineCount]
+            lineWidthInc := (Floor(lineWidth[aLineCount] / aTabWidth) + 1) * aTabWidth - lineWidth[aLineCount]
           else
-            LineWidthInc := GetCharWidth(aText[I], aConsiderEolSymbol);
-          Inc(LineWidth[aLineCount], LineWidthInc);
+            lineWidthInc := GetCharWidth(aText[I], aConsiderEolSymbol);
+          Inc(lineWidth[aLineCount], lineWidthInc);
         end;
 
     if (not aConsiderEolSymbol and (aText[I] = #124)) or (I = Length(aText)) then
     begin // If EOL or aText end
       if aText[I] <> #9 then       // for Tab reduce line width for CharSpacing and also for TAB 'jump'
-        LineWidthInc := 0;
-      LineWidth[aLineCount] := Math.Max(0, LineWidth[aLineCount] - CharSpacing - LineWidthInc);
+        lineWidthInc := 0;
+      lineWidth[aLineCount] := Math.Max(0, lineWidth[aLineCount] - CharSpacing - lineWidthInc);
       // Remove last interletter space and negate double EOLs
       Inc(aLineCount);
     end;
@@ -838,21 +844,21 @@ begin
   Dec(aLineCount);
   Result.Y := LineHeight * aLineCount;
   for I := 1 to aLineCount do
-    Result.X := Math.Max(Result.X, LineWidth[I]);
+    Result.X := Math.Max(Result.X, lineWidth[I]);
 end;
 
 
 // Return maximum of the width of specified strings when printed on screen with specified font.
 function TKMFontSpec.GetMaxPrintWidthOfStrings(aStrings: array of string): Integer;
 var
-  I, Width: Integer;
+  I, width: Integer;
 begin
   Result := 0;
   for I := Low(aStrings) to High(aStrings) do
   begin
-    Width := GetTextSize(aStrings[I]).X;
-    if (Width > Result) then
-      Result := Width; //todo: Replace with Result := Max(Result, GetTextSize(aStrings[I]).X);
+    width := GetTextSize(aStrings[I]).X;
+    if (width > Result) then
+      Result := width; //todo: Replace with Result := Max(Result, GetTextSize(aStrings[I]).X);
   end;
 end;
 

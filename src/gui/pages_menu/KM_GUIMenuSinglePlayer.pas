@@ -2,9 +2,9 @@ unit KM_GUIMenuSinglePlayer;
 {$I KaM_Remake.inc}
 interface
 uses
-  Controls, Math, SysUtils,
+  Math, SysUtils,
   KM_Defaults,
-  KM_Controls, KM_Pics, KM_InterfaceDefaults, KM_GameTypes;
+  KM_Controls, KM_Pics, KM_InterfaceDefaults, KM_InterfaceTypes, KM_GameTypes;
 
 
 type
@@ -33,7 +33,8 @@ type
 
 implementation
 uses
-  KM_ResTexts, KM_RenderUI, KM_ResFonts;
+  KM_ResTexts, KM_ResFonts, KM_ResTypes,
+  KM_RenderUI;
 
 
 { TKMGUIMenuSinglePlayer }

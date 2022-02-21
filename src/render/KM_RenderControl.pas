@@ -2,7 +2,9 @@ unit KM_RenderControl;
 {$I KaM_Remake.inc}
 interface
 uses
-  Classes, Controls, ExtCtrls, Forms, KromOGLUtils, Types
+  Classes, Types,
+  ExtCtrls, Forms,
+  KromOGLUtils
   {$IFDEF MSWindows} , Windows, dglOpenGL  {$ENDIF}
   {$IFDEF Unix} , OpenGLContext, dglOpenGL {$ENDIF}
   {$IFDEF WDC}, Messages {$ENDIF}

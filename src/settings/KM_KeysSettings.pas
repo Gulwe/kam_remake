@@ -5,12 +5,9 @@ uses
   KM_GameAppSettings;
 
 type
-  // Hotkey Settings
+  // Hotkey settings loader/saver
   TKMKeysSettings = class(TKMGameAppSettingsPart)
   public
-    constructor Create;
-    destructor Destroy; override;
-
     procedure LoadFromXML; override;
     procedure SaveToXML; override;
   end;
@@ -24,32 +21,14 @@ uses
   KM_ResTexts,
   KM_ResKeys,
   KM_ResTypes,
-
-  KM_XmlHelper,
   KM_IoXML;
 
 
 { TKMKeysSettings }
-constructor TKMKeysSettings.Create;
-begin
-  inherited;
-
-  gKeySettings := Self;
-end;
-
-
-destructor TKMKeysSettings.Destroy;
-begin
-  inherited;
-
-  gKeySettings := nil;
-end;
-
-
 procedure TKMKeysSettings.LoadFromXML;
 var
   KF: TKMKeyFunction;
-  nHotkeys, nKey: TXMLNode;
+  nHotkeys, nKey: TKMXmlNode;
   keyFuncName: string;
   keySpec: TKMKeySpec;
 begin
@@ -74,10 +53,11 @@ begin
   end;
 end;
 
+
 procedure TKMKeysSettings.SaveToXML;
 var
   KF: TKMKeyFunction;
-  nHotkeys, nKey: TXMLNode;
+  nHotkeys, nKey: TKMXmlNode;
 begin
   if Self = nil then Exit;
   inherited;
@@ -88,6 +68,8 @@ begin
   begin
     nKey := nHotkeys.AddOrFindChild(TKMResKeys.GetKeyFunctionStr(KF));
     nKey.Attributes['Key'] := gResKeys[KF].Key;
+
+    // These are just comments
     nKey.Attributes['KeyDesc'] := gResKeys.GetKeyName(gResKeys[KF].Key);
     nKey.Attributes['FuncDesc'] := gResTexts[gResKeys[KF].TextId];
   end;

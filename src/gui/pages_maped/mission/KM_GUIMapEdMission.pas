@@ -2,7 +2,7 @@ unit KM_GUIMapEdMission;
 {$I KaM_Remake.inc}
 interface
 uses
-   Classes, Controls, Math, SysUtils,
+   Classes, Math, SysUtils,
    KM_Controls,
    KM_InterfaceDefaults,
    KM_GUIMapEdMissionMode,
@@ -35,22 +35,20 @@ type
     procedure Show(aPage: TKMMissionTab);
     function IsVisible(aPage: TKMMissionTab): Boolean;
     function Visible: Boolean; override;
+
+    procedure UpdateHotkeys;
   end;
 
 
 implementation
 uses
-  KM_ResTexts, KM_GameCursor, KM_RenderUI, KM_InterfaceGame, KM_Pics, KM_Defaults, KM_Utils;
-
+  KM_ResTexts, KM_ResTypes,
+  KM_Cursor, KM_RenderUI, KM_InterfaceGame, KM_Defaults, KM_Utils;
 
 { TKMMapEdMission }
 constructor TKMMapEdMission.Create(aParent: TKMPanel; aOnPageChange: TNotifyEvent);
 const
-  TabGlyph: array [TKMMissionTab] of Word    = (41, 656, 386);
-  TabHint : array [TKMMissionTab] of Word = (
-    TX_MAPED_MISSION_MODE,
-    TX_MAPED_PLAYERS_TYPE,
-    TX_MAPED_ALLIANCE);
+  TAB_GLYPH: array [TKMMissionTab] of Word    = (41, 656, 386);
 var
   MT: TKMMissionTab;
 begin
@@ -63,8 +61,7 @@ begin
 
   for MT := Low(TKMMissionTab) to High(TKMMissionTab) do
   begin
-    Button_Mission[MT] := TKMButton.Create(Panel_Mission, 9 + SMALL_PAD_W * Byte(MT), 0, SMALL_TAB_W, SMALL_TAB_H,  TabGlyph[MT], rxGui, bsGame);
-    Button_Mission[MT].Hint := GetHintWHotKey(TabHint[MT], MAPED_SUBMENU_HOTKEYS[Ord(MT)]);
+    Button_Mission[MT] := TKMButton.Create(Panel_Mission, 9 + SMALL_PAD_W * Byte(MT), 0, SMALL_TAB_W, SMALL_TAB_H,  TAB_GLYPH[MT], rxGui, bsGame);
     Button_Mission[MT].OnClick := PageChange;
   end;
 
@@ -96,7 +93,7 @@ end;
 procedure TKMMapEdMission.PageChange(Sender: TObject);
 begin
   //Reset cursor mode
-  gGameCursor.Mode := cmNone;
+  gCursor.Mode := cmNone;
 
   //Hide existing pages
   fGuiMissionMode.Hide;
@@ -127,6 +124,20 @@ begin
 
   //Signal that active page has changed, that may affect layers visibility
   fOnPageChange(Self);
+end;
+
+
+procedure TKMMapEdMission.UpdateHotkeys;
+const
+  TAB_HINT : array [TKMMissionTab] of Word = (
+    TX_MAPED_MISSION_MODE,
+    TX_MAPED_PLAYERS_TYPE,
+    TX_MAPED_ALLIANCE);
+var
+  MT: TKMMissionTab;
+begin
+  for MT := Low(TKMMissionTab) to High(TKMMissionTab) do
+    Button_Mission[MT].Hint := GetHintWHotkey(TAB_HINT[MT], MAPED_SUBMENU_HOTKEYS[Ord(MT)]);
 end;
 
 

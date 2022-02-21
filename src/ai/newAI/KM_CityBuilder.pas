@@ -103,8 +103,8 @@ uses
 { Procedural functions }
 function CompareBuildNode(const aElem1, aElem2): Integer;
 var
-  val1 : TBuildNode absolute aElem1;
-  val2 : TBuildNode absolute aElem2;
+  val1: TBuildNode absolute aElem1;
+  val2: TBuildNode absolute aElem2;
 begin
   if val1.Active AND val2.Active then
   begin
@@ -290,7 +290,7 @@ var
   Dir: TDirection;
 begin
   // Reserve all tiles inside house plan
-  //if (aHT <> htWall) then
+  //if (aHT <> htCoalMine) then
 
     for I := Low(gAIFields.Eye.HousesMapping[aHT].Tiles) to High(gAIFields.Eye.HousesMapping[aHT].Tiles) do
     begin
@@ -335,9 +335,9 @@ begin
     for I := Low(gAIFields.Eye.HousesMapping[aHT].Surroundings[Dist,Dir]) to High(gAIFields.Eye.HousesMapping[aHT].Surroundings[Dist,Dir]) do
     begin
       Point := KMPointAdd(aLoc, gAIFields.Eye.HousesMapping[aHT].Surroundings[Dist,Dir,I]);
-     if (gAIFields.Influences.AvoidBuilding[Point.Y, Point.X] = AVOID_BUILDING_HOUSE_OUTSIDE_LOCK) then
-       gAIFields.Influences.AvoidBuilding[Point.Y, Point.X] := AVOID_BUILDING_UNLOCK;
-  end;
+      if (gAIFields.Influences.AvoidBuilding[Point.Y, Point.X] = AVOID_BUILDING_HOUSE_OUTSIDE_LOCK) then
+        gAIFields.Influences.AvoidBuilding[Point.Y, Point.X] := AVOID_BUILDING_UNLOCK;
+    end;
 end;
 
 
@@ -441,10 +441,9 @@ procedure TKMCityBuilder.UpdateBuildNodes();
 //    8: End task
 var
   Check: Boolean;
-  K,L, Prio, ClosestIdx, ClosestDist, Dist, ReqWorkerCnt: Integer;
+  K,L, ClosestIdx, ClosestDist, Dist, ReqWorkerCnt: Integer;
   H: TKMHouse;
   WorkersPos: TKMPointArray;
-  BuildNode: TBuildNode;
 begin
   // Dont update nodes when first school needs to be build
   if BuildingFirstSchool() then
@@ -487,14 +486,14 @@ begin
           with gHands[fOwner].Units[L] do
             if (Task <> nil) AND (Task.TaskType = uttBuildHouse) AND (TKMTaskBuildHouse(Task).House = H) then
               Check := True;
-      fFreeWorkersCnt := fFreeWorkersCnt - Byte(not Check);
+      fFreeWorkersCnt := fFreeWorkersCnt - Ord(not Check);
     end;
   end;
-  fFreeWorkersCnt := fFreeWorkersCnt * Byte(fFreeWorkersCnt > 0);
+  fFreeWorkersCnt := fFreeWorkersCnt * Ord(fFreeWorkersCnt > 0);
   SetLength(WorkersPos, fFreeWorkersCnt);
 
   // Sort buildNodes by priority and active state
-  Sort(fBuildNodes[0], Low(fBuildNodes), High(fBuildNodes), sizeof(fBuildNodes[0]), CompareBuildNode);
+  SortCustom(fBuildNodes[0], Low(fBuildNodes), High(fBuildNodes), SizeOf(fBuildNodes[0]), CompareBuildNode);
 
   // Find closest build-node to each free worker and allow to expand it in next update + consider priority of node
   K := 0;
@@ -549,7 +548,7 @@ begin
         ReqWorkerCnt := ReqWorkerCnt + fBuildNodes[K].RequiredWorkers;
     end;
   if (gHands[fOwner].Stats.GetHouseQty(htAny) > 15) then
-    fFreeWorkersCnt := Max(fFreeWorkersCnt, Byte(ReqWorkerCnt < 5));
+    fFreeWorkersCnt := Max(fFreeWorkersCnt, Ord(ReqWorkerCnt < 5));
 
   fWorkersPos := WorkersPos;
 end;
@@ -562,7 +561,7 @@ procedure TKMCityBuilder.UpdateBuildNode(var aNode: TBuildNode);
   end;
   function IsPlan(aPoint: TKMPoint; aLock: TKMTileLock): Boolean; overload;
   begin
-    Result := gTerrain.Land[aPoint.Y, aPoint.X].TileLock = aLock;
+    Result := gTerrain.Land^[aPoint.Y, aPoint.X].TileLock = aLock;
   end;
   function IsPlan(aPoint: TKMPoint; aLock: TKMTileLock; aField: TKMFieldType): Boolean; overload;
   begin
@@ -705,14 +704,12 @@ procedure TKMCityBuilder.UpdateBuildNode(var aNode: TBuildNode);
         end
         // Check if field already exists ...
         else if ((FieldType = ftWine) AND IsCompletedWine(FieldList.Items[K]))
-             OR ((FieldType = ftCorn) AND IsCompletedField(FieldList.Items[K])) 
-             OR ((FieldType = ftWall) AND IsCompletedField(FieldList.Items[K]))then
+             OR ((FieldType = ftCorn) AND IsCompletedField(FieldList.Items[K])) then
         begin
           RequiredWorkers := RequiredWorkers - 1;
         end
         else if ((FieldType = ftWine) AND IsPlan(FieldList.Items[K], tlFieldWork, ftWine))
-             OR ((FieldType = ftCorn) AND IsPlan(FieldList.Items[K], tlFieldWork, ftCorn)) 
-             OR ((FieldType = ftWall) AND IsPlan(FieldList.Items[K], tlFieldWork, ftWall))then
+             OR ((FieldType = ftCorn) AND IsPlan(FieldList.Items[K], tlFieldWork, ftCorn)) then
         begin
           ActiveWorkers := ActiveWorkers + 1;
           if (MaxReqWorkers <= ActiveWorkers) then
@@ -791,7 +788,7 @@ procedure TKMCityBuilder.UpdateBuildNode(var aNode: TBuildNode);
           FieldList.Delete(K);
         end
         // There is digged wine / field
-        else if (gTerrain.Land[FieldList.Items[K].Y, FieldList.Items[K].X].TileLock = tlFieldWork) then
+        else if (gTerrain.Land^[FieldList.Items[K].Y, FieldList.Items[K].X].TileLock = tlFieldWork) then
         begin
           // do nothing (wait till worker finish tile and place road
         end
@@ -815,7 +812,7 @@ begin
   begin
     case aNode.FieldType of
       ftRoad: BuildRoad();
-      ftWine, ftCorn, ftWall: BuildFields();
+      ftWine, ftCorn: BuildFields();
       else begin end;
     end;
   end;
@@ -856,8 +853,8 @@ begin
     H := gHands[fOwner].Houses[K];
     if (H <> nil) AND not H.IsDestroyed AND not H.IsComplete then
     begin
-      RequiredStones := RequiredStones + gRes.Houses[H.HouseType].StoneCost - H.GetBuildStoneDelivered;
-      RequiredWood := RequiredWood + gRes.Houses[H.HouseType].WoodCost - H.GetBuildWoodDelivered;
+      RequiredStones := RequiredStones + gResHouses[H.HouseType].StoneCost - H.GetBuildStoneDelivered;
+      RequiredWood := RequiredWood + gResHouses[H.HouseType].WoodCost - H.GetBuildWoodDelivered;
     end;
   end;
   // Compute road demands
@@ -968,7 +965,7 @@ begin
             Priority := aRoadNodePrio;
             RemoveTreesMode := False;
             ShortcutMode := False;
-            MaxReqWorkers := Round(AI_Par[BUILDER_BuildHouse_RoadMaxWork]) + Byte(NODE_PRIO_RoadsUnlockHouse = aRoadNodePrio) * 20;
+            MaxReqWorkers := Round(AI_Par[BUILDER_BuildHouse_RoadMaxWork]) + Ord(NODE_PRIO_RoadsUnlockHouse = aRoadNodePrio) * 20;
             RequiredWorkers := Min(MaxReqWorkers, FieldList.Count);
             CenterPoint := FieldList[ FieldList.Count-1 ]; // Road node must start from exist house
           end;
@@ -979,7 +976,7 @@ begin
             with fBuildNodes[Node2Idx] do
             begin
               Active := True;
-              Priority := Byte(aHouseReservation) * NODE_PRIO_FieldsReservation + Byte(not aHouseReservation) * NODE_PRIO_Fields;
+              Priority := Ord(aHouseReservation) * NODE_PRIO_FieldsReservation + Ord(not aHouseReservation) * NODE_PRIO_Fields;
               RemoveTreesMode := False;
               ShortcutMode := False;
               MaxReqWorkers := Round(AI_Par[BUILDER_BuildHouse_FieldMaxWork]);
@@ -1108,7 +1105,7 @@ var
 
   function TryUnlockByRnd(var aHT: TKMHouseType): Boolean;
   const
-    FORBIDDEN_HOUSES = [htIronMine, htGoldMine, htCoalMine, htWineyard, htStables, htFisherHut, htTownHall, htIronSmithy, htArmorSmithy, htWeaponSmithy];
+    FORBIDDEN_HOUSES = [htIronMine, htGoldMine, htCoalMine, htWineyard, htStables, htFisherHut, htTownHall, htSiegeWorkshop, htIronSmithy, htArmorSmithy, htWeaponSmithy];
   var
     HT: TKMHouseType;
   begin
@@ -1150,7 +1147,7 @@ var
         end;
         Exit(False);
       end;
-      aHT := gRes.Houses[aHT].ReleasedBy; // House have to be unlocked by this house
+      aHT := gResHouses[aHT].ReleasedBy; // House have to be unlocked by this house
       SetLength(aHTArr, Length(aHTArr)+1 ); // Just few interaction
       aHTArr[ High(aHTArr) ] := aHT;
     end;
@@ -1221,7 +1218,7 @@ var
       if (RequiredHouses[ PRODUCTION_WARE2HOUSE[WT] ] > 0) then
       begin
         Priority := fPredictor.WareBalance[WT].Exhaustion - fPredictor.WareBalance[WT].Fraction * AI_Par[BUILDER_ChHTB_FractionCoef]
-                    - Byte(PRODUCTION_WARE2HOUSE[WT] = htBakery) * 1000;
+                    - Ord(PRODUCTION_WARE2HOUSE[WT] = htBakery) * 1000;
         for K := Low(WareOrder) to High(WareOrder) do
           if (WT = wtNone) then
             break
@@ -1306,20 +1303,20 @@ var
   procedure CheckHouseReservation();
   const
     // Reservation sets must be able to unlock specific houses!!!
-    RESERVATION_FullSet: array[0..29] of TKMHouseType = (
+    RESERVATION_FullSet: array[0..28] of TKMHouseType = (
       htSchool, htInn, htQuary, htMarketplace, htWoodcutters, htSawmill, // Inn because of old unlock order
       htGoldMine, htCoalMine, htMetallurgists, htBarracks,
       htFarm, htMill, htBakery, htSwine, htButchers, htStables, htFisherHut,
       htIronMine, htIronSmithy, htArmorSmithy, htWeaponSmithy,
       htTannery, htArmorWorkshop, htWeaponWorkshop,
-      htSiegeWorkshop, htTownHall, htWineyard, htStore, htWatchTower, htCharcoalFactory
+      htSiegeWorkshop, htTownHall, htWineyard, htStore, htWatchTower
     );
     // If RESERVATION_FullSet was changed, then the following indexes must be changed too!
     STONE_SHORTAGE_IDX = 2;
     TRUNK_SHORTAGE_IDX = 4;
     WOOD_SHORTAGE_IDX = 8;
     GOLD_SHORTAGE_IDX = 8;
-    FULL_SET = 29;
+    FULL_SET = 28;
   var
     K,L, MinIdx, MaxIdx, Overflow: Integer;
     Gain, BestGain: Single;
@@ -1411,7 +1408,7 @@ begin
   RequiredHouses := fPredictor.RequiredHouses;
 
   // Dont build more than 3 quarry at once if there is not quarry and stone shortage is possible
-  RequiredHouses[htQuary] := RequiredHouses[htQuary] * Byte(not (fStoneShortage AND (fPlanner.PlannedHouses[htQuary].Completed < 3) AND (fPlanner.PlannedHouses[htQuary].UnderConstruction > 2)));
+  RequiredHouses[htQuary] := RequiredHouses[htQuary] * Ord(not (fStoneShortage AND (fPlanner.PlannedHouses[htQuary].Completed < 3) AND (fPlanner.PlannedHouses[htQuary].UnderConstruction > 2)));
   if fStoneShortage AND (RequiredHouses[htQuary] > 0) AND (fPlanner.PlannedHouses[htSchool].Completed > 0) then
   begin
     RequiredHouses[htQuary] := 0;
@@ -1420,7 +1417,7 @@ begin
   end;
 
   // Dont try to place wine if we are out of wood
-  RequiredHouses[htWineyard] := RequiredHouses[htWineyard] * Byte(not(fTrunkShortage OR (MaxPlace < 3)));
+  RequiredHouses[htWineyard] := RequiredHouses[htWineyard] * Ord(not(fTrunkShortage OR (MaxPlace < 3)));
 
   // Find place for chop-only woodcutters when we start to be out of wood
   if ((AI_Par[BUILDER_ChHTB_TrunkBalance] - TrunkBalance) / Max(1,AI_Par[BUILDER_ChHTB_TrunkFactor]) - GetChopOnlyCnt() > 0) then
@@ -1509,7 +1506,7 @@ const
     {htWineyard}       [ htInn                                           ],
     {htWoodcutters}    [ htNone                                          ],
     {htCharcoalFactory}[ htNone                                          ],
-    {htWall}           [ htNone                                          ]
+    {htObsTower}       [ htNone                                          ]
   );
 
   function FindAndMarkNewHouse(var aHT: TKMHouseType; var aLoc: TKMPoint): Boolean;
@@ -1683,9 +1680,9 @@ begin
       begin
         if not Placed then
         begin
-          Inc(Reservation, Byte(HouseReservation));
-          Inc(Reservation, Byte(RemoveTreeInPlanProcedure));
-          Inc(Reservation, Byte(not HouseReservation AND not RemoveTreeInPlanProcedure));
+          Inc(Reservation, Ord(HouseReservation));
+          Inc(Reservation, Ord(RemoveTreeInPlanProcedure));
+          Inc(Reservation, Ord(not HouseReservation AND not RemoveTreeInPlanProcedure));
         end
         else if (House <> nil) AND not (House.IsComplete) then
           Inc(Construction,1);
@@ -1700,13 +1697,13 @@ begin
       if (RemoveTrees  > 0) then Text := Format('%s%dx RemoveTrees ' ,[Text, RemoveTrees]);
       if (PlanPlaced   > 0) then Text := Format('%s%dx PlanPlaced '  ,[Text, PlanPlaced]);
       if (Construction > 0) then Text := Format('%s%dx Construction ',[Text, Construction]);
-      aBalanceText := Format( '%s %s (%s),', [aBalanceText, gRes.Houses[HT].HouseName, Text.SubString(0,Length(Text)-1)] );
+      aBalanceText := Format( '%s %s (%s),', [aBalanceText, gResHouses[HT].HouseName, Text.SubString(0,Length(Text)-1)] );
     end;
   end;
   // Active nodes
   cnt := 0;
   for K := Low(fBuildNodes) to High(fBuildNodes) do
-    Inc(cnt, Byte(fBuildNodes[K].Active));
+    Inc(cnt, Ord(fBuildNodes[K].Active));
   aBalanceText := Format('%s|Active nodes: %d',[aBalanceText,cnt]);
   // Material shortage
   Text := '';
@@ -1795,7 +1792,7 @@ var
           begin
             gTerrain.SetRoad(FieldList.Items[I], fOwner);
             gTerrain.FlattenTerrain(FieldList.Items[I]);
-            if gMapElements[  gTerrain.Land[ FieldList.Items[I].Y,FieldList.Items[I].X ].Obj  ].WineOrCorn then
+            if gMapElements[  gTerrain.Land^[ FieldList.Items[I].Y,FieldList.Items[I].X ].Obj  ].WineOrCorn then
               gTerrain.RemoveObject(FieldList.Items[I]);
           end;
         ftCorn,ftWine:
@@ -1879,7 +1876,7 @@ var
       else
       begin
         aFollowingHouse := aHT;
-        aHT := gRes.Houses[aHT].ReleasedBy; // House have to be unlocked by this house
+        aHT := gResHouses[aHT].ReleasedBy; // House have to be unlocked by this house
       end;
     end;
     // Output = false only in case that house is already under construction OR is blocked by script / settings from the map editor
@@ -2021,7 +2018,7 @@ var
       else
       begin
         aFollowingHouse := aHT;
-        aHT := gRes.Houses[aHT].ReleasedBy; // House have to be unlocked by this house
+        aHT := gResHouses[aHT].ReleasedBy; // House have to be unlocked by this house
       end;
     end;
     // Output = false only in case that house is already under construction OR is blocked by script / settings from the map editor
@@ -2158,7 +2155,7 @@ begin
   WareBalance[wtTrunk].Fraction := Max(0, RequiredHouses[htWoodcutters] - gHands[fOwner].Stats.GetHouseQty(htWoodcutters) - 4);
   POMCoal := RequiredHouses[htCoalMine]; // Coal is used by resource (Gold) and by weapon division -> extract just Gold requirements
   RequiredHouses[htCoalMine] := Max(0,gHands[fOwner].Stats.GetHouseTotal(htGoldMine)-gHands[fOwner].Stats.GetHouseTotal(htCoalMine));
-  RequiredHouses[htWoodcutters] := Max(0,RequiredHouses[htWoodcutters] - Round(Byte(WareBalance[wtGold].Exhaustion < 20) * RequiredHouses[htWoodcutters] * 0.5));
+  RequiredHouses[htWoodcutters] := Max(0,RequiredHouses[htWoodcutters] - Round(Ord(WareBalance[wtGold].Exhaustion < 20) * RequiredHouses[htWoodcutters] * 0.5));
   if (aMaxCnt > 0) AND SelectHouse(BUILD_WARE) then
     Output := True;
 
@@ -2184,7 +2181,7 @@ procedure TKMCityBuilder.UpdateBuildNode(var aNode: TBuildNode);
   function IsPlan(aPoint: TKMPoint; aLock: TKMTileLock; aField: TKMFieldType): Boolean;
   begin
     Result := (gHands[fOwner].Constructions.FieldworksList.HasField(aPoint) = aField)
-              OR (gTerrain.Land[aPoint.Y, aPoint.X].TileLock = aLock);
+              OR (gTerrain.Land^[aPoint.Y, aPoint.X].TileLock = aLock);
   end;
   function IsCompletedRoad(aPoint: TKMPoint): Boolean;
   begin

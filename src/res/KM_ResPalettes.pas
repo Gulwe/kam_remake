@@ -44,6 +44,9 @@ type
     function PalFile(aIndex: TKMPal): UnicodeString;
   end;
 
+var
+  gResPalettes: TKMResPalettes;
+
 
 implementation
 

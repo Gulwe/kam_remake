@@ -4,9 +4,10 @@ interface
 uses
   {$IFDEF MSWindows} Windows, {$ENDIF}
   {$IFDEF Unix} LCLType, {$ENDIF}
-  StrUtils, SysUtils, KromOGLUtils, Math, Classes, Controls,
+  StrUtils, SysUtils, Math, Classes,
+  KromOGLUtils,
   KM_Controls, KM_Defaults, KM_CommonTypes, KM_Pics,
-  KM_InterfaceDefaults, KM_ServerQuery;
+  KM_InterfaceDefaults, KM_InterfaceTypes, KM_ServerQuery;
 
 
 type
@@ -21,7 +22,7 @@ type
 
     procedure MP_Init;
     procedure MP_SaveSettings;
-    procedure MP_Update(const aStatus: string; aColor: TColor4; aBusy: Boolean);
+    procedure MP_UpdateStatus(const aStatus: string; aColor: TColor4; aBusy: Boolean);
     procedure MP_ServersUpdateList(Sender: TObject);
     procedure MP_AnnouncementsUpdated(const S: UnicodeString);
     procedure MP_CreateServerClick(Sender: TObject);
@@ -116,8 +117,13 @@ uses
   KM_Main, 
   KM_GameSettings, 
   KM_ServerSettings,
-  KM_Networking, KM_NetworkTypes, KM_ResTexts, KM_ResLocales, KM_GUIMenuLobby, KM_MapTypes,
-  KM_CommonUtils, KM_Sound, KM_ResSound, KM_RenderUI, KM_ResFonts, KM_Console;
+  KM_Networking, KM_NetworkTypes,
+  KM_ResTexts, KM_ResLocales, KM_ResFonts, KM_ResSound, KM_ResTypes,
+  KM_Sound,
+  KM_RenderUI,
+  KM_GUIMenuLobby,
+  KM_MapTypes,
+  KM_CommonUtils, KM_Console;
 
 
 const
@@ -128,6 +134,7 @@ const
 
 { TKMGUIMainMultiplayer }
 constructor TKMMenuMultiplayer.Create(aParent: TKMPanel; aOnPageChange: TKMMenuChangeEventText);
+
   procedure CreateServerPopUp;
   begin
     Panel_MPCreateServer := TKMPanel.Create(aParent, 362, 250, 320, 300);
@@ -149,6 +156,7 @@ constructor TKMMenuMultiplayer.Create(aParent: TKMPanel; aOnPageChange: TKMMenuC
       Button_MP_CreateWAN.OnClick := MP_HostClick;
       Button_MP_CreateServerCancel.OnClick := MP_CreateServerCancelClick;
   end;
+
   procedure FindServerPopUp;
   begin
     Panel_MPFindServer := TKMPanel.Create(aParent, 362, 250, 320, 300);
@@ -172,6 +180,7 @@ constructor TKMMenuMultiplayer.Create(aParent: TKMPanel; aOnPageChange: TKMMenuC
       Button_MP_FindCancel := TKMButton.Create(Panel_MPFindServer, 20, 150, 280, 30, gResTexts[TX_MP_MENU_FIND_SERVER_CANCEL], bsMenu);
       Button_MP_FindCancel.OnClick := MP_FindServerCancelClick;
   end;
+
   procedure PasswordPopUp;
   begin
     Panel_MPPassword := TKMPanel.Create(aParent, 362, 250, 320, 300);
@@ -189,6 +198,7 @@ constructor TKMMenuMultiplayer.Create(aParent: TKMPanel; aOnPageChange: TKMMenuC
       Button_MP_PasswordCancel := TKMButton.Create(Panel_MPPassword, 20, 150, 280, 30, gResTexts[TX_MP_MENU_FIND_SERVER_CANCEL], bsMenu);
       Button_MP_PasswordCancel.OnClick := MP_PasswordClick;
   end;
+
 var
   I: Integer;
 begin
@@ -229,6 +239,8 @@ begin
     ColumnBox_Servers := TKMColumnBox.Create(Panel_MultiPlayer,45,240,620,465,fntMetal, bsMenu);
     ColumnBox_Servers.Anchors := [anLeft, anTop, anBottom];
     ColumnBox_Servers.Focusable := True;
+    ColumnBox_Servers.ShowHintWhenShort := True;
+    ColumnBox_Servers.HintBackColor := TKMColor4f.New(87, 72, 37);
     ColumnBox_Servers.SetColumns(fntOutline,
                                  ['','', gResTexts[TX_MP_MENU_SERVERLIST_NAME], gResTexts[TX_MP_MENU_SERVERLIST_STATE],
                                          gResTexts[TX_MP_MENU_SERVERLIST_PLAYERS], gResTexts[TX_MP_MENU_SERVERLIST_PING]],
@@ -412,7 +424,7 @@ begin
   begin
     gNetworking.Disconnect;
     Panel_MPPassword.Hide;
-    MP_Update(gResTexts[TX_MP_MENU_STATUS_READY], icGreen, False);
+    MP_UpdateStatus(gResTexts[TX_MP_MENU_STATUS_READY], icGreen, False);
   end;
 end;
 
@@ -434,9 +446,9 @@ begin
 end;
 
 
-//Update status line
-//When user tries to Join some server disable joining controls for that time
-procedure TKMMenuMultiplayer.MP_Update(const aStatus: string; aColor: TColor4; aBusy: Boolean);
+// Update status line
+// When user tries to Join some server disable joining controls for that time
+procedure TKMMenuMultiplayer.MP_UpdateStatus(const aStatus: string; aColor: TColor4; aBusy: Boolean);
 begin
   fLobbyBusy := aBusy;
 
@@ -457,7 +469,8 @@ end;
 
 
 procedure TKMMenuMultiplayer.MP_ClearServerDetailsPanel;
-var I: Integer;
+var
+  I: Integer;
 begin
   Label_MP_ServerDetails_Header.Visible := False;
   Label_MP_GameInfo_Header.Visible := False;
@@ -502,14 +515,14 @@ end;
 //Refresh the display for the list of servers
 procedure TKMMenuMultiplayer.MP_ServersUpdateList(Sender: TObject);
 const
-  GameStateTextIDs: array [TMPGameState] of Integer = (TX_MP_STATE_NONE, TX_MP_STATE_LOBBY, TX_MP_STATE_LOADING, TX_MP_STATE_GAME);
+  GAME_STATE_TEXT_IDS: array [TMPGameState] of Integer = (TX_MP_STATE_NONE, TX_MP_STATE_LOBBY, TX_MP_STATE_LOADING, TX_MP_STATE_GAME);
 var
-  I, PrevTop: Integer;
-  DisplayName: string;
+  I, prevTop: Integer;
+  displayName: string;
   S: TKMServerInfo;
   R: TKMRoomInfo;
 begin
-  PrevTop := ColumnBox_Servers.TopIndex;
+  prevTop := ColumnBox_Servers.TopIndex;
   ColumnBox_Servers.Clear;
 
   if gNetworking.ServerQuery.Rooms.Count = 0 then
@@ -534,9 +547,9 @@ begin
       S := gNetworking.ServerQuery.Servers[R.ServerIndex];
 
       //Only show # if Server has more than 1 Room
-      DisplayName := IfThen(R.OnlyRoom, S.Name, S.Name + ' #' + IntToStr(R.RoomID + 1));
+      displayName := IfThen(R.OnlyRoom, S.Name, S.Name + ' #' + IntToStr(R.RoomID + 1));
       ColumnBox_Servers.AddItem(
-      MakeListRow(['', '', DisplayName, gResTexts[GameStateTextIDs[R.GameInfo.GameState]], IntToStr(R.GameInfo.ConnectedPlayerCount), IntToStr(S.Ping)],
+      MakeListRow(['', '', displayName, gResTexts[GAME_STATE_TEXT_IDS[R.GameInfo.GameState]], IntToStr(R.GameInfo.ConnectedPlayerCount), IntToStr(S.Ping)],
                   [$FFFFFFFF, $FFFFFFFF, $FFFFFFFF, $FFFFFFFF, $FFFFFFFF, GetPingColor(S.Ping)],
                   [MakePic(rxGuiMain, ServerTypePic[S.ServerType]), MakePic(rxGuiMain, IfThen(R.GameInfo.PasswordLocked, 73, 0)), MakePic(rxGuiMain,0), MakePic(rxGuiMain,0), MakePic(rxGuiMain,0), MakePic(rxGuiMain,0)],
                   I));
@@ -552,7 +565,7 @@ begin
       end;
     end;
 
-    ColumnBox_Servers.TopIndex := PrevTop;
+    ColumnBox_Servers.TopIndex := prevTop;
     if (ColumnBox_Servers.ItemIndex <> -1)
     and not InRange(ColumnBox_Servers.ItemIndex - ColumnBox_Servers.TopIndex, 0, ColumnBox_Servers.GetVisibleRows - 1) then
     begin
@@ -614,7 +627,9 @@ end;
 
 
 procedure TKMMenuMultiplayer.MP_ServersClick(Sender: TObject);
-var SortedNetPlayersIndexes: array [1..MAX_LOBBY_SLOTS] of Integer;
+var
+  sortedNetPlayersIndexes: array [1..MAX_LOBBY_SLOTS] of Integer;
+
   function GetTeamStr(aTeam: Integer; aIsSpectator: Boolean): String;
   begin
     if aIsSpectator then
@@ -631,7 +646,7 @@ var SortedNetPlayersIndexes: array [1..MAX_LOBBY_SLOTS] of Integer;
   begin
     // First empty everything
     for I := 1 to MAX_LOBBY_SLOTS do
-      SortedNetPlayersIndexes[I] := -1;
+      sortedNetPlayersIndexes[I] := -1;
 
     K := 1;
     // Players, sorted by team
@@ -639,7 +654,7 @@ var SortedNetPlayersIndexes: array [1..MAX_LOBBY_SLOTS] of Integer;
       for I := 1 to fSelectedRoomInfo.GameInfo.PlayerCount do
         if not fSelectedRoomInfo.GameInfo.Players[I].IsSpectator and (fSelectedRoomInfo.GameInfo.Players[I].Team = T) then
         begin
-          SortedNetPlayersIndexes[K] := I;
+          sortedNetPlayersIndexes[K] := I;
           Inc(K);
         end;
 
@@ -647,12 +662,13 @@ var SortedNetPlayersIndexes: array [1..MAX_LOBBY_SLOTS] of Integer;
     for I := 1 to fSelectedRoomInfo.GameInfo.PlayerCount do
       if fSelectedRoomInfo.GameInfo.Players[I].IsSpectator then
       begin
-        SortedNetPlayersIndexes[K] := I;
+        sortedNetPlayersIndexes[K] := I;
         Inc(K);
       end;
   end;
 
-var K, I, ID, LocaleID: Integer;
+var
+  K, I, ID, localeID: Integer;
 begin
   ID := ColumnBox_Servers.ItemIndex;
   if (ID = -1) or (ColumnBox_Servers.Rows[ID].Tag = -1) then
@@ -701,7 +717,7 @@ begin
   for I := 1 to MAX_LOBBY_SLOTS do
     if I <= fSelectedRoomInfo.GameInfo.PlayerCount then
     begin
-      K := SortedNetPlayersIndexes[I];
+      K := sortedNetPlayersIndexes[I];
       if K = -1 then raise Exception.Create('Unexpected sorted value'); ;
 
       case fSelectedRoomInfo.GameInfo.Players[K].WonOrLost of
@@ -726,9 +742,9 @@ begin
                             Image_MP_Host.Left := IMG_COL2 + 25; //Move Host star to the right when we have Win/Loss icon
                         end;
 
-                        LocaleID := gResLocales.IndexByCode(fSelectedRoomInfo.GameInfo.Players[K].LangCode);
-                        if LocaleID <> -1 then
-                          Image_MP_PlayerIcons[I].TexID := gResLocales[LocaleID].FlagSpriteID
+                        localeID := gResLocales.IndexByCode(fSelectedRoomInfo.GameInfo.Players[K].LangCode);
+                        if localeID <> -1 then
+                          Image_MP_PlayerIcons[I].TexID := gResLocales[localeID].FlagSpriteID
                         else
                           Image_MP_PlayerIcons[I].TexID := 0;
                       end;
@@ -838,8 +854,8 @@ function TKMMenuMultiplayer.ValidatePlayerName(const aName: UnicodeString): Bool
   end;
 
 var
-  err: UnicodeString;
   I: Integer;
+  err: UnicodeString;
 begin
   err := '';
 
@@ -863,7 +879,7 @@ begin
 
   if not Result then
   begin
-    MP_Update(err, icYellow, False);
+    MP_UpdateStatus(err, icYellow, False);
     gSoundPlayer.Play(sfxnError);
   end
 end;
@@ -884,7 +900,8 @@ end;
 
 //Join button is enabled if valid server is selected and the lobby is not busy
 function TKMMenuMultiplayer.MP_GetInEnabled: Boolean;
-var ID: Integer;
+var
+  ID: Integer;
 begin
   ID := ColumnBox_Servers.ItemIndex;
   Result := (not fLobbyBusy) and (ID <> -1) and (ColumnBox_Servers.Rows[ID].Tag <> -1);
@@ -900,7 +917,7 @@ begin
     Exit;
 
   //Disable buttons to prevent multiple clicks while connection process is in progress
-  MP_Update(gResTexts[TX_MP_MENU_STATUS_CONNECTING], icGreen, True);
+  MP_UpdateStatus(gResTexts[TX_MP_MENU_STATUS_CONNECTING], icGreen, True);
 
   //Send request to join
   gNetworking.OnJoinSucc := MP_JoinSuccess;
@@ -933,7 +950,7 @@ end;
 procedure TKMMenuMultiplayer.MP_JoinFail(const aData: UnicodeString);
 begin
   gNetworking.Disconnect;
-  MP_Update(Format(gResTexts[TX_GAME_ERROR_CONNECTION_FAILED], [aData]), icYellow, False);
+  MP_UpdateStatus(Format(gResTexts[TX_GAME_ERROR_CONNECTION_FAILED], [aData]), icYellow, False);
   gSoundPlayer.Play(sfxnError);
 end;
 
@@ -993,10 +1010,10 @@ begin
 
   if aText = '' then
     //Entering MP anew
-    MP_Update(gResTexts[TX_MP_MENU_STATUS_READY],icGreen,false)
+    MP_UpdateStatus(gResTexts[TX_MP_MENU_STATUS_READY],icGreen,false)
   else
     //We are in event handler of Lobby.BackClick (show status warning)
-    MP_Update(aText, icYellow, False);
+    MP_UpdateStatus(aText, icYellow, False);
 
   UpdateGameTimeLabel;
 

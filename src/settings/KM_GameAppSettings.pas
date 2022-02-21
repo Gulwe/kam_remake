@@ -11,9 +11,9 @@ type
   // Common implementation for settings stored and loaded from XML
   TKMSettingsXML = class(TKMSettings)
   private
-    fXML: TKMXMLDocument;
+    fXML: TKMXmlDocument;
   protected
-    fRoot: TXMLNode;
+    fRoot: TKMXmlNode;
     procedure LoadFromFile(const aPath: string); override;
     procedure SaveToFile(const aPath: string); override;
   public
@@ -42,28 +42,25 @@ type
     constructor Create;
     destructor Destroy; override;
 
-    property Root: TXMLNode read fRoot;
+    property Root: TKMXmlNode read fRoot;
   end;
 
 
   // Part of GameApp settings, which are stored in the XML
   TKMGameAppSettingsPart = class abstract
   private
-    function GetNeedSave: Boolean;
-    function GetRoot: TXMLNode;
+    function GetRoot: TKMXmlNode;
   protected
-    procedure Changed;
-    property NeedsSave: Boolean read GetNeedSave;
     function GetDefaultSettingsName: string;
 
-    property Root: TXMLNode read GetRoot;
+    property Root: TKMXmlNode read GetRoot;
   public
     constructor Create;
     destructor Destroy; override;
 
     procedure SaveToXML; virtual; abstract;
     procedure LoadFromXML; virtual; abstract;
-    procedure SaveSettings(aForce: Boolean = False); virtual;
+    procedure SaveSettings; virtual;
   end;
 
 var
@@ -73,16 +70,14 @@ var
 implementation
 uses
   SysUtils, INIfiles, Math,
-
-  KM_XmlHelper,
   KM_Defaults;
 
 
-{ TKMSettings }
+{ TKMSettingsXML }
 constructor TKMSettingsXML.Create;
 begin
-  inherited;
-
+  // Prefer to store XML settings in the shared folder
+  inherited Create(slShared);
 end;
 
 
@@ -114,12 +109,10 @@ end;
 { TKMGameAppSettings }
 constructor TKMGameAppSettings.Create;
 begin
-  fXML := TKMXMLDocument.Create;
+  fXML := TKMXmlDocument.Create;
   fSettingParts := TList<TKMGameAppSettingsPart>.Create;
 
   inherited;
-
-  gGameAppSettings := Self;
 end;
 
 
@@ -129,8 +122,6 @@ begin
 
   fSettingParts.Free;
   fXML.Free;
-
-  gGameAppSettings := nil;
 end;
 
 
@@ -201,35 +192,23 @@ begin
 end;
 
 
-procedure TKMGameAppSettingsPart.Changed;
-begin
-  gGameAppSettings.Changed;
-end;
-
-
 function TKMGameAppSettingsPart.GetDefaultSettingsName: string;
 begin
   Result := SETTINGS_FILE;
 end;
 
 
-function TKMGameAppSettingsPart.GetNeedSave: Boolean;
-begin
-  Result := gGameAppSettings.fNeedsSave;
-end;
-
-
-function TKMGameAppSettingsPart.GetRoot: TXMLNode;
+function TKMGameAppSettingsPart.GetRoot: TKMXmlNode;
 begin
   Result := gGameAppSettings.fRoot;
 end;
 
 
-procedure TKMGameAppSettingsPart.SaveSettings(aForce: Boolean = False);
+procedure TKMGameAppSettingsPart.SaveSettings;
 begin
   if SKIP_SETTINGS_SAVE then Exit;
 
-  gGameAppSettings.SaveSettings(aForce);
+  gGameAppSettings.SaveSettings;
 end;
 
 

@@ -103,14 +103,14 @@ begin
   begin
     if (WaitForMultipleObjects(2, @waitList[0], false, INFINITE) <>
       WAIT_OBJECT_0) then
-      break; // Terminate thread when FCancelFlag is signaled
+      Break; // Terminate thread when FCancelFlag is signaled
     if Assigned(FTimerProc) then
     begin
       waitInterval := FInterval - lastProcTime;
       if (waitInterval < 0) then
         waitInterval := 0;
       if WaitForSingleObject(FCancelFlag.Handle,waitInterval) <> WAIT_TIMEOUT then
-        break;
+        Break;
 
       if WaitForSingleObject(FTimerEnabledFlag.Handle, 0) = WAIT_OBJECT_0 then
       begin

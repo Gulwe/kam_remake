@@ -15,11 +15,11 @@ type
   end;
   TKMArmyEval = record
     FoodState: TKMFoodState;
-    Groups: array[TKMGroupType] of TKMGroupEval;
+    Groups: array[GROUP_TYPE_MIN..GROUP_TYPE_MAX] of TKMGroupEval;
   end;
   TKMGameEval = array[0 .. MAX_HANDS - 1] of TKMArmyEval;
 
-  TKMGroupStrengthArray = array[TKMGroupType] of Single;
+  TKMGroupStrengthArray = array[GROUP_TYPE_MIN..GROUP_TYPE_MAX] of Single;
 
   //This class evaluate self army relatively enemy armies
   TKMArmyEvaluation = class
@@ -159,7 +159,7 @@ function TKMArmyEvaluation.CompareStrength(A, E: TKMArmyEval): Single;
     GT: TKMGroupType;
   begin
     FillChar(aEval, SizeOf(aEval), #0);
-    for GT := Low(TKMGroupType) to High(TKMGroupType) do
+    for GT := GROUP_TYPE_MIN to GROUP_TYPE_MAX do
     begin
       aEval.Count              := aEval.Count              + Army.Groups[GT].Count             ;
       aEval.HitPoints          := aEval.HitPoints          + Army.Groups[GT].HitPoints         ;
@@ -197,7 +197,7 @@ begin
   FillChar(Result, SizeOf(Result), #0);
   for PL in aAlliance do
   begin
-    for GT := Low(TKMGroupType) to High(TKMGroupType) do
+    for GT := GROUP_TYPE_MIN to GROUP_TYPE_MAX do
       with Result.Groups[GT] do
       begin
         Count              := Count              + fEvals[PL].Groups[GT].Count;

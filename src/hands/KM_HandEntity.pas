@@ -1,49 +1,48 @@
 unit KM_HandEntity;
+{$I KaM_Remake.inc}
 interface
 uses
-  KM_Defaults, KM_Points, KM_CommonClasses, KM_HandTypes;
+  KM_Defaults, KM_Points, KM_CommonClasses, KM_HandTypes, KM_Entity, KromOGLUtils;
 
 type
   { Common class for TKMUnit / TKMHouse / TKMUnitGroup }
-  TKMHandEntity = class abstract
+  TKMHandEntity = class abstract(TKMEntity)
   private
-    fUID: Integer; //unique entity ID
     fType: TKMHandEntityType;
     fOwner: TKMHandID;
     fAllowAllyToSelect: Boolean; // Allow ally to select entity
-    function GetUID: Integer;
     function GetOwner: TKMHandID;
     function GetType: TKMHandEntityType;
   protected
-    procedure SetUID(aUID: Integer);
     function GetPosition: TKMPoint; virtual; abstract;
     function GetPositionF: TKMPointF; virtual; abstract;
     procedure SetPositionF(const aPositionF: TKMPointF); virtual; abstract;
     procedure SetOwner(const aOwner: TKMHandID); virtual;
     function GetAllowAllyToSelect: Boolean; virtual;
     procedure SetAllowAllyToSelect(aAllow: Boolean); virtual;
+
+    function IsSelectableImpl: Boolean; virtual;
   public
     constructor Create(aType: TKMHandEntityType; aUID: Integer; aOwner: TKMHandID);
-    constructor Load(LoadStream: TKMemoryStream); virtual;
-    procedure Save(SaveStream: TKMemoryStream); virtual;
+    constructor Load(LoadStream: TKMemoryStream); override;
+    procedure Save(SaveStream: TKMemoryStream); override;
 
     property EntityType: TKMHandEntityType read GetType;
     property Owner: TKMHandID read GetOwner write SetOwner;
 
-    property UID: Integer read GetUID;
     property Position: TKMPoint read GetPosition;
     property PositionF: TKMPointF read GetPositionF write SetPositionF;
 
     property AllowAllyToSelect: Boolean read GetAllowAllyToSelect write SetAllowAllyToSelect;
 
-    function IsSelectable: Boolean; virtual;
+    function IsSelectable: Boolean;
 
     function IsUnit: Boolean;
     function IsGroup: Boolean;
     function IsHouse: Boolean;
 
-    function ObjToString(const aSeparator: String = '|'): String; virtual;
-    function ObjToStringShort(const aSeparator: String = '|'): String; virtual;
+    function ObjToString(const aSeparator: String = '|'): String; override;
+    function ObjToStringShort(const aSeparator: String = '|'): String; override;
   end;
 
   TKMHandEntityPointer<T> = class abstract(TKMHandEntity)
@@ -59,7 +58,25 @@ type
     function GetPointer: T; //Returns self and adds one to the pointer counter
     procedure ReleasePointer;  //Decreases the pointer counter
     property PointerCount: Cardinal read fPointerCount;
+
+    function ObjToString(const aSeparator: String = '|'): String; override;
   end;
+
+  TKMHighlightEntity = record
+    Entity: TKMHandEntity;
+    Color: TColor4;
+    constructor New(aEntity: TKMHandEntity); overload;
+    constructor New(aEntity: TKMHandEntity; aColor: TColor4); overload;
+
+    procedure SetEntity(aEntity: TKMHandEntity);
+    procedure SetColor(aColor: TColor4);
+
+    function IsSet: Boolean;
+    procedure Reset;
+  end;
+
+const
+  DEFAULT_HIGHLIGHT_COL = icCyan;
 
 
 implementation
@@ -71,10 +88,9 @@ uses
 { TKMHandEntity }
 constructor TKMHandEntity.Create(aType: TKMHandEntityType; aUID: Integer; aOwner: TKMHandID);
 begin
-  inherited Create;
+  inherited Create(aUID);
 
   fType := aType;
-  fUID := aUID;
   fOwner := aOwner;
   fAllowAllyToSelect := False; // Entity view for allies is blocked by default
 end;
@@ -82,10 +98,8 @@ end;
 
 constructor TKMHandEntity.Load(LoadStream: TKMemoryStream);
 begin
-  inherited Create;
+  inherited;
 
-  LoadStream.CheckMarker('Entity');
-  LoadStream.Read(fUID);
   LoadStream.Read(fType, SizeOf(fType));
   LoadStream.Read(fOwner, SizeOf(fOwner));
   LoadStream.Read(fAllowAllyToSelect);
@@ -94,8 +108,8 @@ end;
 
 procedure TKMHandEntity.Save(SaveStream: TKMemoryStream);
 begin
-  SaveStream.PlaceMarker('Entity');
-  SaveStream.Write(fUID);
+  inherited;
+
   SaveStream.Write(fType, SizeOf(fType));
   SaveStream.Write(fOwner, SizeOf(fOwner));
   SaveStream.Write(fAllowAllyToSelect);
@@ -108,7 +122,6 @@ begin
 end;
 
 
-
 function TKMHandEntity.GetAllowAllyToSelect: Boolean;
 begin
   Result := ALLOW_SELECT_ALLIES and fAllowAllyToSelect;
@@ -117,7 +130,7 @@ end;
 
 function TKMHandEntity.GetOwner: TKMHandID;
 begin
-  if Self = nil then Exit(-1); //@Rey: Better to use constant here, e.g. HAND_NONE
+  if Self = nil then Exit(HAND_NONE);
 
   Result := fOwner;
 end;
@@ -131,17 +144,9 @@ begin
 end;
 
 
-function TKMHandEntity.GetUID: Integer;
-begin
-  if Self = nil then Exit(NO_ENTITY_UID); // Exit with 0, if object is not set. Good UID is always > 0
-
-  Result := fUID;
-end;
-
-
 function TKMHandEntity.IsUnit: Boolean;
 begin
-  //@Rey: Why no `if Self = nil` check here?
+  if Self = nil then Exit(False);
   
   Result := fType = etUnit;
 end;
@@ -163,9 +168,19 @@ begin
 end;
 
 
-function TKMHandEntity.IsSelectable: Boolean;
+function TKMHandEntity.IsSelectableImpl: Boolean;
 begin
   Result := False;
+end;
+
+
+// We can't check Self = nil in a virtual method, so we use a trick with non-virtual method calling a virtual method
+// example from https://stackoverflow.com/questions/11558077/checking-self-nil-in-virtual-method-with-parameters/11558305#11558305
+function TKMHandEntity.IsSelectable: Boolean;
+begin
+  if Self = nil then Exit(False);
+
+  Result := IsSelectableImpl;
 end;
 
 
@@ -175,23 +190,16 @@ begin
 end;
 
 
-procedure TKMHandEntity.SetUID(aUID: Integer);
-begin
-  fUID := aUID;
-end;
-
-
 function TKMHandEntity.ObjToStringShort(const aSeparator: String = '|'): String;
 begin
-  Result := Format('UID = %d%sPos = %s',
-                   [UID, aSeparator,
-                    Position.ToString]);
+  Result := inherited ObjToStringShort(aSeparator) +
+            Format('%sPos = %s', [aSeparator, Position.ToString]);
 end;
 
 
 function TKMHandEntity.ObjToString(const aSeparator: String = '|'): String;
 begin
-  Result := ObjToStringShort(aSeparator) +
+  Result := inherited ObjToString(aSeparator) +
             Format('%sOwner = %d%sPositionF = %s%sAllowAllyToSel = %s',
                    [aSeparator,
                     Owner, aSeparator,
@@ -214,6 +222,12 @@ begin
   inherited;
 
   LoadStream.Read(fPointerCount);
+end;
+
+
+function TKMHandEntityPointer<T>.ObjToString(const aSeparator: String = '|'): String;
+begin
+  Result := inherited ObjToString(aSeparator) + Format('%sPointerCnt = %d', [aSeparator, fPointerCount]);
 end;
 
 
@@ -256,6 +270,46 @@ begin
   end;
 
   Dec(fPointerCount);
+end;
+
+
+{ TKMHighlightEntity }
+constructor TKMHighlightEntity.New(aEntity: TKMHandEntity; aColor: TColor4);
+begin
+  Entity := aEntity;
+  Color := aColor;
+end;
+
+
+constructor TKMHighlightEntity.New(aEntity: TKMHandEntity);
+begin
+  Entity := aEntity;
+  Color := DEFAULT_HIGHLIGHT_COL;
+end;
+
+
+function TKMHighlightEntity.IsSet: Boolean;
+begin
+  Result := Entity <> nil;
+end;
+
+
+procedure TKMHighlightEntity.Reset;
+begin
+  Entity := nil;
+  Color := DEFAULT_HIGHLIGHT_COL;
+end;
+
+
+procedure TKMHighlightEntity.SetColor(aColor: TColor4);
+begin
+  Color := aColor;
+end;
+
+
+procedure TKMHighlightEntity.SetEntity(aEntity: TKMHandEntity);
+begin
+  Entity := aEntity;
 end;
 
 

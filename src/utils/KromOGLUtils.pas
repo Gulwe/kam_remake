@@ -1,8 +1,5 @@
 unit KromOGLUtils;
-{$IFDEF VER140} {$DEFINE WDC} {$ENDIF}  // Delphi 6
-{$IFDEF VER150} {$DEFINE WDC} {$ENDIF}  // Delphi 7
-{$IFDEF VER220} {$DEFINE WDC} {$ENDIF}  // Delphi XE
-{$IFDEF VER310} {$DEFINE WDC} {$ENDIF}  // Delphi 10.1 Berlin
+{$I KaM_Remake.inc}
 interface
 uses
   dglOpenGL,

@@ -134,8 +134,8 @@ begin
   if (fResFrom <> wtNone) and (fResTo <> wtNone) then
   begin
     //When trading target ware is priced higher
-    costFrom := gRes.Wares[fResFrom].MarketPrice;
-    costTo := gRes.Wares[fResTo].MarketPrice * MARKET_TRADEOFF_FACTOR;
+    costFrom := gResWares[fResFrom].MarketPrice;
+    costTo := gResWares[fResTo].MarketPrice * MARKET_TRADEOFF_FACTOR;
     Result := Round(costTo / Min(costFrom, costTo));
   end else
     Result := 1;
@@ -149,8 +149,8 @@ begin
   if (fResFrom <> wtNone) and (fResTo <> wtNone) then
   begin
     //When trading target ware is priced higher
-    costFrom := gRes.Wares[fResFrom].MarketPrice;
-    costTo := gRes.Wares[fResTo].MarketPrice * MARKET_TRADEOFF_FACTOR;
+    costFrom := gResWares[fResFrom].MarketPrice;
+    costTo := gResWares[fResTo].MarketPrice * MARKET_TRADEOFF_FACTOR;
     Result := Round(costFrom / Min(costFrom, costTo));
   end else
     Result := 1;
@@ -238,7 +238,7 @@ begin
     gHands[Owner].Stats.WareProduced(fResTo, tradeCount * RatioTo);
     gHands[Owner].Deliveries.Queue.AddOffer(Self, fResTo, tradeCount * RatioTo);
 
-    gScriptEvents.ProcMarketTrade(Self, fResFrom, fResTo);
+    gScriptEvents.EventMarketTrade(Self, fResFrom, fResTo);
     gScriptEvents.ProcWareProduced(Self, fResTo, tradeCount * RatioTo);
     gSoundPlayer.Play(sfxnTrade, fPosition);
   end;
@@ -496,6 +496,7 @@ end;
 constructor TKMHouseMarket.Load(LoadStream: TKMemoryStream);
 begin
   inherited;
+
   LoadStream.CheckMarker('HouseMarket');
   LoadStream.Read(fTradeAmount);
   LoadStream.Read(fResFrom, SizeOf(fResFrom));
@@ -509,6 +510,7 @@ end;
 procedure TKMHouseMarket.Save(SaveStream: TKMemoryStream);
 begin
   inherited;
+
   SaveStream.PlaceMarker('HouseMarket');
   SaveStream.Write(fTradeAmount);
   SaveStream.Write(fResFrom, SizeOf(fResFrom));
@@ -527,6 +529,7 @@ var
   maxRes: TKMWareType;
 begin
   inherited;
+
   if fBuildState < hbsDone then Exit;
 
   //Market can display only one ware at a time (lookup ware that has most count)

@@ -6,7 +6,7 @@ uses
   {$IFDEF Unix} LCLIntf, LCLType, {$ENDIF}
   Classes, Math, SysUtils,
   KM_InterfaceDefaults,
-  KM_Controls, KM_Defaults, KM_Pics;
+  KM_Controls, KM_Defaults, KM_Pics, KM_Points;
 
 
 const
@@ -40,27 +40,29 @@ type
         TilesPaletteRandom: TKMCheckBox;
         TilesPaletteMagicWater, TilesPaletteEyedropper, TilesPaletteRotate: TKMButtonFlat;
         NumEdit_SetTilePaletteNumber: TKMNumericEdit;
-        Button_ClosePalette: TKMButton;
   public
     constructor Create(aParent: TKMPanel);
 
     procedure KeyDown(Key: Word; Shift: TShiftState; var aHandled: Boolean);
 
     procedure TilesTableSetTileTexId(aTexId: Integer);
+
     procedure Show;
     procedure Hide;
-    procedure Resize;
-    procedure UpdateState;
+
     function Visible: Boolean; override;
     function IsFocused: Boolean; override;
+
+    procedure UpdateHotkeys;
+    procedure UpdateState;
   end;
 
 
 implementation
 uses
-  KM_Resource, KM_ResFonts, KM_ResTexts, KM_ResTileset, KM_ResKeys,
-  KM_GameCursor, KM_RenderUI, KM_InterfaceGame,
-  KM_Utils,
+  KM_Resource, KM_ResFonts, KM_ResTexts, KM_ResTilesetTypes, KM_ResKeys,
+  KM_Cursor, KM_RenderUI, KM_InterfaceGame,
+  KM_Utils, KM_CommonUtils,
   KM_ResTypes;
 
 const
@@ -88,6 +90,7 @@ const
   MAX_ROW_SIZE = 30;
 
 
+{ TKMMapEdTerrainTiles }
 constructor TKMMapEdTerrainTiles.Create(aParent: TKMPanel);
 const
   BTN_SIZE_S = 34;
@@ -101,7 +104,7 @@ const
 
 
 var
-  I,J,K,X,Y,lineWidthCnt,TexID,palW,palH, row, index: Integer;
+  I,J,K,X,Y, lineWidthCnt, texID, palW, palH, row, index: Integer;
 begin
   inherited Create;
 
@@ -113,15 +116,12 @@ begin
     Anchors := [anLeft, anTop, anRight];
 
   TilesMagicWater := TKMButtonFlat.Create(Panel_Tiles, TB_TLS_M, 25, BTN_SIZE_S, BTN_SIZE_S, 670);
-  TilesMagicWater.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_MAGIC_WATER_HINT, kfMapedSubMenuAction1);
   TilesMagicWater.OnClick := TilesChange;
 
   TilesEyedropper := TKMButtonFlat.Create(Panel_Tiles, TB_TLS_M + BTN_SIZE_S + 2, 25, BTN_SIZE_S, BTN_SIZE_S, 671);
-  TilesEyedropper.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_EYEDROPPER_HINT, kfMapedSubMenuAction2);
   TilesEyedropper.OnClick := TilesChange;
 
   TilesRotate := TKMButtonFlat.Create(Panel_Tiles, TB_TLS_R + 2*BTN_SIZE_S + 4, 25, BTN_SIZE_S, BTN_SIZE_S, 672);
-  TilesRotate.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_ROTATE_TILE, kfMapedSubMenuAction3);
   TilesRotate.OnClick := TilesChange;
 
   NumEdit_SetTileNumber := TKMNumericEdit.Create(Panel_Tiles, Panel_Tiles.Width - 73, 29, 0, MAX_TILE_TO_SHOW - 1);
@@ -133,7 +133,6 @@ begin
   TilesRandom := TKMCheckBox.Create(Panel_Tiles, TB_TLS_R, 25 + BTN_SIZE + 5, Panel_Tiles.Width - TB_TLS_R, 20, gResTexts[TX_MAPED_TERRAIN_TILES_RANDOM], fntMetal);
   TilesRandom.Checked := True;
   TilesRandom.OnClick := TilesChange;
-  TilesRandom.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_TILES_RANDOM_HINT, kfMapedSubMenuAction4);
 
   //Create scroll first to link to its MouseWheel event
   TilesScroll := TKMScrollBar.Create(Panel_Tiles, TB_TLS_S, 23 + BTN_SIZE + 28 + 4 + MAPED_TILES_Y * 32, 194, 20, saHorizontal, bsGame);
@@ -154,19 +153,25 @@ begin
   TilesPalette_Button.Anchors := [anLeft, anTop, anRight];
   TilesPalette_Button.Caption := gResTexts[TX_MAPED_TERRAIN_TILES_PALETTE];
   TilesPalette_Button.CapOffsetY := -11;
-  TilesPalette_Button.Hint := GetHintWHotKey(TX_MAPED_TERRAIN_TILES_PALETTE, kfMapedTilesPalette);
   TilesPalette_Button.OnClick := TilesPalette_ToggleVisibility;
 
-  palW := MAX_ROW_SIZE * PAL_S + 60;
+  palW := MAX_ROW_SIZE * PAL_S + 50;
   palH := (Length(PAL_ROWS) - 1)*MAPED_TILES_Y*PAL_S + Length(PAL_ROWS) * PAL_Y_GAP + 40;
 
-  Panel_TilesPalettePopup := TKMPopUpPanel.Create(aParent.MasterControl.MasterPanel, palW, palH, gResTexts[TX_MAPED_TERRAIN_TILES_PALETTE],
-                                                  pubgitYellow);//, True, False);
+  Panel_TilesPalettePopup := TKMPopUpPanel.Create(aParent.MasterControl.MasterPanel,
+                                                  palW,
+                                                  palH,
+                                                  gResTexts[TX_MAPED_TERRAIN_TILES_PALETTE],
+                                                  pubgitYellow, True);
   Panel_TilesPalettePopup.DragEnabled := True;
-  Panel_TilesPalettePopup.Anchors := [anTop];
-  Panel_TilesPalettePopup.CapOffsetY := 5;
-    Panel_TilesPalette := TKMScrollPanel.Create(Panel_TilesPalettePopup, 20, 5, palW - 40,
-                                                palH - 20, [saVertical], bsGame, ssGame);
+  Panel_TilesPalettePopup.CapOffsetY := -5;
+    Panel_TilesPalette := TKMScrollPanel.Create(Panel_TilesPalettePopup.ItemsPanel, 10, 5,
+                                                Panel_TilesPalettePopup.ActualWidth - 40,
+                                                Panel_TilesPalettePopup.ActualHeight - 40,
+                                                [saHorizontal, saVertical], bsGame, ssCommon);
+//    Panel_TilesPalette.ScrollV.Left := Panel_TilesPalette.ScrollV.Left + 20;
+    Panel_TilesPalette.Padding.SetRight(10);
+    Panel_TilesPalette.Padding.SetBottom(10);
     Panel_TilesPalette.AnchorsStretch;
       lineWidthCnt := TABLE_ELEMS div MAPED_TILES_Y;
       for row := Low(PAL_ROWS) to High(PAL_ROWS) - 1 do
@@ -183,29 +188,26 @@ begin
 
             Y := (J + MAPED_TILES_Y*row) * PAL_S + PAL_Y_GAP*row;
 
-            TexID := MapEdTileRemap[index];
-            TilesPaletteTbl[index] := TKMButtonFlat.Create(Panel_TilesPalette, X, Y, 32, 32, TexID, rxTiles);
+            texID := MapEdTileRemap[index];
+            TilesPaletteTbl[index] := TKMButtonFlat.Create(Panel_TilesPalette, X, Y, 32, 32, texID, rxTiles);
             TilesPaletteTbl[index].Tag :=  J * lineWidthCnt + K; //Store ID
-            TilesPaletteTbl[index].Clickable := TexID <> 0;
-            TilesPaletteTbl[index].HideHighlight := TexID = 0;
+            TilesPaletteTbl[index].Clickable := texID <> 0;
+            TilesPaletteTbl[index].HideHighlight := texID = 0;
             TilesPaletteTbl[index].OnClick := TilesChange;
-            if TexID = 0 then
+            if texID = 0 then
               TilesPaletteTbl[index].Hint := ''
             else
               //Show 0..N-1 to be consistent with objects and script commands like States.MapTileObject
-              TilesPaletteTbl[index].Hint := IntToStr(TexID - 1);
+              TilesPaletteTbl[index].Hint := IntToStr(texID - 1);
           end;
 
       TilesPaletteMagicWater := TKMButtonFlat.Create(Panel_TilesPalette, 0, (MAPED_TILES_Y + 1)*PAL_S, BTN_SIZE_S, BTN_SIZE_S, 670);
-      TilesPaletteMagicWater.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_MAGIC_WATER_HINT, kfMapedSubMenuAction1);
       TilesPaletteMagicWater.OnClick := TilesChange;
 
       TilesPaletteEyedropper := TKMButtonFlat.Create(Panel_TilesPalette, BTN_SIZE_S + 2, (MAPED_TILES_Y + 1)*PAL_S, BTN_SIZE_S, BTN_SIZE_S, 671);
-      TilesPaletteEyedropper.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_EYEDROPPER_HINT, kfMapedSubMenuAction2);
       TilesPaletteEyedropper.OnClick := TilesChange;
 
       TilesPaletteRotate := TKMButtonFlat.Create(Panel_TilesPalette, 2*BTN_SIZE_S + 4, (MAPED_TILES_Y + 1)*PAL_S, BTN_SIZE_S, BTN_SIZE_S, 672);
-      TilesPaletteRotate.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_ROTATE_TILE, kfMapedSubMenuAction3);
       TilesPaletteRotate.OnClick := TilesChange;
 
       NumEdit_SetTilePaletteNumber := TKMNumericEdit.Create(Panel_TilesPalette, 3*BTN_SIZE_S + 35, (MAPED_TILES_Y + 1)*PAL_S + ((PAL_S - 20) div 2), 0, MAX_TILE_TO_SHOW - 1);
@@ -216,14 +218,10 @@ begin
       TilesPaletteRandom := TKMCheckBox.Create(Panel_TilesPalette, 0, (MAPED_TILES_Y + 1)*PAL_S + BTN_SIZE + 5, Panel_Tiles.Width - TB_TLS_R, 20, gResTexts[TX_MAPED_TERRAIN_TILES_RANDOM], fntMetal);
       TilesPaletteRandom.Checked := True;
       TilesPaletteRandom.OnClick := TilesChange;
-      TilesPaletteRandom.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_TILES_RANDOM_HINT, kfMapedSubMenuAction4);
 
-      Button_ClosePalette  := TKMButton.Create(Panel_TilesPalette, 0, (MAPED_TILES_Y + 5)*PAL_S + BTN_SIZE + 5,
-                                               207, 30, gResTexts[TX_MAPED_TERRAIN_CLOSE_PALETTE], bsGame);
-      Button_ClosePalette.Anchors := [anLeft];
-      Button_ClosePalette.OnClick := TilesPalette_ToggleVisibility;
-
-  Resize;
+  // Set actual width afterwards, so we will set proper BaseWidth on creation and other controls will fit in as they should
+  Panel_TilesPalettePopup.ActualWidth  := Min(Panel_Tiles.Parent.MasterControl.MasterPanel.Width, palW);
+  Panel_TilesPalettePopup.ActualHeight := Min(Panel_Tiles.Parent.MasterControl.MasterPanel.Height,palH);
 
 
   fSubMenuActionsEvents[0] := TilesChange;
@@ -270,29 +268,29 @@ begin
   if isMagicWater then
   begin
     if TilesMagicWater.Down then
-      gGameCursor.Mode := cmMagicWater
+      gCursor.Mode := cmMagicWater
     else
-      gGameCursor.Mode := cmNone;
+      gCursor.Mode := cmNone;
   end else
 
   if isEyedropper then
   begin
     if TilesEyedropper.Down then
-      gGameCursor.Mode := cmEyedropper
+      gCursor.Mode := cmEyedropper
     else
-      gGameCursor.Mode := cmNone;
+      gCursor.Mode := cmNone;
   end else
 
   if isRotate then
   begin
     if TilesRotate.Down then
-      gGameCursor.Mode := cmRotateTile
+      gCursor.Mode := cmRotateTile
     else
-      gGameCursor.Mode := cmNone;
+      gCursor.Mode := cmNone;
   end else
 
   if isRandom then
-    gGameCursor.MapEdDir := 4 * Byte(TKMCheckBox(Sender).Checked) //Defined=0..3 or Random=4
+    gCursor.MapEdDir := 4 * Byte(TKMCheckBox(Sender).Checked) //Defined=0..3 or Random=4
   else
 
   if isTileNum then
@@ -331,13 +329,13 @@ end;
 
 function TKMMapEdTerrainTiles.IsTileVisible(aTextId: Integer): Boolean;
 var
-  I,K,RowStart: Integer;
+  I, K, rowStart: Integer;
 begin
   Result := False;
   for I := 0 to MAPED_TILES_Y - 1 do
   begin
-    RowStart := I * (TABLE_ELEMS_CNT div MAPED_TILES_Y) + TilesScroll.Position;
-    for K := RowStart to RowStart + MAPED_TILES_X - 1 do
+    rowStart := I * (TABLE_ELEMS_CNT div MAPED_TILES_Y) + TilesScroll.Position;
+    for K := rowStart to rowStart + MAPED_TILES_X - 1 do
       if MapEdTileRemap[K] = aTextId + 1 then
       begin
         Result := True;
@@ -366,23 +364,12 @@ begin
 end;
 
 
-procedure TKMMapEdTerrainTiles.Resize;
-var
-  {palW, }palH: Integer;
-begin
-//  palW := MAX_ROW_SIZE * PAL_S + 40;
-  palH := (Length(PAL_ROWS) - 1)*MAPED_TILES_Y*PAL_S + Length(PAL_ROWS) * PAL_Y_GAP + 20;
-
-  Panel_TilesPalettePopup.Top    := Max(((Panel_TilesPalettePopup.Parent.Height - palH) div 2) + 20, 20);
-//  Panel_TilesPalettePopup.Width  := Min(palW, Panel_TilesPalettePopup.Parent.Width - 30);
-  Panel_TilesPalettePopup.Height := Min(palH, Panel_TilesPalettePopup.Parent.Height - 70);
-end;
-
-
 procedure TKMMapEdTerrainTiles.TilesTableSetTileTexId(aTexId: Integer);
 var
   I,K,L,SP: Integer;
 begin
+  if Self = nil then Exit;
+
   NumEdit_SetTileNumber.Value := aTexId;
   NumEdit_SetTilePaletteNumber.Value := aTexId;
 
@@ -410,11 +397,11 @@ begin
 //  TilesEyedropper.Down := False;
   if aIndex <> 0 then
   begin
-    gGameCursor.Mode := cmTiles;
-    gGameCursor.Tag1 := aIndex - 1; //MapEdTileRemap is 1 based, tag is 0 based
+    gCursor.Mode := cmTiles;
+    gCursor.Tag1 := aIndex - 1; //MapEdTileRemap is 1 based, tag is 0 based
 
     if TilesRandom.Checked then
-      gGameCursor.MapEdDir := 4;
+      gCursor.MapEdDir := 4;
 
     //Remember last selected Tile
     fLastTile := aIndex;
@@ -425,19 +412,20 @@ end;
 
 
 function TKMMapEdTerrainTiles.GetTileTexIDFromTag(aTag: Byte; aScrollPosition: Integer = -1): Word;
-var X,Y: Byte;
-  Tile: Word;
-  ScrollPosition: Integer;
+var
+  X,Y: Byte;
+  tile: Word;
+  scrollPosition: Integer;
 begin
-  ScrollPosition := IfThen(aScrollPosition = -1, TilesScroll.Position, aScrollPosition);
+  scrollPosition := IfThen(aScrollPosition = -1, TilesScroll.Position, aScrollPosition);
 
-  X := aTag mod MAPED_TILES_X + ScrollPosition;
+  X := aTag mod MAPED_TILES_X + scrollPosition;
   Y := (aTag div MAPED_TILES_X);
-  Tile := (TABLE_ELEMS_CNT div MAPED_TILES_Y) * Y + X;
+  tile := (TABLE_ELEMS_CNT div MAPED_TILES_Y) * Y + X;
 //  if Tile > TILES_CNT then
 //    Result := 0;
 
-  Result := MapEdTileRemap[Tile];
+  Result := MapEdTileRemap[tile];
 end;
 
 
@@ -446,10 +434,10 @@ var
   I,K,L: Integer;
   TileTexID, row: Integer;
 begin
-  TilesRandom.Checked  := (gGameCursor.MapEdDir = 4);
-  TilesMagicWater.Down := gGameCursor.Mode = cmMagicWater;
-  TilesEyedropper.Down := gGameCursor.Mode = cmEyedropper;
-  TilesRotate.Down     := gGameCursor.Mode = cmRotateTile;
+  TilesRandom.Checked  := (gCursor.MapEdDir = 4);
+  TilesMagicWater.Down := gCursor.Mode = cmMagicWater;
+  TilesEyedropper.Down := gCursor.Mode = cmEyedropper;
+  TilesRotate.Down     := gCursor.Mode = cmRotateTile;
 
   TilesPaletteRandom.Checked  := TilesRandom.Checked;
   TilesPaletteMagicWater.Down := TilesMagicWater.Down;
@@ -471,20 +459,20 @@ begin
       //Show 0..N-1 to be consistent with objects and script commands like States.MapTileObject
       TilesTable[L].Hint := IntToStr(TileTexID - 1);
     //If cursor has a tile then make sure its properly selected in table as well
-    TilesTable[L].Down := (gGameCursor.Mode in [cmTiles, cmEyedropper]) and (gGameCursor.Tag1 = TileTexID - 1);
+    TilesTable[L].Down := (gCursor.Mode in [cmTiles, cmEyedropper]) and (gCursor.Tag1 = TileTexID - 1);
   end;
 
   row := TABLE_ELEMS div MAPED_TILES_Y;
   for I := 0 to MAPED_TILES_Y - 1 do
     for K := 0 to row - 1 do
-      TilesPaletteTbl[I * row + K].Down := (gGameCursor.Mode in [cmTiles, cmEyedropper]) and (gGameCursor.Tag1 = MapEdTileRemap[I * row + K] - 1)
+      TilesPaletteTbl[I * row + K].Down := (gCursor.Mode in [cmTiles, cmEyedropper]) and (gCursor.Tag1 = MapEdTileRemap[I * row + K] - 1)
 end;
 
 
 procedure TKMMapEdTerrainTiles.Show;
 begin
   TilesSet(fLastTile);
-  gGameCursor.MapEdDir := 0;
+  gCursor.MapEdDir := 0;
   Panel_Tiles.Show;
 end;
 
@@ -504,6 +492,22 @@ end;
 procedure TKMMapEdTerrainTiles.Hide;
 begin
   Panel_Tiles.Hide;
+end;
+
+
+procedure TKMMapEdTerrainTiles.UpdateHotkeys;
+begin
+  TilesPalette_Button.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_TILES_PALETTE, kfMapedTilesPalette);
+
+  TilesMagicWater.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_MAGIC_WATER_HINT,  kfMapedSubMenuAction1);
+  TilesEyedropper.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_EYEDROPPER_HINT,   kfMapedSubMenuAction2);
+  TilesRotate.Hint     := GetHintWHotkey(TX_MAPED_TERRAIN_ROTATE_TILE,       kfMapedSubMenuAction3);
+  TilesRandom.Hint     := GetHintWHotkey(TX_MAPED_TERRAIN_TILES_RANDOM_HINT, kfMapedSubMenuAction4);
+
+  TilesPaletteMagicWater.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_MAGIC_WATER_HINT,  kfMapedSubMenuAction1);
+  TilesPaletteEyedropper.Hint := GetHintWHotkey(TX_MAPED_TERRAIN_EYEDROPPER_HINT,   kfMapedSubMenuAction2);
+  TilesPaletteRotate.Hint     := GetHintWHotkey(TX_MAPED_TERRAIN_ROTATE_TILE,       kfMapedSubMenuAction3);
+  TilesPaletteRandom.Hint     := GetHintWHotkey(TX_MAPED_TERRAIN_TILES_RANDOM_HINT, kfMapedSubMenuAction4);
 end;
 
 

@@ -12,6 +12,8 @@ type
   // Used to separate close-combat units from archers (they use different fighting logic)
   TKMFightType = (ftMelee, ftRanged);
 
+  TKMUnitMoveType = (umtWalk, umtWalkDiag, umtStorm, umtStormDiag);
+
   TKMUnitDat = packed record
     HitPoints, Attack, AttackHorse, x4, Defence, Speed, x7, Sight: SmallInt;
     x9, x10: ShortInt;
@@ -24,12 +26,20 @@ type
     end;
   end;
 
+  TKMUnitSpecInfo = record
+    StepsPerTile: Byte;
+    StepsPerTileDiag: Byte;
+    StepsPerTileStorm: Byte;
+    StepsPerTileStormDiag: Byte;
+  end;
+
   TKMUnitSprite2 = array [1..18] of SmallInt; //Sound indices vs sprite ID
 
   TKMUnitSpec = class
   private
     fUnitType: TKMUnitType;
     fUnitDat: TKMUnitDat;
+    fUnitSpecInfo: TKMUnitSpecInfo;
     fUnitSprite: TKMUnitSprite;
     fUnitSprite2: TKMUnitSprite2;
     function GetAllowedPassability: TKMTerrainPassability;
@@ -51,6 +61,7 @@ type
     function IsCitizen: Boolean;
     function IsWarrior: Boolean;
     function IsWarriorEquipable: Boolean;
+
     function GetDefenceVsProjectiles(aIsBolt: Boolean): Single;
     procedure LoadFromStream(Stream: TMemoryStream);
     //Derived from KaM
@@ -69,10 +80,18 @@ type
     property MinimapColor: Cardinal read GetMinimapColor;
     property MiningRange: Byte read GetMiningRange;
     property Speed: Single read GetSpeed;
+    function GetEffectiveSpeed(aMovementType: TKMUnitMoveType): Single;
+    function GetEffectiveWalkSpeed(aIsDiag: Boolean): Single;
+    function GetEffectiveStormSpeed(aIsDiag: Boolean): Single;
     function SupportsAction(aAct: TKMUnitActionType): Boolean;
     property UnitAnim[aAction: TKMUnitActionType; aDir: TKMDirection]: TKMAnimLoop read GetUnitAnim;
     property GUIName: UnicodeString read GetUnitName;
     property GUITextID: Integer read GetUnitTextID;
+
+    class function IsMelee(aUnitType: TKMUnitType): Boolean;
+    class function IsMounted(aUnitType: TKMUnitType): Boolean;
+    class function IsAntihorse(aUnitType: TKMUnitType): Boolean;
+    class function IsRanged(aUnitType: TKMUnitType): Boolean;
   end;
 
 
@@ -138,7 +157,7 @@ const
     -1, -1, //utNone, utAny
     0,1,2,3,4,5,6,7,8,9,10,11,12,13, //Citizens
     14,15,16,17,18,19,20,21,22,23, //Warriors
-    24,25,26,27,28,29, //TPR warriors
+    24,25,26,27, 28,29, //TPR warriors
     30,31,32,33,34,35,36,37); //Animals
 
 
@@ -160,7 +179,6 @@ const
     (wtAxe,          wtHorse,       wtNone,  wtNone ) //Wagabunda
    // (wtSteel,        wtWood,       wtSteel,  wtSteel ), //Katapulta
    // (wtSteel,        wtWood,       wtSteel,  wtSteel ) //Balista
-    
   );
 
 
@@ -170,7 +188,7 @@ const
 var
   //TownHall default units troops cost (number of gold chests needed)
   //Could be modified by script functions
-  TH_TROOP_COST: array[0..6] of Byte;
+  TH_TROOP_COST: array[0..4] of Byte;
 
 
 implementation
@@ -178,9 +196,11 @@ uses
   KromUtils, KM_ResTexts;
 
 const
+  STORM_SPEEDUP = 1.5;
+
   //TownHall default units troops cost (number of gold chests needed)
-  TH_DEFAULT_TROOP_COST: array[0..6] of Byte = (
-    2, 3, 5, 8, 8, 8, 8 //rebel / rogue / vagabond / barbarian / warrior
+  TH_DEFAULT_TROOP_COST: array[0..4] of Byte = (
+    2, 3, 5, 8, 8 //rebel / rogue / vagabond / barbarian / warrior
   );
 
 
@@ -227,10 +247,12 @@ begin
   Result := Defence;
   //Shielded units get a small bonus
   if fUnitType in [utAxeFighter, utSwordsman, utHorseScout, utCavalry] then
+  begin
     if aIsBolt then
       Result := Result + 0.25
     else
       Result := Result + 1;
+  end;
 end;
 
 
@@ -244,7 +266,7 @@ end;
 
 function TKMUnitSpec.SupportsAction(aAct: TKMUnitActionType): Boolean;
 const
-  UnitSupportedActions: array [TKMUnitType] of TKMUnitActionTypeSet = (
+  UNIT_SUPPOSTED_ACTIONS: array [TKMUnitType] of TKMUnitActionTypeSet = (
     [], [], //None, Any
     [uaWalk, uaDie, uaEat, uaWalkArm], //Serf
     [uaWalk, uaWork, uaDie, uaWork1, uaEat..uaWalkTool2],
@@ -273,24 +295,25 @@ const
     [uaWalk, uaWork, uaDie, uaEat], //Rebel
     [uaWalk, uaWork, uaSpec, uaDie, uaEat], //Slingshot
     [uaWalk, uaWork, uaSpec, uaDie, uaEat], //Warrior
-    [uaWalk, uaWork, uaSpec, uaDie, uaEat], //Vagabond
+    [uaWalk, uaWork, uaDie, uaEat],
     [uaWalk, uaWork, uaSpec, uaDie],                //28
     [uaWalk, uaWork, uaSpec, uaDie],                //29
     [uaWalk], [uaWalk], [uaWalk], [uaWalk], [uaWalk], [uaWalk], [uaWalk], [uaWalk] //Animals
+
   );
 begin
-  Result := aAct in UnitSupportedActions[fUnitType];
+  Result := aAct in UNIT_SUPPOSTED_ACTIONS[fUnitType];
 end;
 
 
 function TKMUnitSpec.GetAllowedPassability: TKMTerrainPassability;
 const
   // Defines which animal prefers which terrain
-  AnimalTerrain: array[ANIMAL_MIN .. ANIMAL_MAX] of TKMTerrainPassability = (
+  ANIMAL_TERRAIN: array[ANIMAL_MIN .. ANIMAL_MAX] of TKMTerrainPassability = (
     tpWolf, tpFish, tpFish, tpFish, tpCrab, tpFish, tpFish, tpFish);
 begin
   case fUnitType of
-    ANIMAL_MIN..ANIMAL_MAX:  Result := AnimalTerrain[fUnitType]; //Animals
+    ANIMAL_MIN..ANIMAL_MAX:  Result := ANIMAL_TERRAIN[fUnitType]; //Animals
   else
     Result := tpWalk; // Worker, Warriors
   end;
@@ -309,7 +332,7 @@ end;
 
 function TKMUnitSpec.GetFightType: TKMFightType;
 const
-  WarriorFightType: array[WARRIOR_MIN..WARRIOR_MAX] of TKMFightType = (
+  WARRIOR_FIGHT_TYPE: array[WARRIOR_MIN..WARRIOR_MAX] of TKMFightType = (
     ftMelee,ftMelee,ftMelee, //Militia, AxeFighter, Swordsman
     ftRanged,ftRanged,        //Bowman, Arbaletman
     ftMelee,ftMelee,          //Pikeman, Hallebardman,
@@ -318,13 +341,12 @@ const
     ftMelee,                   //Peasant
     ftRanged,                  //utSlingshot
     ftMelee,                   //utMetalBarbarian
-    ftMelee,                   //utHorseman
-    ftRanged,
-    ftRanged      //utCatapult, utBallista,}
+    ftMelee,                    //utHorseman
+    ftRanged,ftRanged       //utCatapult, utBallista,}
   );
 begin
-  Assert(fUnitType in [Low(WarriorFightType)..High(WarriorFightType)]);
-  Result := WarriorFightType[fUnitType];
+  Assert(fUnitType in [Low(WARRIOR_FIGHT_TYPE)..High(WARRIOR_FIGHT_TYPE)]);
+  Result := WARRIOR_FIGHT_TYPE[fUnitType];
 end;
 
 
@@ -359,13 +381,13 @@ end;
 //Animals don't have team and thus are rendered in their own prefered clors
 function TKMUnitSpec.GetMinimapColor: Cardinal;
 const
-  MMColor: array[TKMUnitType] of Cardinal = (
+  MM_COLOR: array[TKMUnitType] of Cardinal = (
     0,0,0,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,
-    $B0B0B0,$B08000,$B08000,$80B0B0,$00B0B0,$B080B0,$00B000,$80B0B0); //Exact colors can be tweaked
+    0,0,0,0,0,0,0,0,0,0,
+    $B0B0B0,$B08000,$B08000,$80B0B0,$00B0B0,$B080B0,$00B000,$80B0B0,$80B0B0,$80B0B0 ); //Exact colors can be tweaked
 begin
-  Result := MMColor[fUnitType] or $FF000000;
+  Result := MM_COLOR[fUnitType] or $FF000000;
 end;
 
 
@@ -386,6 +408,37 @@ end;
 function TKMUnitSpec.GetSpeed: single;
 begin
   Result := fUnitDat.Speed / 240;
+end;
+
+
+function TKMUnitSpec.GetEffectiveSpeed(aMovementType: TKMUnitMoveType): Single;
+begin
+  case aMovementType of
+    umtWalk:      Result := 1 / fUnitSpecInfo.StepsPerTile;
+    umtWalkDiag:  Result := 1 / fUnitSpecInfo.StepsPerTileDiag;
+    umtStorm:     Result := 1 / fUnitSpecInfo.StepsPerTileStorm;
+    umtStormDiag: Result := 1 / fUnitSpecInfo.StepsPerTileStormDiag;
+  else
+    raise Exception.Create('Unexpected type');
+  end;
+end;
+
+
+function TKMUnitSpec.GetEffectiveWalkSpeed(aIsDiag: Boolean): Single;
+begin
+  if aIsDiag then
+    Result := GetEffectiveSpeed(umtWalkDiag)
+  else
+    Result := GetEffectiveSpeed(umtWalk);
+end;
+
+
+function TKMUnitSpec.GetEffectiveStormSpeed(aIsDiag: Boolean): Single;
+begin
+  if aIsDiag then
+    Result := GetEffectiveSpeed(umtStormDiag)
+  else
+    Result := GetEffectiveSpeed(umtStorm);
 end;
 
 
@@ -410,7 +463,6 @@ begin
     utWaterflower: Result := TX_UNITS_WATERFLOWER;
     utWaterleaf:   Result := TX_UNITS_WATERLEAF;
     utDuck:        Result := TX_UNITS_DUCK;
-
   else
     Result := TX_UNITS_NAMES__29 + UNIT_TYPE_TO_ID[fUnitType];
   end;
@@ -437,33 +489,94 @@ begin
 end;
 
 
+class function TKMUnitSpec.IsMelee(aUnitType: TKMUnitType): Boolean;
+begin
+  Result := aUnitType in [utMilitia, utAxeFighter, utSwordsman, utBarbarian, utMetalBarbarian];
+end;
+
+
+class function TKMUnitSpec.IsMounted(aUnitType: TKMUnitType): Boolean;
+begin
+  Result := aUnitType in [utHorseScout, utCavalry, utHorseman];
+end;
+
+
+class function TKMUnitSpec.IsAntihorse(aUnitType: TKMUnitType): Boolean;
+begin
+  Result := aUnitType in [utPikeman, utHallebardman, utPeasant];
+end;
+
+
+class function TKMUnitSpec.IsRanged(aUnitType: TKMUnitType): Boolean;
+begin
+  Result := aUnitType in [utBowman, utArbaletman, utSlingshot];
+end;
+
+
 { TKMUnitsDatCollection }
 constructor TKMResUnits.Create;
+const
+  DEF_SCOUT_SIGHT = 9;
+  DEF_HORSEMAN_ATTACK = 40;
+  DEF_PEASANT_ATTACK_HORSE = 60;
+  DEF_PIKEMAN_ATTACK_HORSE = 55;
+  DEF_MOUNTED_SPEED = 39;
 var
-  U: TKMUnitType;
+  UT: TKMUnitType;
 begin
   inherited;
 
-  for U := Low(TKMUnitType) to High(TKMUnitType) do
-    fItems[U] := TKMUnitSpec.Create(U);
+  for UT := Low(TKMUnitType) to High(TKMUnitType) do
+    fItems[UT] := TKMUnitSpec.Create(UT);
 
-  fCRC := LoadUnitsDat(ExeDir+'data' + PathDelim + 'defines' + PathDelim + 'unit.dat');
-  fItems[utHorseScout].fUnitDat.Sight := 13;
-  fItems[utHorseman].fUnitDat.Attack := 35;
-  fItems[utPeasant].fUnitDat.AttackHorse := 50;
-  fItems[utPikeman].fUnitDat.AttackHorse := 60;
-  
+  fCRC := LoadUnitsDat(ExeDir + 'data' + PathDelim + 'defines' + PathDelim + 'unit.dat');
+
+  // Overwrite units stats only if they are set for default values from original game
+  // We don't want to update them, in case player manually edited unit.dat file
+
+
+
   fItems[utBallista].fUnitDat.Attack := 300;
   fItems[utCatapult].fUnitDat.Attack := 200;
-  fItems[utCatapult].fUnitDat.Sight := 14;
-  fItems[utBallista].fUnitDat.Sight := 14;
+  fItems[utCatapult].fUnitDat.Sight := 20;
+  fItems[utBallista].fUnitDat.Sight := 20;
 
+  fItems[utBowman].fUnitDat.Sight := 18;
 
-  //fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[1] := 9401;
+  fItems[utMetalBarbarian].fUnitDat.Defence := fItems[utMetalBarbarian].fUnitDat.Defence + 1;
+  fItems[utBarbarian].fUnitDat.Attack := fItems[utBarbarian].fUnitDat.Attack + 15;
 
-  
+  if fItems[utHorseScout].fUnitDat.Sight = DEF_SCOUT_SIGHT then
+    fItems[utHorseScout].fUnitDat.Sight := 20;
+
+  if fItems[utHorseman].fUnitDat.Attack = DEF_HORSEMAN_ATTACK then
+    fItems[utHorseman].fUnitDat.Attack := 35;
+
+  if fItems[utPeasant].fUnitDat.AttackHorse = DEF_PEASANT_ATTACK_HORSE then
+    fItems[utPeasant].fUnitDat.AttackHorse := 50;
+
+  if fItems[utPikeman].fUnitDat.AttackHorse = DEF_PIKEMAN_ATTACK_HORSE then
+    fItems[utPikeman].fUnitDat.AttackHorse := 60;
+
+  // .Dat mounted speed is 39, but it makes 9 steps per diagonal tile after rounding, while we used to 8 steps
+  if fItems[utHorseScout].fUnitDat.Speed = DEF_MOUNTED_SPEED then
+    fItems[utHorseScout].fUnitDat.Speed := 40;
+
+  if fItems[utCavalry].fUnitDat.Speed = DEF_MOUNTED_SPEED then
+    fItems[utCavalry].fUnitDat.Speed := 40;
+
+  if fItems[utHorseman].fUnitDat.Speed = DEF_MOUNTED_SPEED then
+    fItems[utHorseman].fUnitDat.Speed := 40;
+
+  for UT := UNIT_MIN to UNIT_MAX do
+  begin
+    fItems[UT].fUnitSpecInfo.StepsPerTile          := Round(1    / fItems[UT].Speed);
+    fItems[UT].fUnitSpecInfo.StepsPerTileDiag      := Round(1.41 / fItems[UT].Speed);
+    fItems[UT].fUnitSpecInfo.StepsPerTileStorm     := Round(1    / (fItems[UT].Speed * STORM_SPEEDUP));
+    fItems[UT].fUnitSpecInfo.StepsPerTileStormDiag := Round(1.41 / (fItems[UT].Speed * STORM_SPEEDUP));
+  end;
+
   //ExportCSV(ExeDir+'units.csv');
-  
 end;
 
 
@@ -575,7 +688,7 @@ var
   S: TKMemoryStream;
   I: Integer;
 begin
-  Assert(FileExists(aPath));
+  Assert(FileExists(aPath), 'unit.dat not found at: ' + aPath);
 
   S := TKMemoryStreamBinary.Create;
   try

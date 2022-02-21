@@ -5,7 +5,7 @@ uses
   KM_CommonClasses, KM_CommonTypes, KM_Defaults,
   KM_Houses, KM_Units, KM_UnitWarrior, KM_Points,
   KM_AISetup, KM_AIMayor, KM_AIGoals, KM_AIGeneral,
-  KM_CityManagement, KM_ArmyManagement;
+  KM_CityManagement, KM_ArmyManagement, KM_GameTypes;
 
 type
   //Things that player does automatically
@@ -24,11 +24,14 @@ type
 
     fWonOrLost: TWonOrLost; //Has this player won/lost? If so, do not check goals
 
-    procedure CheckGoals;
+    fCanBeAITypes: TKMAITypeSet;
+
+    procedure CheckGoals(aAllowResetGoals: Boolean = False);
     function GetHasWon: Boolean;
     function GetHasLost: Boolean;
     function GetIsNotWinnerNotLoser: Boolean;
     function GetGoals: TKMGoals;
+    function GetSetup: TKMHandAISetup;
   public
     constructor Create(aHandIndex: TKMHandID);
     destructor Destroy; override;
@@ -36,7 +39,7 @@ type
     property General: TKMGeneral read fGeneral;
     property Goals: TKMGoals read GetGoals;
     property Mayor: TKMayor read fMayor;
-    property Setup: TKMHandAISetup read fSetup;
+    property Setup: TKMHandAISetup read GetSetup;
 
     property CityManagement: TKMCityManagement read fCityManagement;
     property ArmyManagement: TKMArmyManagement read fArmyManagement;
@@ -48,6 +51,7 @@ type
     property WonOrLost: TWonOrLost read fWonOrLost;
     property HasWon: Boolean read GetHasWon;
     property HasLost: Boolean read GetHasLost;
+    procedure RecheckGoals;
     property IsNotWinnerNotLoser: Boolean read GetIsNotWinnerNotLoser;
     function GetWonOrLostString: UnicodeString; //Get string represantation of Hand WonOrLost
     procedure OwnerUpdate(aPlayer: TKMHandID);
@@ -59,7 +63,7 @@ type
     procedure Load(LoadStream: TKMemoryStream);
     procedure SyncLoad();
     procedure UpdateState(aTick: Cardinal; aCheckGoals: Boolean);
-    procedure AfterMissionInit();
+    procedure AfterMissionInit(aCanBeAITypes: TKMAITypeSet);
     procedure PlaceFirstStorehouse(aLoc: TKMPoint); //RMG
 
     function ObjToString: String;
@@ -73,6 +77,7 @@ uses
   KM_ResSound, KM_ScriptingEvents, KM_Alerts,
   KM_AIFields, KM_Terrain, KM_ResMapElements, KM_DevPerfLog, KM_DevPerfLogTypes,
   KM_HandTypes,
+  KM_MapTypes,
   KM_ResTypes;
 
 
@@ -110,7 +115,6 @@ end;
 procedure TKMHandAI.ResetWonOrLost;
 begin
   fWonOrLost := wolNone;
-
 end;
 
 
@@ -118,16 +122,15 @@ end;
 //Defeated player remains in place, but does no actions
 procedure TKMHandAI.Defeat(aShowDefeatMessage: Boolean = True);
 begin
-  if fWonOrLost = wolNone then
-  begin
-    fWonOrLost := wolLost;
+  if fWonOrLost <> wolNone then Exit;
 
-    //Let the game know
-    gGame.PlayerDefeat(fOwner, aShowDefeatMessage);
+  fWonOrLost := wolLost;
 
-    //Script may have additional event processors
-    gScriptEvents.ProcPlayerDefeated(fOwner);
-  end;
+  //Let the game know
+  gGame.PlayerDefeat(fOwner, aShowDefeatMessage);
+
+  //Script may have additional event processors
+  gScriptEvents.ProcPlayerDefeated(fOwner);
 end;
 
 
@@ -136,66 +139,71 @@ end;
 //otherwise it will look odd.
 procedure TKMHandAI.Victory;
 begin
-  if fWonOrLost = wolNone then
-  begin
-    fWonOrLost := wolWon;
+  if fWonOrLost <> wolNone then Exit;
 
-    //Replays/spectators don't see victory screen
-    if not gGame.Params.IsReplay
-      and (gGame.Params.IsMultiPlayerOrSpec or (gMySpectator.HandID = fOwner)) then  //Let everyone know in MP mode
-      gGame.PlayerVictory(fOwner);
+  fWonOrLost := wolWon;
 
-    //Script may have additional event processors
-    gScriptEvents.ProcPlayerVictory(fOwner);
-  end;
+  //Replays/spectators don't see victory screen
+  if not gGame.Params.IsReplay
+    and (gGame.Params.IsMultiPlayerOrSpec or (gMySpectator.HandID = fOwner)) then  //Let everyone know in MP mode
+    gGame.PlayerVictory(fOwner);
+
+  //Script may have additional event processors
+  gScriptEvents.ProcPlayerVictory(fOwner);
 end;
 
 
 procedure TKMHandAI.AddDefaultGoals(aBuildings: Boolean);
 var
   I: Integer;
-  Enemies: array of TKMHandID;
+  enemies: array of TKMHandID;
 begin
-  SetLength(Enemies, 0);
+  SetLength(enemies, 0);
   for I := 0 to gHands.Count - 1 do
     if gHands[I].Enabled and (gHands[fOwner].Alliances[I] = atEnemy) then
     begin
-      SetLength(Enemies, Length(Enemies)+1);
-      Enemies[High(Enemies)] := I;
+      SetLength(enemies, Length(enemies)+1);
+      enemies[High(enemies)] := I;
     end;
-  Goals.AddDefaultGoals(aBuildings, fOwner, Enemies);
+  Goals.AddDefaultGoals(aBuildings, fOwner, enemies);
 end;
 
 
-procedure TKMHandAI.CheckGoals;
+procedure TKMHandAI.RecheckGoals;
+begin
+  CheckGoals(True);
+end;
+
+
+procedure TKMHandAI.CheckGoals(aAllowResetGoals: Boolean = False);
 
   function GoalConditionSatisfied(const aGoal: TKMGoal): Boolean;
   var
-    Stat: TKMHandStats;
+    stats: TKMHandStats;
   begin
-    Assert((aGoal.GoalCondition = gcTime) or (aGoal.HandIndex <> PLAYER_NONE), 'Only gcTime can have nil Player');
+    Assert((aGoal.GoalCondition = gcTime) or (aGoal.HandIndex <> HAND_NONE), 'Only gcTime can have nil Player');
 
     if aGoal.Disabled then
       Exit(True);
 
-    if aGoal.HandIndex <> PLAYER_NONE then
-      Stat := gHands[aGoal.HandIndex].Stats
+    if aGoal.HandIndex <> HAND_NONE then
+      stats := gHands[aGoal.HandIndex].Stats
     else
-      Stat := nil;
+      stats := nil;
 
     case aGoal.GoalCondition of
       gcBuildTutorial:     Result := True; //Deprecated
       //gcTime is disabled as we process messages in Event system now. Return true so players
       //do not have to wait for all messages to show before they are allowed to win (same in TPR)
       gcTime:              Result := True; //Deprecated
-      gcBuildings:         Result := (Stat.GetHouseQty([htStore, htSchool, htBarracks, htTownHall]) > 0);
-      gcTroops:            Result := (Stat.GetArmyCount > 0);
-      gcMilitaryAssets:    Result := (Stat.GetArmyCount > 0) or
-                                      (Stat.GetHouseQty([htBarracks, htCoalMine, htWeaponWorkshop, htArmorWorkshop, htStables,
+      gcBuildings:         Result := (stats.GetHouseQty(GOAL_BUILDINGS_HOUSES) > 0);
+      gcTroops:            Result := (stats.GetArmyCount > 0);
+      gcMilitaryAssets:    Result := (stats.GetArmyCount > 0) or
+                                      (stats.GetHouseQty([htBarracks, htCoalMine, htWeaponWorkshop, htArmorWorkshop, htStables,
                                                          htIronMine, htIronSmithy ,htWeaponSmithy, htArmorSmithy, htTownHall,
                                                          htSiegeWorkshop]) > 0);
-      gcSerfsAndSchools:   Result := (Stat.GetHouseQty([htSchool]) > 0) or (Stat.GetUnitQty(utSerf) > 0);
-      gcEconomyBuildings:  Result := (Stat.GetHouseQty([htStore, htSchool, htInn]) > 0);
+      gcSerfsAndSchools:   Result := (stats.GetHouseQty([htSchool]) > 0) or (stats.GetUnitQty(utSerf) > 0);
+      gcEconomyBuildings:  Result := (stats.GetHouseQty([htStore, htSchool, htInn]) > 0);
       else                  raise Exception.Create('Unknown goal');
     end;
     if aGoal.GoalStatus = gsFalse then
@@ -204,17 +212,17 @@ procedure TKMHandAI.CheckGoals;
 
 var
   I: Integer;
-  HasVictoryGoal: Boolean;
-  VictorySatisfied, SurvivalSatisfied: Boolean;
+  hasVictoryGoal: Boolean;
+  victorySatisfied, survivalSatisfied: Boolean;
 begin
   //If player has elected to play on past victory or defeat
   //then do not check for any further goals
-  if fWonOrLost <> wolNone then Exit;
+  if not aAllowResetGoals and (fWonOrLost <> wolNone) then Exit;
 
   //Assume they will win/survive, then prove it with goals
-  HasVictoryGoal := False;
-  VictorySatisfied := True;
-  SurvivalSatisfied := True;
+  hasVictoryGoal := False;
+  victorySatisfied := True;
+  survivalSatisfied := True;
 
   with gHands[fOwner] do
   for I := 0 to Goals.Count - 1 do
@@ -222,12 +230,12 @@ begin
     gltVictory:  begin
                     //In a sandbox or script-ruled mission there may be no victory conditions in Goals
                     //so we make sure player wins by Goals only if he has such goals
-                    HasVictoryGoal := True;
-                    VictorySatisfied := VictorySatisfied and
+                    hasVictoryGoal := True;
+                    victorySatisfied := victorySatisfied and
                                        (gHands[Goals[I].HandIndex].AI.HasLost //if player is Lost then no need to check other Goal conditions
                                         or GoalConditionSatisfied(Goals[I]));
                   end;
-    gltSurvive:  SurvivalSatisfied := SurvivalSatisfied and GoalConditionSatisfied(Goals[I]);
+    gltSurvive:  survivalSatisfied := survivalSatisfied and GoalConditionSatisfied(Goals[I]);
   end;
       //Messages in goals have been replaced by SCRIPT files, so this code is disabled now,
       //but kept in case we need it for something later. (conversion process?)
@@ -248,11 +256,14 @@ begin
   //win battle missions by waiting for your troops to simultainiously starve to death.
 
   //Now we know if player has been defeated or won
-  if not SurvivalSatisfied then
+  if not survivalSatisfied then
     Defeat
   else
-    if HasVictoryGoal and VictorySatisfied then
-      Victory;
+  if hasVictoryGoal and victorySatisfied then
+    Victory
+  else
+  if aAllowResetGoals then
+    ResetWonOrLost;
 end;
 
 
@@ -285,6 +296,14 @@ begin
   if Self = nil then Exit(False);
 
   Result := fWonOrLost = wolNone;
+end;
+
+
+function TKMHandAI.GetSetup: TKMHandAISetup;
+begin
+  if Self = nil then Exit(nil);
+
+  Result := fSetup;
 end;
 
 
@@ -369,17 +388,17 @@ end;
 // aUnit is our unit that was attacked
 procedure TKMHandAI.UnitAttackNotification(aUnit: TKMUnit; aAttacker: TKMUnit; aNotifyScript: Boolean = True);
 const
-  NotifyKind: array [Boolean] of TAttackNotification = (anCitizens, anTroops);
+  NOTIFY_KIND: array [Boolean] of TAttackNotification = (anCitizens, anTroops);
 var
-  Group: TKMUnitGroup;
   I: Integer;
+  group: TKMUnitGroup;
 begin
   case gHands[fOwner].HandType of
     hndHuman:
       //No fight alerts in replays, and only show alerts for ourselves
       if not gGame.Params.IsReplayOrSpectate
         and (fOwner = gMySpectator.HandID) then
-        gGame.GamePlayInterface.Alerts.AddFight(aUnit.PositionF, fOwner, NotifyKind[aUnit is TKMUnitWarrior],
+        gGame.GamePlayInterface.Alerts.AddFight(aUnit.PositionF, fOwner, NOTIFY_KIND[aUnit is TKMUnitWarrior],
                                                 gGameApp.GlobalTickCount + ALERT_DURATION[atFight]);
     hndComputer:
       begin
@@ -405,15 +424,15 @@ begin
               //If we are a warrior we can also attack that unit ourselves
               if aUnit is TKMUnitWarrior then
               begin
-                Group := gHands[fOwner].UnitGroups.GetGroupByMember(TKMUnitWarrior(aUnit));
+                group := gHands[fOwner].UnitGroups.GetGroupByMember(TKMUnitWarrior(aUnit));
                 //It's ok for the group to be nil, the warrior could still be walking out of the barracks
-                if (Group <> nil) and not Group.IsDead then
+                if (group <> nil) and not group.IsDead then
                   //If we are already in the process of attacking something, don't change our minds,
                   //otherwise you can make a unit walk backwards and forwards forever between two groups of archers
-                  if not Group.InFight then
+                  if not group.InFight then
                     //Make sure the group could possibly reach the offenders
-                    if Group.CanWalkTo(aAttacker.Position, Group.FightMaxRange) then
-                      Group.OrderAttackUnit(aAttacker, True);
+                    if group.CanWalkTo(aAttacker.Position, group.FightMaxRange) then
+                      group.OrderAttackUnit(aAttacker, True);
               end;
             end;
           end;
@@ -431,14 +450,22 @@ begin
   SaveStream.PlaceMarker('HandAI');
   SaveStream.Write(fOwner);
   SaveStream.Write(fWonOrLost, SizeOf(fWonOrLost));
+  SaveStream.Write(fCanBeAITypes, SizeOf(fCanBeAITypes));
 
   fSetup.Save(SaveStream);
-  fGeneral.Save(SaveStream);
-  fMayor.Save(SaveStream);
   fGoals.Save(SaveStream);
 
-  fCityManagement.Save(SaveStream);
-  fArmyManagement.Save(SaveStream);
+  if aitClassic in fCanBeAITypes then
+  begin
+    fGeneral.Save(SaveStream);
+    fMayor.Save(SaveStream);
+  end;
+
+  if aitAdvanced in fCanBeAITypes then
+  begin
+    fCityManagement.Save(SaveStream);
+    fArmyManagement.Save(SaveStream);
+  end;
 end;
 
 
@@ -447,32 +474,54 @@ begin
   LoadStream.CheckMarker('HandAI');
   LoadStream.Read(fOwner);
   LoadStream.Read(fWonOrLost, SizeOf(fWonOrLost));
+  LoadStream.Read(fCanBeAITypes, SizeOf(fCanBeAITypes));
 
   fSetup.Load(LoadStream);
-  fGeneral.Load(LoadStream);
-  fMayor.Load(LoadStream);
   fGoals.Load(LoadStream);
 
-  fCityManagement.Load(LoadStream);
-  fArmyManagement.Load(LoadStream);
+  if aitClassic in fCanBeAITypes then
+  begin
+    fGeneral.Load(LoadStream);
+    fMayor.Load(LoadStream);
+  end;
+
+  if aitAdvanced in fCanBeAITypes then
+  begin
+    fCityManagement.Load(LoadStream);
+    fArmyManagement.Load(LoadStream);
+  end;
 end;
 
 
 procedure TKMHandAI.SyncLoad();
 begin
-  fGeneral.SyncLoad();
-  fArmyManagement.SyncLoad();
-  fCityManagement.SyncLoad();
+  if aitClassic in fCanBeAITypes then
+    fGeneral.SyncLoad();
+
+  if aitAdvanced in fCanBeAITypes then
+  begin
+    fArmyManagement.SyncLoad();
+    fCityManagement.SyncLoad();
+  end;
 end;
 
 
-procedure TKMHandAI.AfterMissionInit();
+procedure TKMHandAI.AfterMissionInit(aCanBeAITypes: TKMAITypeSet);
 begin
-  fMayor.AfterMissionInit();
+  fCanBeAITypes := aCanBeAITypes;
 
-  gAIFields.Eye.OwnerUpdate(fOwner);
-  fCityManagement.AfterMissionInit();
-  fArmyManagement.AfterMissionInit();
+  // Do AI initialization only if there could be any AI of a certain type
+  // We should do it at the game start, in case player will be swapped to AI player
+  // Also we have to do it only at the game start for Advanced AI, because it considers teams and divide mines according to the teams
+  if aitClassic in fCanBeAITypes then
+    fMayor.AfterMissionInit();
+
+  if aitAdvanced in fCanBeAITypes then
+  begin
+    gAIFields.Eye.OwnerUpdate(fOwner);
+    fCityManagement.AfterMissionInit();
+    fArmyManagement.AfterMissionInit();
+  end;
 end;
 
 
@@ -531,20 +580,20 @@ procedure TKMHandAI.PlaceFirstStorehouse(aLoc: TKMPoint);
     SQR_MAX_DISTANCE = 20*20;
   var
     K: Integer;
-    Distance, BestDistance: Single;
+    distance, bestDistance: Single;
   begin
     aRes := KMPOINT_ZERO; // Set default point to zero so there is not integer overflow during evaluation if resource does not exist
-    BestDistance := 1e10;
+    bestDistance := 1e10;
     for K := 0 to aList.Count - 1 do
     begin
-      Distance := KMDistanceSqr(aLoc, aList[K]);
-      if (Distance < BestDistance) then
+      distance := KMDistanceSqr(aLoc, aList[K]);
+      if (distance < bestDistance) then
       begin
-        BestDistance := Distance;
+        bestDistance := distance;
         aRes := aList[K];
       end;
     end;
-    Result := BestDistance < SQR_MAX_DISTANCE;
+    Result := bestDistance < SQR_MAX_DISTANCE;
   end;
 
   // Place road and return true if it is possible
@@ -556,7 +605,7 @@ procedure TKMHandAI.PlaceFirstStorehouse(aLoc: TKMPoint);
       gTerrain.SetRoad(aPoint, fOwner);
       //Terrain under roads is flattened (fields are not)
       gTerrain.FlattenTerrain(aPoint);
-      if gMapElements[gTerrain.Land[aPoint.Y,aPoint.X].Obj].WineOrCorn then
+      if gMapElements[gTerrain.Land^[aPoint.Y,aPoint.X].Obj].WineOrCorn then
         gTerrain.RemoveObject(aPoint);
     end;
   end;
@@ -566,67 +615,68 @@ procedure TKMHandAI.PlaceFirstStorehouse(aLoc: TKMPoint);
   const
     RAD = 15;
   var
-    X,Y: Integer;
-    Price, BestPrice: Single;
-    Loc,BestLoc: TKMPoint;
+    X, Y: Integer;
+    price, bestPrice: Single;
+    loc, bestLoc: TKMPoint;
   begin
-    BestPrice := 1e10;
+    bestPrice := 1e10;
     for X := Max(1,aInitP.X-RAD) to Min(gTerrain.MapX-1,aInitP.X+RAD) do
     for Y := Max(1,aInitP.Y-RAD) to Min(gTerrain.MapY-1,aInitP.Y+RAD) do
       if gHands[fOwner].CanAddFieldPlan(KMPoint(X,Y+1), ftRoad) AND gHands[fOwner].CanAddHousePlanAI(X,Y,htStore,False) then
       begin
         //gTerrain.ScriptTrySetTileObject(X, Y, 0); // Debug (visualization)
-        Loc := KMPoint(X,Y);
-        Price :=
-          + 6 * Byte(bStone) * KMDistanceSqr(Loc, Stone)
+        loc := KMPoint(X,Y);
+        price :=
+          + 6 * Byte(bStone) * KMDistanceSqr(loc, Stone)
           + 50 * (Byte(gTerrain.TileIsCoal(X, Y) > 1) + Byte(gTerrain.TileIsCoal(X, Y-1) > 1) + Byte(gTerrain.TileIsCoal(X, Y-2) > 1))
-          + 2 * Byte(bGold) * KMDistanceSqr(Loc, Gold)
-          + 1 * Byte(bIron) * KMDistanceSqr(Loc, Iron)
+          + 2 * Byte(bGold) * KMDistanceSqr(loc, Gold)
+          + 1 * Byte(bIron) * KMDistanceSqr(loc, Iron)
           - 20 * ( Byte(gHands[fOwner].CanAddFieldPlan(KMPoint(X,Y+2), ftRoad)) + Byte(gHands[fOwner].CanAddFieldPlan(KMPoint(X+1,Y+1), ftRoad)) + Byte(gHands[fOwner].CanAddFieldPlan(KMPoint(X-1,Y+1), ftRoad)) );
 
-        if (Price < BestPrice) then
+        if (price < bestPrice) then
         begin
-          BestPrice := Price;
-          BestLoc := Loc;
+          bestPrice := price;
+          bestLoc := loc;
         end;
       end;
     // Place storehouse
-    if (BestPrice < 1E10) then
-      gHands[fOwner].AddFirstStorehouse(BestLoc);
+    if (bestPrice < 1E10) then
+      gHands[fOwner].AddFirstStorehouse(bestLoc);
   end;
 
 const
   MAX_DIST_FROM_STONES = 10;
 var
   bGold, bIron, bStone: Boolean;
-  Gold, Iron, Stone, InitPoint: TKMPoint;
+  gold, iron, stone, initPoint: TKMPoint;
 begin
   // Find the closest resource
-  bGold := GetClosestResource(Gold, gAIFields.Eye.GoldLocs);
-  bIron := GetClosestResource(Iron, gAIFields.Eye.IronLocs);
-  bStone := GetClosestResource(Stone, gAIFields.Eye.StoneMiningTiles);
+  bGold := GetClosestResource(gold, gAIFields.Eye.GoldLocs);
+  bIron := GetClosestResource(iron, gAIFields.Eye.IronLocs);
+  bStone := GetClosestResource(stone, gAIFields.Eye.StoneMiningTiles);
   // Apply logic
   if bStone then
   begin
     if bGold then
-      InitPoint := KMPoint( Round((Stone.X*4+Gold.X*2+aLoc.X)/7), Round((Stone.Y*4+Gold.Y*2+aLoc.Y)/7) )
+      initPoint := KMPoint( Round((stone.X*4+gold.X*2+aLoc.X)/7), Round((stone.Y*4+gold.Y*2+aLoc.Y)/7) )
     else if bIron then
-      InitPoint := KMPoint( Round((Stone.X*4+Iron.X+aLoc.X)/6), Round((Stone.Y*4+Iron.Y+aLoc.Y)/6) )
+      initPoint := KMPoint( Round((stone.X*4+iron.X+aLoc.X)/6), Round((stone.Y*4+iron.Y+aLoc.Y)/6) )
     else
-      InitPoint := Stone;
+      initPoint := stone;
   end
   else
   begin
     if bGold then
-      InitPoint := Gold
+      initPoint := gold
     else if bIron then
-      InitPoint := Iron
+      initPoint := iron
     else
       Exit;
   end;
   // Find place for store
-  FindPlaceForStore(bStone, bGold, bIron, InitPoint, Stone, Gold, Iron);
+  FindPlaceForStore(bStone, bGold, bIron, initPoint, stone, gold, iron);
 end;
 
 
 end.
+

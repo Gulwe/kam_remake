@@ -61,7 +61,6 @@ type
     Houses: array [TKMHouseType] of TKMHouseStats;
     Units: array [HUMANS_MIN..HUMANS_MAX] of TKMUnitStats;
     Wares: array [WARE_MIN..WARE_MAX] of TKMWareStats;
-//    MilitiaTrainedInTownHall: Cardinal;
 
     fWareDistribution: TKMWareDistribution;
     function GetChartWares(aWare: TKMWareType): TKMCardinalArray;
@@ -110,6 +109,7 @@ type
     function GetUnitLostQty(aType: TKMUnitType): Integer;
     function GetWareBalance(aRT: TKMWareType): Integer;
     function GetArmyCount: Integer;
+    function GetArmyPower: Single;
     function GetCitizensCount: Integer;
 
     function GetCitizensTrained: Cardinal;
@@ -257,11 +257,7 @@ end;
 procedure TKMHandStats.UnitCreated(aType: TKMUnitType; aWasTrained: Boolean{; aFromTownHall: Boolean = False});
 begin
   if aWasTrained then
-//  begin
-    Inc(Units[aType].Trained)//;
-//    if aFromTownHall and (aType = utMilitia) then
-//      Inc(MilitiaTrainedInTownHall);
-//  end else
+    Inc(Units[aType].Trained)
   else
     Inc(Units[aType].Initial);
 end;
@@ -296,7 +292,7 @@ begin
                     Inc(Wares[R].Produced, aCount);
       WARE_MIN..
       WARE_MAX:   Inc(Wares[aRes].Produced, aCount);
-      else        raise Exception.Create('Cant''t add produced ware ' + gRes.Wares[aRes].Title);
+      else        raise Exception.Create('Cant''t add produced ware ' + gResWares[aRes].Title);
     end;
 end;
 
@@ -355,7 +351,7 @@ begin
   end
   else
   for I := Low(aType) to High(aType) do
-  if aType[I] in [HOUSE_MIN..HOUSE_MAX] then
+  if aType[I] in HOUSES_VALID then
     Inc(Result, Houses[aType[I]].Initial + Houses[aType[I]].Built - Houses[aType[I]].SelfDestruct - Houses[aType[I]].Lost)
   else
     raise Exception.Create('Quering wrong house type');
@@ -408,7 +404,7 @@ begin
   end
   else
   for I := Low(aType) to High(aType) do
-  if aType[I] in [HOUSE_MIN..HOUSE_MAX] then
+  if aType[I] in HOUSES_VALID then
     Inc(Result, Houses[aType[I]].Started + Houses[aType[I]].Planned - Houses[aType[I]].Ended - Houses[aType[I]].PlanRemoved)
   else
     raise Exception.Create('Quering wrong house type');
@@ -428,9 +424,6 @@ begin
                   Result := Units[aType].Initial + Units[aType].Trained - Units[aType].Lost;
                   if aType = utRecruit then
                     for UT := WARRIOR_EQUIPABLE_BARRACKS_MIN to WARRIOR_EQUIPABLE_BARRACKS_MAX do
-//                      if UT = utMilitia then
-//                        Dec(Result, Units[UT].Trained - MilitiaTrainedInTownHall) //Do not count militia, trained in TownHall, only in Barracks
-//                      else
                       Dec(Result, Units[UT].Trained); //Trained soldiers use a recruit
                 end;
   end;
@@ -452,14 +445,30 @@ end;
 
 
 function TKMHandStats.GetUnitKilledQty(aType: TKMUnitType): Integer;
+var
+  UT: TKMUnitType;
 begin
-  Result := Units[aType].Killed;
+  Result := 0;
+  case aType of
+    utNone: ;
+    utAny:  for UT := HUMANS_MIN to HUMANS_MAX do
+              Inc(Result, Units[UT].Killed);
+    else    Result := Units[aType].Killed;
+  end;
 end;
 
 
 function TKMHandStats.GetUnitLostQty(aType: TKMUnitType): Integer;
+var
+  UT: TKMUnitType;
 begin
-  Result := Units[aType].Lost;
+  Result := 0;
+  case aType of
+    utNone: ;
+    utAny:  for UT := HUMANS_MIN to HUMANS_MAX do
+              Inc(Result, Units[UT].Lost);
+    else    Result := Units[aType].Lost;
+  end;
 end;
 
 
@@ -487,6 +496,16 @@ begin
   Result := 0;
   for UT := WARRIOR_MIN to WARRIOR_MAX do
     Inc(Result, GetUnitQty(UT));
+end;
+
+
+function TKMHandStats.GetArmyPower: Single;
+var
+  UT: TKMUnitType;
+begin
+  Result := 0;
+  for UT := WARRIOR_MIN to WARRIOR_MAX do
+    Result := Result + GetUnitQty(UT) * WARRIORS_POWER_RATES[UT];
 end;
 
 
@@ -790,7 +809,6 @@ begin
   SaveStream.Write(Houses, SizeOf(Houses));
   SaveStream.Write(Units, SizeOf(Units));
   SaveStream.Write(Wares, SizeOf(Wares));
-//  SaveStream.Write(MilitiaTrainedInTownHall);
   fWareDistribution.Save(SaveStream);
 
   SaveStream.Write(fChartCount);
@@ -819,7 +837,6 @@ begin
   LoadStream.Read(Houses, SizeOf(Houses));
   LoadStream.Read(Units, SizeOf(Units));
   LoadStream.Read(Wares, SizeOf(Wares));
-//  LoadStream.Read(MilitiaTrainedInTownHall);
   fWareDistribution.Load(LoadStream);
 
   LoadStream.Read(fChartCount);
@@ -876,11 +893,10 @@ begin
   aStrings.Append('Name;Planned;PlanRemoved;Started;Ended;Initial;Built;SelfDestruct;Lost;ClosedATM;Destroyed');
 
   for HT := HOUSE_MIN to HOUSE_MAX do
-   // if HT <> htSiegeWorkshop then
       with Houses[HT] do
       begin
         S := '';
-        AddField(gRes.Houses[HT].HouseName);
+        AddField(gResHouses[HT].HouseName);
         AddField(Planned);
         AddField(PlanRemoved);
         AddField(Started);
@@ -922,8 +938,6 @@ begin
       AddField(Killed);
       aStrings.Append(S);
     end;
-
-//  aStrings.Append('Militia trained in the TownHall: ' + IntToStr(MilitiaTrainedInTownHall));
 end;
 
 
@@ -945,7 +959,7 @@ begin
     with Wares[WT] do
     begin
       S := '';
-      AddField(gRes.Wares[WT].Title);
+      AddField(gResWares[WT].Title);
       AddField(Initial);
       AddField(Produced);
       AddField(Consumed);

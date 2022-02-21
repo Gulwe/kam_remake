@@ -578,7 +578,7 @@ begin
     begin
       dta := MainFile;
     end else
-    if not Assigned(OnNeedFile) or (not OnNeedFile(Self, OrgFileName, FileName, dta)) then
+    if (@OnNeedFile = nil) or (not OnNeedFile(Self, OrgFileName, FileName, dta)) then
       raise EPSPreProcessor.CreateFmt(RPS_IncludeNotFound, [FileName, OrgFileName]);
     Item := FCurrentLineInfo.Add;
     current := FCurrentLineInfo.Count -1;

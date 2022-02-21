@@ -2,7 +2,7 @@ unit KM_GameTypes;
 {$I KaM_Remake.inc}
 interface
 uses
-  KM_MapTypes, KM_CampaignTypes;
+  KM_Defaults, KM_MapTypes, KM_CampaignTypes, KM_Points;
 
 const
   SAVE_HEADER_MARKER = 'Header';
@@ -22,16 +22,37 @@ type
   TKMAIType = (aitNone, aitClassic, aitAdvanced);
   TKMAITypeSet = set of TKMAIType;
 
+  //Message kind determines icon and available actions for Message
+  TKMMessageKind = (
+    mkText, //Mission text message
+    mkHouse,
+    mkGroup,
+    mkQuill //Utility message (warnings in script loading)
+  );
+
   TKMGameModeChangeEvent = procedure (aGameMode: TKMGameMode) of object;
 
   TKMNewSingleMapEvent = procedure (const aMissionFile, aGameName: UnicodeString; aDesiredLoc: ShortInt = -1;
                                     aDesiredColor: Cardinal = $00000000; aDifficulty: TKMMissionDifficulty = mdNone;
-                                    aAIType: TKMAIType = aitNone; aAutoselectHumanLoc: Boolean = False) of object;
+                                    aAIType: TKMAIType = aitNone) of object;
 
   TKMNewCampaignMapEvent = procedure (aCampaign: TKMCampaignId; aMap: Byte; aDifficulty: TKMMissionDifficulty = mdNone) of object;
 
   TKMNewMapEditorEvent = procedure (const aFileName: UnicodeString; aSizeX: Integer = 0; aSizeY: Integer = 0; aMapFullCRC: Cardinal = 0;
                                     aMapSimpleCRC: Cardinal = 0; aMultiplayerLoadMode: Boolean = False) of object;
+
+  TKMGameShowMessageEvent = procedure (aKind: TKMMessageKind; aTextID: Integer; const aLoc: TKMPoint; aEntityUID: Cardinal; aHandIndex: TKMHandID) of object;
+
+const
+  DEF_AITYPE = aitClassic; // Classic AI is set as a default AI Type, since most of the maps support it and not Advanced AI
+
+  // Location color 'magic value', which means we should not overwrite location color which was set in the map editor
+  // Used on game start
+  NO_OVERWRITE_COLOR = $00000000; // todo: refactor, get rid of 'magic color value'
+
+  // Value we use to set hand / player without team choosen
+  NO_TEAM = 0;
+
 
 implementation
 

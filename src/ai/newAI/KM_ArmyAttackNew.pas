@@ -16,6 +16,11 @@ uses
 type
   TKMTargetType = (ttNone, ttPoint, ttHouse, ttGroup, ttUnit);
   TKMCombatPhase = (cpIdle, cpWalk, cpAttack, cpDead);
+  TKMStuckInTraffic = record
+    StuckInTraffic: Boolean;
+    StuckCounter: Byte;
+    PreviousPosition: TKMPoint;
+  end;
   TKMCombatGroup = class;
   TKMCombatGroupArray = array of TKMCombatGroup;
 
@@ -24,6 +29,7 @@ type
     fTargetType: TKMTargetType;
     fCombatPhase: TKMCombatPhase;
     fOnPlace, fTargetChanged: Boolean;
+    fTrafficDetection: TKMStuckInTraffic;
     fTargetGroup: TKMUnitGroup;
     fTargetUnit: TKMUnit;
     fTargetHouse: TKMHouse;
@@ -57,6 +63,7 @@ type
     property OnPlace: Boolean read fOnPlace;
     property InFight: Boolean read SquadInFight;
     property Position: TKMPoint read GetGroupPosition;
+    property StuckInTraffic: Boolean read fTrafficDetection.StuckInTraffic;
     property WalkTimeLimit: Cardinal read fWalkTimeLimit write fWalkTimeLimit;
     property AttackTimeLimit: Cardinal read fAttackTimeLimit write fAttackTimeLimit;
     property TargetGroup: TKMUnitGroup read fTargetGroup write SetTargetGroup;
@@ -92,6 +99,8 @@ type
     procedure OwnerUpdate(aPlayer: TKMHandID);
 
     function IsGroupInAction(aGroup: TKMUnitGroup): Boolean;
+
+    function AddGroup(const aGroup: TKMUnitGroup): TKMCombatGroup;
     procedure AddGroups(const aGroups: TKMUnitGroupArray);
     procedure ReleaseGroup(aGroup: TKMUnitGroup);
     procedure ReleaseGroups();
@@ -103,11 +112,11 @@ type
 
 const
   // Houses in TARGET_HOUSES will be selected as a primary target (so the company will come to this point but it will not attack it because of this list)
-  TARGET_HOUSES: THouseTypeSet = [htBarracks, htStore, htSchool, htTownhall];
+  TARGET_HOUSES: TKMHouseTypeSet = [htBarracks, htStore, htSchool, htTownhall];
   // Houses in SCAN_HOUSES will be destroyed when they are in radius (it should also contain TARGET_HOUSES)
-  SCAN_HOUSES: THouseTypeSet = [htWatchTower, htBarracks, htStore, htSchool, htTownhall];
+  SCAN_HOUSES: TKMHouseTypeSet = [htWatchTower, htBarracks, htStore, htSchool, htTownhall];
   // All houses for final stage of attack algorithm
-  ALL_HOUSES: THouseTypeSet = [HOUSE_MIN..HOUSE_MAX];
+  ALL_HOUSES: TKMHouseTypeSet = HOUSES_VALID;
 
 {$IFDEF DEBUG_NewAI}
 var
@@ -134,6 +143,9 @@ begin
   fCombatPhase := cpIdle;
   fOnPlace := False;
   fTargetChanged := True;
+  fTrafficDetection.StuckInTraffic := False;
+  fTrafficDetection.PreviousPosition := aGroup.Position;
+  fTrafficDetection.StuckCounter := 0;
   fTargetPosition := KMPointDir(KMPOINT_ZERO, dirNA);
   fTargetAim := KMPOINT_ZERO;
   fWalkTimeLimit := 0;
@@ -167,6 +179,7 @@ begin
   LoadStream.Read(fTargetAim, SizeOf(fTargetAim));
   LoadStream.Read(fWalkTimeLimit, SizeOf(fWalkTimeLimit));
   LoadStream.Read(fAttackTimeLimit, SizeOf(fAttackTimeLimit));
+  LoadStream.Read(fTrafficDetection, SizeOf(TKMStuckInTraffic));
   //Subst on syncload
   LoadStream.Read(fGroup, 4);
   LoadStream.Read(fTargetGroup, 4);
@@ -186,6 +199,7 @@ begin
   SaveStream.Write(fTargetAim, SizeOf(fTargetAim));
   SaveStream.Write(fWalkTimeLimit, SizeOf(fWalkTimeLimit));
   SaveStream.Write(fAttackTimeLimit, SizeOf(fAttackTimeLimit));
+  SaveStream.Write(fTrafficDetection, SizeOf(TKMStuckInTraffic));
   SaveStream.Write(fGroup.UID);
   SaveStream.Write(fTargetGroup.UID);
   SaveStream.Write(fTargetUnit.UID);
@@ -284,6 +298,7 @@ end;
 
 // Update state of squad (group orders)
 procedure TKMCombatGroup.UpdateState(aTick: Cardinal);
+
   function GetTargetUnitPosition(): TKMPoint;
   var
     K: Integer;
@@ -374,6 +389,7 @@ procedure TKMCombatGroup.UpdateState(aTick: Cardinal);
   end;
 
 var
+  walkedDistance: Integer;
   ActPos: TKMPoint;
 begin
   fOnPlace := False;
@@ -464,6 +480,12 @@ begin
   end
   else
     fCombatPhase := cpIdle;
+
+  // Check traffic
+  walkedDistance := KMDistanceAbs(fTrafficDetection.PreviousPosition, fGroup.Position);
+  fTrafficDetection.StuckCounter := min(15, max(0, Word(fCombatPhase <> cpIdle) * fTrafficDetection.StuckCounter + Word(walkedDistance <= 1) * 2 - 1));
+  fTrafficDetection.StuckInTraffic := fTrafficDetection.StuckCounter > 10;
+  fTrafficDetection.PreviousPosition := fGroup.Position;
 end;
 
 
@@ -484,7 +506,7 @@ begin
   Result := False;
   fOnPlace := False;
   SQRDist := KMDistanceSqr(aActualPosition, aTargetPosition);
-  // Time limit (time limit MUST be always set by higher rank (platoon))
+  // Time limit
   if (not (aOrderAttack OR aOrderDestroy) AND (fWalkTimeLimit < aTick)) // Time limit is set to 0 in case that unit attack something
     // Target position is reached
     OR (SQRDist < sqr(AI_Par[ATTACK_SQUAD_TargetReached_Position]))
@@ -508,7 +530,7 @@ begin
 
   if PathFound then
   begin
-    if (Distance < 5) then
+    if Distance < 5 then
     begin
       fOnPlace := True;
       Exit;
@@ -518,12 +540,12 @@ begin
       InitPolygon := gAIFields.NavMesh.KMPoint2Polygon[aActualPosition];
       I := Length(PointPath)-2; // Skip next polygon -> fluent movement
       repeat
-        aTargetPosition := PointPath[ Max(0, I) ];
-        ClosestPolygon := gAIFields.NavMesh.KMPoint2Polygon[ aTargetPosition ];
+        aTargetPosition := PointPath[Max(0, I)];
+        ClosestPolygon := gAIFields.NavMesh.KMPoint2Polygon[aTargetPosition];
         I := I - 1;
-      until (I < 0) OR ( (InitPolygon <> ClosestPolygon)
-                         AND (tpWalk in gTerrain.Land[aTargetPosition.Y, aTargetPosition.X].Passability)
-                         AND (KMDistanceSqr(aActualPosition, aTargetPosition) > sqr(AI_Par[ATTACK_SQUAD_MinWalkingDistance])));
+      until (I < 0) or ( (InitPolygon <> ClosestPolygon)
+                         and (tpWalk in gTerrain.Land^[aTargetPosition.Y, aTargetPosition.X].Passability)
+                         and (KMDistanceSqr(aActualPosition, aTargetPosition) > sqr(AI_Par[ATTACK_SQUAD_MinWalkingDistance])));
 
       {$IFDEF DEBUG_NewAI}
       DEBUGPointPath := PointPath;
@@ -674,13 +696,29 @@ begin
 end;
 
 
+function TKMArmyAttackNew.AddGroup(const aGroup: TKMUnitGroup): TKMCombatGroup;
+var
+  Idx: Integer;
+begin
+  Result := nil;
+  if (aGroup <> nil) AND not aGroup.IsDead then
+  begin
+    Result := GetCombatGroup(aGroup);
+    if (Result = nil) then
+    begin
+      Idx := fCombatGroups.Add( TKMCombatGroup.Create(aGroup) );
+      Result := fCombatGroups[Idx];
+    end;
+  end;
+end;
+
+
 procedure TKMArmyAttackNew.AddGroups(const aGroups: TKMUnitGroupArray);
 var
   K: Integer;
 begin
   for K := 0 to Length(aGroups) - 1 do
-    if (GetCombatGroup(aGroups[K]) = nil) AND (aGroups[K] <> nil) AND not aGroups[K].IsDead then
-      fCombatGroups.Add(  TKMCombatGroup.Create( aGroups[K] )  );
+    AddGroup(aGroups[K]);
 end;
 
 
@@ -780,6 +818,14 @@ var
     L: Integer;
   {$ENDIF}
 begin
+  for K := 0 to fCombatGroups.Count - 1 do
+  begin
+    CG := fCombatGroups[K];
+    if CG.fTrafficDetection.StuckInTraffic then
+      gRenderAux.Quad(CG.Position.X, CG.Position.Y, $FF000000 OR tcRed);
+  end;
+
+
   {$IFDEF DEBUG_NavMeshPathfinding}
   if (fOwner = gMySpectator.HandID) then
     gAIFields.NavMesh.Pathfinding.Paint();

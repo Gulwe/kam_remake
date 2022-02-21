@@ -497,7 +497,7 @@ procedure TBackwardFF.EvaluateDefence(const aIdx: Word);
           begin
             fBestDefLines.Lines[ fBestDefLines.Count ].Nodes[ Byte(SecondIndice) ] := gAIFields.NavMesh.Polygons[aDefIdx1].Indices[I];
             SecondIndice := True; // It will also switch index from 0 to 1
-            break;
+            Break;
           end;
       if SecondIndice then // Make sure that this node exist
         Inc(fBestDefLines.Count);
@@ -731,7 +731,7 @@ begin
       if (KMDistanceSqr(fQueueArray[Idx].DistPoint, fDefPosArr[I].DirPoint.Loc) < SQR_MIN_DEF_POINT_DISTANCE) then
       begin
         Check := False;
-        break;
+        Break;
       end;
     if Check then
     begin
@@ -822,7 +822,10 @@ var
     // Compute sum of polygons
     PolySum := 1;
     for K := 0 to Length(aPLsDefAreas) - 1 do
-      Inc(PolySum, SeparatedDefLines[ aPLsDefAreas[K] ].PolyCnt);
+      if (aPLsDefAreas[K] < length(SeparatedDefLines) ) then
+        Inc(PolySum, SeparatedDefLines[ aPLsDefAreas[K] ].PolyCnt)
+      else // AI cannot walk to the defense position
+        exit;
     // Distribute requirements
     for K := 0 to Length(aPLsDefAreas) - 1 do
       Inc(  DefLinesReq[ aPLsDefAreas[K] ], Round( SeparatedDefLines[ aPLsDefAreas[K] ].PolyCnt / PolySum * aDefPosReq[aIdx] )  );
@@ -839,7 +842,7 @@ var
         begin
           Result[Cnt] := aOwners[IdxPL];
           Inc(Cnt);
-          break;
+          Break;
         end;
     SetLength(Result, Cnt);
   end;
@@ -949,7 +952,7 @@ begin
       begin
         fBestDefLines.Lines[ fBestDefLines.Count ] := fAllDefLines.Lines[I]; // Length was already checked
         fBestDefLines.Count := fBestDefLines.Count + 1;
-        break;
+        Break;
       end;
     fQueueArray[aIdx].Visited := fVisitedIdx; // Border can be visited multiple times so mark it as visited
   end;
@@ -988,7 +991,7 @@ begin
       begin
         aStartPolygons[K] := aStartPolygons[ Length(aStartPolygons)-1 ];
         SetLength(aStartPolygons, Length(aStartPolygons)-1);
-        break;
+        Break;
       end;
   Result := Length(aStartPolygons) > 0;
 end;

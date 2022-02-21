@@ -56,6 +56,8 @@ const
   DEL_LOGS_OLDER_THAN   = 14;           //in days
 
   TEMPLATE_LIBX_FILE_TEXT = 'text.%s.libx';
+
+  DEFAULT_WATER_LIGHT_MULTIPLIER = 1.3; // Default multiplier for terrain water light
 const
   //Max number of ticks, played on 1 game update.
   //We must limit number of ticks per update to be able to leave update cycle fast (when turn off ultra fast speedup, f.e.)
@@ -68,6 +70,7 @@ const
 {$ENDIF}
 var
   // These should be True (we can occasionally turn them Off to speed up the debug)
+  // We keep them as `var` to keep compiler happy (otherwise it sees a lot of "unused var usage" around)
   CALC_EXPECTED_TICK    :Boolean = not DEBUG_CFG;  //Do we calculate expected tick and try to be in-time (send as many tick as needed to get to expected tick)
   MAKE_ANIM_TERRAIN     :Boolean = True;  //Should we animate water and swamps
   MAKE_TEAM_COLORS      :Boolean = True;  //Whenever to make team colors or not, saves RAM for debug
@@ -78,10 +81,12 @@ var
   CAP_MAX_FPS           :Boolean = True;  //Should limit rendering performance to avoid GPU overheating (disable to measure debug performance)
   CRASH_ON_REPLAY       :Boolean = True;  //Crash as soon as replay consistency fails (random numbers mismatch)
   BLOCK_DUPLICATE_APP   :Boolean = not DEBUG_CFG; //Do not allow to run multiple games at once (to prevent MP cheating)
+  DO_NETWORK_AUTH       :Boolean = not DEBUG_CFG; //Do network auth. If no its equivalent to use KM_NetAuthUnsecure
   QUERY_ON_FORM_CLOSE   :Boolean = not DEBUG_CFG; //Do we ask player about lost changes on game exit ?
   SHOW_DISMISS_UNITS_BTN:Boolean = True; //The button to order citizens go back to school
   RESET_DEBUG_CONTROLS  :Boolean = not DEBUG_CFG; //Reset Debug controls (F11) on game start
   SKIP_LOG_TEMP_COMMANDS:Boolean = True;
+  BLOCK_GAME_ON_PAUSE   :Boolean = not DEBUG_CFG; // Should we block game input, viewport scrolling etc on game pause?
 
   //Implemented
   FEAT_SETTINGS_IN_MYDOC:Boolean = True; //Save settings in the C:\Users\Username\My Documents\My Games\GAME_TITLE\ folder
@@ -98,11 +103,14 @@ var
   //Not fully implemented yet
   USE_CCL_WALKCONNECT   :Boolean = False; //Use CCL instead of FloodFill for walk-connect (CCL is generaly worse. It's a bit slower, counts 1 tile areas and needs more AreaIDs to work / makes sparsed IDs)
   DYNAMIC_FOG_OF_WAR    :Boolean = False; //Whenever dynamic fog of war is enabled or not
-  SHOW_DISMISS_GROUP_BTN:Boolean = False; //The button to kill group
+  SHOW_DISMISS_GROUP_BTN:Boolean = DEBUG_CFG; //The button to kill group
   CHECK_8087CW          :Boolean = False; //Check that 8087CW (FPU flags) are set correctly each frame, in case some lib/API changed them
   SCROLL_ACCEL          :Boolean = False; //Acceleration for viewport scrolling
-  ALLOW_INTERPOLATED_RENDER :Boolean = True; //Interpolate positions/animations in render between game ticks
+  ALLOW_INTERPOLATED_RENDER :Boolean = True; //Allow to interpolate positions/animations in render between game ticks
+  ALLOW_INTERPOLATED_ANIMS    :Boolean = True; //Allow to use interpolate animations, which are loaded from .rxa sprites atlases pack
   PATHFINDER_TO_USE     :Byte = 1;        //Use TPathfindingAStarNew
+
+  ENABLE_VIDEOS_UNDER_WINE: Boolean = DEBUG_CFG; //Do we enable videos under wine
 
   //Cache / delivery / pathfinding
   CACHE_PATHFINDING                       :Boolean = True; //Cache routes incase they are needed soon (Vortamic PF runs x4 faster even with lame approach)
@@ -128,6 +136,7 @@ var
   DEBUG_SPEEDUP_SPEED     :Integer = 300;   //Speed for speedup from debug menu
   DEBUG_LOGS              :Boolean = True;  //Log debug info
   DEBUG_SCRIPTING_EXEC    :Boolean = False; //Use slow debug executor (about 3 times slower! never use on release version). Using it we can find exact position of execution time error (row/col/pos/module)
+  USE_KMR_DIR_FOR_SETTINGS:Boolean = DEBUG_CFG; // Do we use KMR local directory for settings?
   SKIP_RNG_CHECKS_FOR_SOME_GIC: Boolean = True; //Skip rng checks for Autosave and few other commands to have same AI city with predefined seed + mapconfig
   ALLOW_SELECT_ALLIES     :Boolean = True;  //Do we allow to select ally units or groups
   ALLOW_SELECT_ALL        :Boolean = DEBUG_CFG; //Do we allow to select all entities (allies and enemies)
@@ -139,14 +148,17 @@ var
   SHOW_DEBUG_CONTROLS     :Boolean = False; //Show debug panel / Form1 menu (F11)
   SHOW_CONTROLS_OVERLAY   :Boolean = False; //Draw colored overlays ontop of controls! always Off here
   SHOW_CONTROLS_ID        :Boolean = False; //Draw controls ID
-  SHOW_FOCUSED_CONTROL     :Boolean = False; //Outline focused control
+  SHOW_FOCUSED_CONTROL    :Boolean = False; //Outline focused control
   SHOW_CONTROL_OVER       :Boolean = False; //Outline control with mouse over
   SHOW_TEXT_OUTLINES      :Boolean = False; //Display text areas outlines
+  SKIP_RENDER_TEXT        :Boolean = False; //Skip painting labels
   ENABLE_DESIGN_CONTORLS  :Boolean = False; //Enable special mode to allow to move/edit controls
   MODE_DESIGN_CONTROLS    :Boolean = False; //Special mode to move/edit controls activated by F7, it must block OnClick events! always Off here
+  DBG_UI_HINT_POS         :Boolean = False; //Show coordinates near cursor, with axis
+
   OVERLAY_RESOLUTIONS     :Boolean = False; //Render constraining frame
   LOCAL_SERVER_LIST       :Boolean = False; //Instead of loading server list from master server, add localhost:56789 (good for testing)
-  SHOW_LOGS_IN_CHAT       :Boolean = False; //Show log messages in MP game chat
+  SHOW_LOG_IN_CHAT        :Boolean = False; //Show log messages in MP game chat
   LOG_GAME_TICK           :Boolean = False; //Log game tick
   SAVE_RANDOM_CHECKS      :Boolean = True; //Save random checks data to separate file
   MAPED_SHOW_CONDITION_UNIT_BTNS: Boolean = True; //Show condition Inc/Dec buttons for citizen units in MapEd
@@ -162,6 +174,12 @@ var
   SHOW_GAME_TICK          :Boolean = DEBUG_CFG; //Show game tick next to game time
   SHOW_FPS                :Boolean = False; //Show FPS
   SHOW_TERRAIN_IDS        :Boolean = False; //Show number of every tile terrain on it (also show layers terrain ids)
+  SKIP_TER_RENDER_ANIMS   :Boolean = False; //Skip render terrain animations
+  SKIP_TER_RENDER_LIGHT   :Boolean = False; //Skip render terrain lighting
+  SKIP_TER_RENDER_SHADOW  :Boolean = False; //Skip render terrain shadows
+  DO_DEBUG_TER_RENDER     :Boolean = False; //Do we do debug terrain layers? If yes, then only chosen terrain layers will be rendered
+  DEBUG_TERRAIN_LAYERS    :set of Byte = [0,1,2,3]; //Terrain layers to render while debugging with DO_DEBUG_LAYERS
+  SKIP_RENDER_TER_LAYERS  :Boolean = False; //Do not render terrain layers
   SHOW_TERRAIN_KINDS      :Boolean = False; //Show terrain kind ids on every tile corner
   SHOW_TERRAIN_OVERLAYS   :Boolean = False; //Show terrain tile overlays
   SHOW_TERRAIN_HEIGHT     :Boolean = False; //Show terrain tile overlays
@@ -170,6 +188,7 @@ var
   SHOW_TERRAIN_WIRES      :Boolean = False; //Makes terrain height visible
   SHOW_TERRAIN_PASS       :Byte = 0; //Byte(TKMTerrainPassability)
   SHOW_UNIT_ROUTES        :Boolean = False; //Draw unit routes
+  SHOW_UNIT_ROUTES_STEPS  :Boolean = False; //Draw unit routes step numbers
   SHOW_SEL_BUFFER         :Boolean = False; //Display selection buffer
   SHOW_PROJECTILES        :Boolean = False; //Shows projectiles trajectory
   SHOW_POINTER_DOTS       :Boolean = False; //Show pointer count as small dots below unit/houses
@@ -193,6 +212,7 @@ var
   RENDER_3D               :Boolean = False; //Experimental 3D render
   LINEAR_FILTER_SPRITES   :Boolean = False; //To check pixel sampling alignment issues (bouncing) at 100% zoom
   HOUSE_BUILDING_STEP     :Single = 0;
+  WATER_LIGHT_MULTIPLIER  :Single = DEFAULT_WATER_LIGHT_MULTIPLIER; //Terrain light multiplier
   OVERLAY_NAVMESH         :Boolean = False; //Show navmesh
   OVERLAY_DEFENCES        :Boolean = False; //Show AI defence perimeters
   OVERLAY_DEFENCES_A      :Boolean = False; //Show AI defence perimeters (Animation)
@@ -210,6 +230,8 @@ var
   OVERLAY_AI_VECTOR_FIELD :Boolean = False; //Show Vector field (combat AI)
   OVERLAY_AI_CLUSTERS     :Boolean = False; //Show combat clusters (combat AI)
   OVERLAY_AI_ALLIEDGROUPS :Boolean = False; //Show show allied groups (combat AI)
+  {Render}
+  SAVE_MAP_TO_FBO_RENDER  :Boolean = False; //Do Render is performed into FBO off-screen buffer?
   {Stats}
   SHOW_SPRITE_COUNT       :Boolean = False; //display rendered controls/sprites count
   SHOW_POINTER_COUNT      :Boolean = False; //Show debug total count of unit/house pointers being tracked
@@ -221,6 +243,7 @@ var
   SHOW_NET_PACKETS_LIMIT  :Integer = 1;
   SHOW_SELECTED_OBJ_INFO  :Boolean = False; //Show selected object (Unit/Group + Unit/House) data (UID/order/action etc)
   SHOW_HANDS_INFO         :Boolean = False; //Show hands info
+  SHOW_VIEWPORT_INFO      :Boolean = False; //Show viewport info
   SHOW_GIP                :Boolean = False; //Show GIP commands
   SHOW_GIP_AS_BYTES       :Boolean = False; //Show GIP commands as bytes (or as 'parsed type' if False)
   INI_HITPOINT_RESTORE    :Boolean = False; //Use the hitpoint restore rate from the INI file to compare with KaM
@@ -230,7 +253,9 @@ var
   DO_PERF_LOGGING         :Boolean = False; //Write each ticks time to log (DEPRECATED PERF_LOGGER)
   MP_RESULTS_IN_SP        :Boolean = False; //Display each players stats in SP
   SHOW_DEBUG_OVERLAY_BEVEL:Boolean = True;  //Show debug text overlay Bevel (for better text readability)
-  DEBUG_TEXT_FONT_ID      :Integer = 4;     //Debug font ID (4 is fntMini)
+  SHOW_LOG_IN_GUI         :Boolean = False; //Show log in GUI
+  UPDATE_LOG_FOR_GUI      :Boolean = False; //Update log to be shown in GUI
+  DEBUG_TEXT_FONT_ID      :Integer = 7;     //Debug font ID (7 is fntMonospaced)
 
   {Gameplay}
   LOBBY_SET_SPECS_DEFAULT :Boolean = DEBUG_CFG; //Set 'Allow spectators' flag in the lobby by default
@@ -251,7 +276,7 @@ var
   DEBUG_CHEATS            :Boolean = DEBUG_CFG; //Cheats for debug (place scout and reveal map) which can be turned On from menu
   MULTIPLAYER_SPEEDUP     :Boolean = DEBUG_CFG; //Allow you to use F8 to speed up multiplayer for debugging (only effects local client)
   SKIP_EXE_CRC            :Boolean = False; //Don't check KaM_Remake.exe CRC before MP game (useful for testing with different versions)
-  ALLOW_MP_MODS           :Boolean = False; //Don't let people enter MP mode if they are using mods (unit.dat, house.dat, etc.)
+  ALLOW_MP_MODS           :Boolean = DEBUG_CFG; //Don't let people enter MP mode if they are using mods (unit.dat, house.dat, etc.)
   ALLOW_TAKE_AI_PLAYERS   :Boolean = False; //Allow to load SP maps without Human player (usefull for AI testing)
   {Data output}
   BLOCK_SAVE              :Boolean = False; //Block saving game (used in parallel Runner)
@@ -259,8 +284,10 @@ var
   WRITE_DECODED_MISSION   :Boolean = False; //Save decoded mission as txt file
   WRITE_WALKTO_LOG        :Boolean = False; //Write even more output into log + slows down game noticably
   WriteResourceInfoToTXT  :Boolean = False; //Whenever to write txt files with defines data properties on loading
-  EXPORT_SPRITE_ATLASES   :Boolean = False; //Whenever to write all generated textures to BMP on loading (extremely time consuming)
+  EXPORT_SPRITE_ATLASES   :Boolean = False; //Whenever to write all generated textures to PNG on loading (extremely time consuming)
+  EXPORT_SPRITE_ATLASES_RXA:Boolean = False; //Whenever to write all loaded from .RXA files textures to PNG on loading (super extremely time consuming)
   EXPORT_INFLUENCE        :Boolean = False;
+  LOG_FONTS_RAM_USAGE     :Boolean = False;
   {Statistic}
   CtrlPaintCount: Word; //How many Controls were painted in last frame
 
@@ -294,8 +321,9 @@ const
   AUTOSAVE_COUNT_MAX      = 10;
   AUTOSAVE_FREQUENCY_MIN  = 600;
   AUTOSAVE_FREQUENCY_MAX  = 3000;
-  AUTOSAVE_FREQUENCY_DEFAULT      = 600; //How often to do autosave, every N ticks
-  AUTOSAVE_ATTACH_TO_CRASHREPORT_MAX = 5; //Max number of autosaves to be included into crashreport
+  AUTOSAVE_FREQUENCY_DEFAULT = 600; //How often to do autosave, every N ticks
+  AUTOSAVE_SAVE_NAME = 'autosave';
+  CRASHREPORT_SAVE_NAME = 'crashreport';
 
   // Checkpoint, which are made in the memory while watching replay
   REPLAY_SAVEPOINT_FREQUENCY_MIN = 30*10; //30 sec
@@ -413,9 +441,6 @@ type
   TKMHandEnabledArray = array [0..MAX_HANDS-1] of Boolean;
 
 const
-  PLAYER_NONE = -1; //No player
-  PLAYER_ANIMAL = -2; //animals
-
   // Used to reset on new game start
   OWN_MARGIN_DEF   :Byte = 190;
   OWN_THRESHOLD_DEF:Byte = 126;
@@ -438,15 +463,17 @@ type
     cmRoad,
     cmField,
     cmWine,
-    cmWall,
     cmHouses, // Gameplay
 
     //Map Editor
     cmElevate, //Height elevation
     cmEqualize, //Height equalization
+    cmConstHeight, //Constant height brush
+    cmElevateAll, //Terrain kind elevation
     cmBrush, //Terrain brush
     cmTiles, // Individual tiles
     cmObjects, //Terrain objects
+    cmObjectsBrush, //Objects brush
     cmMagicWater, //Magic water
     cmSelection, //Selection manipulations
     cmUnits, //Units
@@ -499,12 +526,7 @@ type
 
 
 type
-  TKMissionMode = (mmNormal, mmTactic);
-
   TKMAllianceType = (atEnemy, atAlly);
-
-  TKMapFolder = (mfSP, mfMP, mfDL);
-  TKMapFolderSet = set of TKMapFolder;
 
 const
   FOG_OF_WAR_MIN  = 80;           //Minimum value for explored but FOW terrain, MIN/ACT determines FOW darkness
@@ -516,7 +538,7 @@ const
 const
   MAPED_HISTORY_DEPTH_MIN = 20;
   MAPED_HISTORY_DEPTH_MAX = 1000;
-  MAPED_HISTORY_DEPTH_DEF = 500;
+  MAPED_HISTORY_DEPTH_DEF = 250;
 
 
 const
@@ -533,7 +555,7 @@ const
 { Terrain }
 type
   TKMTerrainPassability = (
-    tpUnused,
+    tpNone,
     tpWalk,        // General passability of tile for any walking units
     tpWalkRoad,    // Type of passability for Serfs when transporting wares, only roads have it
     tpBuildNoObj,  // Can we build a house on this tile after removing an object on the tile or house near it?
@@ -599,7 +621,7 @@ type
     utCavalry,      utBarbarian,
 
     utPeasant,      utSlingshot,    utMetalBarbarian,utHorseman,
-    utCatapult,     utBallista,
+    utCatapult,   utBallista,
 
     utWolf,         utFish,         utWatersnake,   utSeastar,
     utCrab,         utWaterflower,  utWaterleaf,    utDuck);
@@ -614,13 +636,17 @@ const
   WARRIOR_MIN = utMilitia;
   WARRIOR_MAX = utBallista;
   WARRIOR_EQUIPABLE_BARRACKS_MIN = utMilitia; //Available from barracks
-  WARRIOR_EQUIPABLE_BARRACKS_MAX = utBallista;
+  WARRIOR_EQUIPABLE_BARRACKS_MAX = utHorseman;
   WARRIOR_EQUIPABLE_TH_MIN = utBarbarian; //Available from Townhall
-  WARRIOR_EQUIPABLE_TH_MAX = utBallista;
+  WARRIOR_EQUIPABLE_TH_MAX = utHorseman;
   HUMANS_MIN = utSerf;
   HUMANS_MAX = utBallista;
   ANIMAL_MIN = utWolf;
   ANIMAL_MAX = utDuck;
+
+  UNITS_VALID = [UNIT_MIN..UNIT_MAX];
+  UNITS_CITIZEN = [CITIZEN_MIN..CITIZEN_MAX];
+  UNITS_HUMAN = [HUMANS_MIN..HUMANS_MAX];
 
   WARRIORS_IRON = [utSwordsman, utArbaletman, utHallebardman, utCavalry];
 
@@ -632,14 +658,22 @@ type
 
 //Used for AI defence and linking troops
 type
-  TKMGroupType = (gtMelee, gtAntiHorse, gtRanged, gtMounted);
-  TKMGroupTypeArray = array [TKMGroupType] of Word;
+  TKMGroupType = (gtNone, gtAny, gtMelee, gtAntiHorse, gtRanged, gtMounted);
   TKMGroupTypeSet = set of TKMGroupType;
 
-  TKMArmyType = (atIronThenLeather = 0, atLeather = 1, atIron = 2, atIronAndLeather = 3);
+const
+  GROUP_TYPE_MIN = gtMelee;
+  GROUP_TYPE_MAX = gtMounted;
+  GROUP_TYPE_MIN_OFF = Ord(GROUP_TYPE_MIN);
+  GROUP_TYPES: array [GROUP_TYPE_MIN..GROUP_TYPE_MAX] of Byte = (0, 1, 2, 3);
+  GROUP_TYPES_VALID = [GROUP_TYPE_MIN..GROUP_TYPE_MAX];
+  GROUP_TYPES_CNT = Integer(GROUP_TYPE_MAX) - Integer(GROUP_TYPE_MIN) + 1;
+
+type
+  TKMGroupTypeArray = array [GROUP_TYPE_MIN..GROUP_TYPE_MAX] of Word;
+  TKMArmyType = (atIronThenLeather, atLeather, atIron, atIronAndLeather);
 
 const
-  GROUP_TYPES: array [TKMGroupType] of Byte = (0, 1, 2, 3);
 
   UNIT_TO_GROUP_TYPE: array [WARRIOR_MIN..WARRIOR_MAX] of TKMGroupType = (
     gtMelee,gtMelee,gtMelee, //utMilitia, utAxeFighter, utSwordsman
@@ -657,7 +691,7 @@ const
     );
 
   //AI's prefences for training troops
-  AI_TROOP_TRAIN_ORDER: array [TKMGroupType, 1..3] of TKMUnitType = (
+  AI_TROOP_TRAIN_ORDER: array [GROUP_TYPE_MIN..GROUP_TYPE_MAX, 1..3] of TKMUnitType = (
     (utSwordsman,    utAxeFighter, utMilitia),
     (utHallebardman, utPikeman,    utNone),
     (utArbaletman,   utBowman,     utNone),
@@ -691,7 +725,7 @@ const //Corresponding indices in units.rx
 
 type
   TKMUnitTaskType = ( uttUnknown, //Uninitialized task to detect bugs
-        uttSelfTrain,uttSelfTrainSiege, uttDeliver,         uttBuildRoad,  uttBuildWine,        uttBuildField, 
+        uttSelfTrain, uttSelfTrainSiege, uttDeliver,         uttBuildRoad,  uttBuildWine,        uttBuildField,
         uttBuildHouseArea, uttBuildHouse, uttBuildHouseRepair, uttGoHome,    uttDismiss,
         uttGoEat,     uttMining,          uttDie,        uttGoOutShowHungry,  uttAttackHouse,
         uttThrowRock);
@@ -699,11 +733,13 @@ type
   TKMUnitActionName = (uanStay, uanWalkTo, uanGoInOut, uanAbandonWalk, uanFight, uanStormAttack, uanSteer);
 
   TKMUnitActionType = (uaWalk=120, uaWork, uaSpec, uaDie, uaWork1,
-                     uaWork2, uaWorkEnd, uaEat, uaWalkArm, uaWalkTool,
-                     uaWalkBooty, uaWalkTool2, uaWalkBooty2, uaUnknown);
+                       uaWork2, uaWorkEnd, uaEat, uaWalkArm, uaWalkTool,
+                       uaWalkBooty, uaWalkTool2, uaWalkBooty2, uaUnknown);
   TKMUnitActionTypeSet = set of TKMUnitActionType;
 
 const
+  UNIT_ACT_MIN = uaWalk;
+  UNIT_ACT_MAX = uaWalkBooty2;
   UNIT_ACT_STR: array [TKMUnitActionType] of string = ('uaWalk', 'uaWork', 'uaSpec', 'uaDie', 'uaWork1',
              'uaWork2', 'uaWorkEnd', 'uaEat', 'uaWalkArm', 'uaWalkTool',
              'uaWalkBooty', 'uaWalkTool2', 'uaWalkBooty2', 'uaUnknown');
@@ -753,7 +789,6 @@ type
     ftRoad,
     ftCorn,
     ftWine,
-    ftWall,
     ftInitWine //Reset rotation and set grapes ground, but without Grapes yet
   );
 
@@ -780,56 +815,6 @@ type
         tlFieldWork,// -        X         X       X          -     X      -
         tlRoadWork  // -        X         X       X          -     X      -
         );
-
-
-type
-  // Sketch of the goal and message displaying system used in KaM (from scripting point of view anyway)
-  // This is very similar to that used in KaM and is quite flexable/expandable.
-  // (we can add more parameters/conditions as well as existing KaM ones, possibly using a new script command)
-  // Some things are probably named unclearly, please give me suggestions or change them. Goals are the one part
-  // of scripting that seems to confuse everyone at first, mainly because of the TGoalStatus. In 99% of cases gsTrue and gtDefeat
-  // go together, because the if the defeat conditions is NOT true you lose, not the other way around. I guess it should be called a
-  // "survival" conditions rather than defeat.
-  // I put some examples below to give you an idea of how it works. Remember this is basically a copy of the goal scripting system in KaM,
-  // not something I designed. It can change, this is just easiest to implement from script compatability point of view.
-
-  TKMGoalType = (
-    gltNone = 0,  // Means: It is not required for victory or defeat (e.g. simply display a message)
-    gltVictory,   // Means: "The following condition must be true for you to win"
-    gltSurvive    // Means: "The following condition must be true or else you lose"
-  );
-
-  // Conditions are the same numbers as in KaM script
-  TKMGoalCondition = (
-    gcUnknown0,        // Not used/unknown
-    gcBuildTutorial,   // Must build a tannery (and other buildings from tutorial?) for it to be true. In KaM tutorial messages will be dispalyed if this is a goal
-    gcTime,            // A certain time must pass
-    gcBuildings,       // Storehouse, school, barracks, TownHall
-    gcTroops,          // All troops
-    gcUnknown5,        // Not used/unknown
-    gcMilitaryAssets,  // All Troops, Coal mine, Weapons Workshop, Tannery, Armory workshop, Stables, Iron mine, Iron smithy, Weapons smithy, Armory smithy, Barracks, Town hall and Vehicles Workshop
-    gcSerfsAndSchools, // Serfs (possibly all citizens?) and schoolhouses
-    gcEconomyBuildings // School, Inn and Storehouse
-    //We can come up with our own
-  );
-
-  TKMGoalStatus = (gsTrue = 0, gsFalse = 1); // Weird that it's inverted, but KaM uses it that way
-
-const
-  //We discontinue support of other goals in favor of PascalScript scripts
-  GOALS_SUPPORTED: set of TKMGoalCondition =
-    [gcBuildings, gcTroops, gcMilitaryAssets, gcSerfsAndSchools, gcEconomyBuildings];
-
-  GOAL_CONDITION_STR: array [TKMGoalCondition] of string = (
-    'Unknown 0',
-    'Build Tannery',
-    'Time',
-    'Store School Barracks',
-    'Troops',
-    'Unknown 5',
-    'Military assets',
-    'Serfs&Schools',
-    'School Inn Store');
 
 //Indexes KM_FormMain.StatusBar
 const
@@ -889,28 +874,28 @@ const
   //Colors available for selection in multiplayer
   MP_COLOR_COUNT = 22;
   MP_TEAM_COLORS: array [1..MP_COLOR_COUNT] of Cardinal = (
-    $FF0000EB, // Red
-    $FF076CF8, // Orange
-    $FF00B5FF, // Gold
-    $FF07FFFF, // Lauenburg yellow
-    $FF0EC5A2, // Lime green
-    $FF07FF07, // Neon green
-    $FF00A100, // Bright green
-    $FF134B00, // Dark green
-    $FF7A9E00, // Teal
-    $FFFACE64, // Sky blue
-    $FF973400, // Blue
-    $FFCB3972, // Violet (Amethyst)
-    $FF720468, // Purple
-    $FFDE8FFB, // Pink
-    $FFFF07FF, // Magenta
-    $FF4A00A8, // Dark pink
-    $FF00005E, // Maroon
-    $FF103C52, // Brown
-    $FF519EC9, // Tan
-    $FFFFFFFF, // White
-    $FF838383, // Grey
-    $FF1B1B1B  // Black
+    $FF0000EB, // 1 Red
+    $FF076CF8, // 2 Orange
+    $FF00B5FF, // 3 Gold
+    $FF07FFFF, // 4 Lauenburg yellow
+    $FF0EC5A2, // 5 Lime green
+    $FF07FF07, // 6 Neon green
+    $FF00A100, // 7 Bright green
+    $FF134B00, // 8 Dark green
+    $FF7A9E00, // 9 Teal
+    $FFFACE64, // 10 Sky blue
+    $FF973400, // 11 Blue
+    $FFCB3972, // 12 Violet (Amethyst)
+    $FF720468, // 13 Purple
+    $FFDE8FFB, // 14 Pink
+    $FFFF07FF, // 15 Magenta
+    $FF4A00A8, // 16 Dark pink
+    $FF00005E, // 17 Maroon
+    $FF103C52, // 18 Brown
+    $FF519EC9, // 19 Tan
+    $FFFFFFFF, // 20 White
+    $FF838383, // 21 Grey
+    $FF1B1B1B  // 22 Black
   );
 
   //Players colors, as they appear in KaM when the color is not specified in the script, copied from palette values.
@@ -925,7 +910,7 @@ const
   3,   //Black
   3,   //Black
   255  //White}
-  DefaultTeamColors: array [0..MAX_HANDS-1] of Cardinal = (
+  DEFAULT_TEAM_COLORS: array [0..MAX_HANDS-1] of Cardinal = (
     $FF0707FF, //Red
     $FFE3BB5B, //Cyan
     $FF27A700, //Green
@@ -999,6 +984,7 @@ const
   icLightGreen = $FF00F000;
   icDeepGreen = $FF008000;
   icGreenYellow = $FF00FFBB;
+  icTeal = $FF808000;
 
   icPink = $FFFF00FF;
   icDarkPink = $FFAA00AA;
@@ -1078,11 +1064,11 @@ const
 //  clGameAlly = icYellow;
 //  clGameEnemy = icCyan;
 
-  GROUP_IMG: array [TKMGroupType] of Word = (
+  GROUP_IMG: array [GROUP_TYPE_MIN..GROUP_TYPE_MAX] of Word = (
     371, 374,
     376, 377);
 
-  GROUP_TXT_COLOR: array [TKMGroupType] of Cardinal = (
+  GROUP_TXT_COLOR: array [GROUP_TYPE_MIN..GROUP_TYPE_MAX] of Cardinal = (
     icWhite,
     icGreen,
     icPink,
@@ -1090,6 +1076,17 @@ const
 
 var
   ExeDir: UnicodeString;
+
+const
+  WARRIORS_POWER_RATES: array [WARRIOR_MIN..WARRIOR_MAX] of Single = (
+    1, 2.4, 5.2,    // utMilitia, utAxeFighter, utSwordsman
+    2.2, 4,         // utBowman, utArbaletman
+    2, 4,           // utPikeman, utHallebardman
+    3.3, 6,         // utHorseScout, utCavalry
+    5.3, 1.5, 1.5,  // utBarbarian, utPeasant, utSlingshot
+    5.3, 2.1,        // utMetalBarbarian, utHorseman
+    5.5, 5.5        // utCatapult, utBallista
+  );
 
 implementation
 

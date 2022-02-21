@@ -46,20 +46,11 @@ type
     procedure LoadCustomData(aLoadStream: TKMemoryStream);
   end;
 
+var
+  gResWares: TKMResWares;
+
 
 const
- WARE_MIN = wtTrunk;
- WARE_MAX = wtFish;
- WARFARE_MIN = wtShield;
- WEAPON_MIN = wtShield;
- WEAPON_MAX = wtArbalet;
- WARFARE_MAX = wtHorse;
-
- WARE_CNT = Integer(WARE_MAX) - Integer(WARE_MIN) + 1;
- WARFARE_CNT = Integer(WARFARE_MAX) - Integer(WEAPON_MIN) + 1;
-
- WARFARE_IRON = [wtMetalShield, wtMetalArmor, wtSword, wtHallebard, wtArbalet];
-
   MARKET_TRADEOFF_FACTOR = 2.2; //X resources buys 1 resource of equal value
 
   WARE_TY_TO_ID: array [TKMWareType] of byte = (0, //rtNone
@@ -76,18 +67,8 @@ const
     wtSkin, wtShield, wtMetalShield, wtArmor, wtMetalArmor,
     wtAxe, wtSword, wtPike, wtHallebard, wtBow,
     wtArbalet, wtHorse, wtFish);
-    
 
-
-  { WARFARE_MIN = wtWood; }
-  { WARFARE_MAX = wtHorse; }
-  
-  { WARE_CNT = Integer(WARE_MAX) - Integer(WARE_MIN) + 1; }
-  { WARFARE_CNT = Integer(WARFARE_MAX) - Integer(WEAPON_MIN) + 1; }
-
-  { WARFARE_IRON = [wtMetalShield, wtMetalArmor, wtSword, wtHallebard, wtArbalet]; }
-  
-  ORE_MAX_TYPES_CNT = 5; //Maximum number of ore tiles types
+  ORE_DENSITY_MAX_TYPES = 5; // How many different ore densities there are
 
 
   //Aligned to right to use them in GUI costs display as well

@@ -56,7 +56,7 @@ begin
           if (KMDistanceSqr(NearbyPoints[K], fPointArray[L]) < fSqrMinSpacing) then
           begin
             Check := False;
-            break;
+            Break;
           end;
         if Check then // Add position
         begin

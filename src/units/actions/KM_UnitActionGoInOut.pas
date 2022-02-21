@@ -18,16 +18,18 @@ type
     fDirection: TKMGoInDirection;
     fDoor: TKMPoint;
     fStreet: TKMPoint;
-    fHasStarted: Boolean;
+    fInitiated: Boolean;
     fPushedUnit: TKMUnit;
     fWaitingForPush: Boolean;
     fUsedDoorway: Boolean;
     procedure IncDoorway;
     procedure DecDoorway;
     function FindBestExit(const aLoc: TKMPoint): TKMBestExit;
-    function TileHasIdleUnit(X,Y: Word): TKMUnit;
+    function TileHasIdleUnitToPush(X,Y: Word): TKMUnit;
+    function TileHasUnitOnHouseEntrance: Boolean;
     procedure WalkIn;
     procedure WalkOut;
+    function GetIsStarted: Boolean;
   public
     OnWalkedOut: TEvent; //NOTE: Caller must sync these events after loading, used with caution
     OnWalkedIn: TEvent;
@@ -38,8 +40,7 @@ type
     function ActName: TKMUnitActionName; override;
     function CanBeInterrupted(aForced: Boolean = True): Boolean; override;
     function GetExplanation: UnicodeString; override;
-    property GetHasStarted: boolean read fHasStarted;
-    property GetWaitingForPush: boolean read fWaitingForPush;
+    property IsStarted: Boolean read GetIsStarted; // Is unit actually started exiting or going inside?
     property Direction: TKMGoInDirection read fDirection;
     function GetDoorwaySlide(aCheck: TKMCheckAxis): Single;
     function Execute: TKMActionResult; override;
@@ -50,7 +51,7 @@ type
 implementation
 uses
   KM_HandsCollection, KM_Resource, KM_Terrain, KM_UnitActionStay, KM_UnitActionWalkTo,
-  KM_HouseBarracks, KM_ResHouses, KM_ResUnits, KM_CommonUtils,
+  KM_HouseBarracks, KM_ResHouses, KM_ResUnits, KM_CommonUtils, KM_GameParams,
   KM_ResTypes;
 
 
@@ -63,7 +64,7 @@ begin
   //and we might be dying in destroyed house (2)
   fHouse          := aHouse.GetPointer;
   fDirection      := aDirection;
-  fHasStarted     := False;
+  fInitiated      := False;
   fWaitingForPush := False;
 
   if fDirection = gdGoInside then
@@ -76,6 +77,7 @@ end;
 constructor TKMUnitActionGoInOut.Load(LoadStream: TKMemoryStream);
 begin
   inherited;
+
   LoadStream.CheckMarker('UnitActionGoInOut');
   LoadStream.Read(fStep);
   LoadStream.Read(fHouse, 4);
@@ -83,7 +85,7 @@ begin
   LoadStream.Read(fDirection, SizeOf(fDirection));
   LoadStream.Read(fDoor);
   LoadStream.Read(fStreet);
-  LoadStream.Read(fHasStarted);
+  LoadStream.Read(fInitiated);
   LoadStream.Read(fWaitingForPush);
   LoadStream.Read(fUsedDoorway);
 end;
@@ -92,6 +94,7 @@ end;
 procedure TKMUnitActionGoInOut.SyncLoad;
 begin
   inherited;
+
   fHouse := gHands.GetHouseByUID(cardinal(fHouse));
   fPushedUnit := gHands.GetUnitByUID(cardinal(fPushedUnit));
 end;
@@ -107,8 +110,8 @@ begin
 
 
   if (fUnit <> nil)
-    and fHasStarted
-    and (gTerrain.Land[fUnit.NextPosition.Y, fUnit.NextPosition.X].IsUnit = fUnit) then
+    and fInitiated
+    and (gTerrain.Land^[fUnit.NextPosition.Y, fUnit.NextPosition.X].IsUnit = fUnit) then
   begin
     case fDirection of
       //Clear terrain lock for house entrance that made while unit was entering the house
@@ -142,6 +145,13 @@ end;
 function TKMUnitActionGoInOut.GetExplanation: UnicodeString;
 begin
   Result := 'Walking in/out';
+end;
+
+
+// Is unit actually started exiting or going inside?
+function TKMUnitActionGoInOut.GetIsStarted: Boolean;
+begin
+  Result := fInitiated and not fWaitingForPush;
 end;
 
 
@@ -206,14 +216,14 @@ begin
       UL := nil;
       UR := nil;
       //U could be nil if tile is unwalkable for some reason
-      UC := TileHasIdleUnit(aLoc.X, aLoc.Y);
+      UC := TileHasIdleUnitToPush(aLoc.X, aLoc.Y);
       if UC <> nil then
         Result := beCenter
       else
       begin
-        UL := TileHasIdleUnit(aLoc.X-1, aLoc.Y);
+        UL := TileHasIdleUnitToPush(aLoc.X-1, aLoc.Y);
         L := UL <> nil;
-        UR := TileHasIdleUnit(aLoc.X+1, aLoc.Y);
+        UR := TileHasIdleUnitToPush(aLoc.X+1, aLoc.Y);
         R := UR <> nil;
         Result := ChooseBestExit(L, R);
       end;
@@ -235,7 +245,7 @@ end;
 
 
 //Check that tile is walkable and there's no unit blocking it or that unit can be pushed away
-function TKMUnitActionGoInOut.TileHasIdleUnit(X,Y: Word): TKMUnit;
+function TKMUnitActionGoInOut.TileHasIdleUnitToPush(X,Y: Word): TKMUnit;
 var
   U: TKMUnit;
 begin
@@ -244,7 +254,7 @@ begin
   if gTerrain.TileInMapCoords(X,Y)
   and (gTerrain.CheckPassability(KMPoint(X,Y), fUnit.DesiredPassability))
   and (gTerrain.CanWalkDiagonaly(fUnit.Position, X, Y))
-  and (gTerrain.Land[Y,X].IsUnit <> nil) then //If there's some unit we need to do a better check on him
+  and (gTerrain.Land^[Y,X].IsUnit <> nil) then //If there's some unit we need to do a better check on him
   begin
     U := gTerrain.UnitsHitTest(X,Y); //Let's see who is standing there
 
@@ -255,6 +265,16 @@ begin
     and (gHands.CheckAlliance(U.Owner, fUnit.Owner) = atAlly) then
       Result := U;
   end;
+end;
+
+
+function TKMUnitActionGoInOut.TileHasUnitOnHouseEntrance: Boolean;
+begin
+  if fHouse.IsDestroyed then Exit(False);
+
+  // There could be a unit walking in the house already,
+  // f.e. if serf was added at point below entrance by script and he went straight into the same house
+  Result := (gTerrain.Land^[fHouse.Entrance.Y, fHouse.Entrance.X].IsUnit <> nil);
 end;
 
 
@@ -297,28 +317,28 @@ end;
 
 
 function TKMUnitActionGoInOut.GetDoorwaySlide(aCheck: TKMCheckAxis): Single;
-var Offset: Integer;
+var
+  offset: Single;
 begin
-  if aCheck = axX then
-    Offset := gRes.Houses[fHouse.HouseType].EntranceOffsetXpx - CELL_SIZE_PX div 2
-  else
-    Offset := gRes.Houses[fHouse.HouseType].EntranceOffsetYpx;
-
-  if (fHouse = nil) or not fHasStarted then
+  if (fHouse = nil) or not fInitiated then
     Result := 0
   else
-    Result := Mix(0, Offset/CELL_SIZE_PX, fStep);
+  begin
+    offset := gResHouses[fHouse.HouseType].GetDoorwayOffset(aCheck);
+
+    Result := Mix(0, offset, fStep);
+  end;
 end;
 
 
 function TKMUnitActionGoInOut.Execute: TKMActionResult;
 var
-  Distance: Single;
   U: TKMUnit;
+  distance: Single;
 begin
   Result := arActContinues;
 
-  if not fHasStarted then
+  if not fInitiated then
   begin
     //Set Door and Street locations
     fDoor := KMPoint(fUnit.Position.X, fUnit.Position.Y - Round(fStep));
@@ -332,6 +352,11 @@ begin
                     // Since we did not occupy entrance tile other units inside house could do that already
                     if fHouse.IsDestroyed then
                       Exit(arActCanNotStart)
+                    else
+                    // There could be a unit walking in the house already,
+                    // f.e. if serf was added at point below entrance by script and he went straight into the same house
+                    if TileHasUnitOnHouseEntrance then
+                      Exit
                     else
                       WalkIn;
       gdGoOutside:  begin
@@ -347,7 +372,7 @@ begin
                       if (fPushedUnit <> nil) then
                       begin
                         fWaitingForPush := True;
-                        fHasStarted := True;
+                        fInitiated := True;
                         Exit;
                       end
                       else
@@ -355,13 +380,13 @@ begin
                     end;
     end;
 
-    fHasStarted := True;
+    fInitiated := True;
   end;
 
 
   if fWaitingForPush then
   begin
-    U := gTerrain.Land[fStreet.Y,fStreet.X].IsUnit;
+    U := gTerrain.Land^[fStreet.Y,fStreet.X].IsUnit;
     if (U = nil) then //Unit has walked away
     begin
       fWaitingForPush := False;
@@ -374,7 +399,7 @@ begin
         or not (U.Action is TKMUnitActionWalkTo) //Unit was interupted (no longer pushed), so start again
         or not TKMUnitActionWalkTo(U.Action).WasPushed then
       begin
-        fHasStarted := False;
+        fInitiated := False;
         fWaitingForPush := False;
         gHands.CleanUpUnitPointer(fPushedUnit);
       end;
@@ -394,13 +419,11 @@ begin
     fUnit.IsExchanging := (fHouse.DoorwayUse > 1);
 
   Assert((fHouse = nil) or KMSamePoint(fDoor, fHouse.Entrance)); //Must always go in/out the entrance of the house
-  Distance := gRes.Units[fUnit.UnitType].Speed;
 
   //Actual speed is slower if we are moving diagonally, due to the fact we are moving in X and Y
-  if (fStreet.X - fDoor.X <> 0) then
-    Distance := Distance / 1.41; {sqrt (2) = 1.41421 }
+  distance := gRes.Units[fUnit.UnitType].GetEffectiveWalkSpeed(fStreet.X - fDoor.X <> 0);
 
-  fStep := fStep - Distance * ShortInt(fDirection);
+  fStep := fStep - distance * ShortInt(fDirection);
   fUnit.PositionF := KMLerp(fDoor, fStreet, fStep);
   fUnit.Visible := (fHouse = nil) or (fHouse.IsDestroyed) or (fStep > 0); //Make unit invisible when it's inside of House
 
@@ -459,6 +482,7 @@ end;
 procedure TKMUnitActionGoInOut.Save(SaveStream: TKMemoryStream);
 begin
   inherited;
+
   SaveStream.PlaceMarker('UnitActionGoInOut');
   SaveStream.Write(fStep);
   SaveStream.Write(fHouse.UID); //Store ID, then substitute it with reference on SyncLoad
@@ -466,7 +490,7 @@ begin
   SaveStream.Write(fDirection, SizeOf(fDirection));
   SaveStream.Write(fDoor);
   SaveStream.Write(fStreet);
-  SaveStream.Write(fHasStarted);
+  SaveStream.Write(fInitiated);
   SaveStream.Write(fWaitingForPush);
   SaveStream.Write(fUsedDoorway);
 end;

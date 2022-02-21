@@ -30,7 +30,7 @@ type
     procedure SyncLoad; override;
     procedure DemolishHouse(aFrom: TKMHandID; IsSilent: Boolean = False); override;
     procedure ResAddToIn(aWare: TKMWareType; aCount: Integer = 1; aFromScript: Boolean = False); override;
-    function AddUnitToQueue(aUnit: TKMUnitType; aCount: Byte): Byte; //Should add unit to queue if there's a place
+    function AddUnitToQueue(aUnit: TKMUnitType; aCount: Integer): Byte; //Should add unit to queue if there's a place
     procedure ChangeUnitTrainOrder(aNewPosition: Integer); overload; //Change last unit in queue training order
     procedure ChangeUnitTrainOrder(aOldPosition, aNewPosition: Integer); overload; //Change unit order in queue
     procedure RemUnitFromQueue(aID: Byte); //Should remove unit from queue and shift rest up
@@ -110,11 +110,13 @@ end;
 //Add units to training queue
 //aCount allows to add several units at once (but not more than Schools queue can fit)
 //Returns the number of units successfully added to the queue
-function TKMHouseSchool.AddUnitToQueue(aUnit: TKMUnitType; aCount: Byte): Byte;
+function TKMHouseSchool.AddUnitToQueue(aUnit: TKMUnitType; aCount: Integer): Byte;
 var
   I, K: Integer;
 begin
   Result := 0;
+  if aCount <= 0 then Exit;
+
   for K := 1 to Min(aCount, Length(fQueue)) do
   for I := 1 to High(fQueue) do
   if fQueue[I] = utNone then
@@ -174,7 +176,7 @@ end;
 procedure TKMHouseSchool.ChangeUnitTrainOrder(aOldPosition, aNewPosition: Integer);
 var
   tmpUnit: TKMUnitType;
-  I: Byte;
+  I: Integer;
 begin
   Assert((aNewPosition >= 0) and (aOldPosition <= 5));
 
@@ -232,7 +234,8 @@ begin
     gHands[Owner].Deliveries.Queue.RemOffer(Self, wtGold, 1);
 
   //Create the Unit
-  fUnitWip := gHands[Owner].TrainUnit(fQueue[0], Entrance);
+  fUnitWip := gHands[Owner].TrainUnit(fQueue[0], Self);
+  TKMUnit(fUnitWip).InHouse := nil; // unit is not trained yet, so we should not set him as 'InHouse'
   TKMUnit(fUnitWip).TrainInHouse(Self); //Let the unit start the training task
 
   WorkAnimStep := 0;
@@ -322,7 +325,8 @@ end;
 // Returns position of the last unit in queue.
 // If queue is empty, return -1
 function TKMHouseSchool.LastUnitPosInQueue: Integer;
-var I: Integer;
+var
+  I: Integer;
 begin
   Result := -1;
   for I := 0 to High(fQueue) do
@@ -346,6 +350,7 @@ end;
 procedure TKMHouseSchool.Save(SaveStream: TKMemoryStream);
 begin
   inherited;
+
   SaveStream.PlaceMarker('HouseSchool');
   SaveStream.Write(TKMUnit(fUnitWip).UID); //Store ID, then substitute it with reference on SyncLoad
   SaveStream.Write(fHideOneGold);

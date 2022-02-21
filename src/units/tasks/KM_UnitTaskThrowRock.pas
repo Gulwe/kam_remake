@@ -24,8 +24,9 @@ type
 
 implementation
 uses
-  KM_HandsCollection, KM_Projectiles, KM_Hand,
-  KM_ResTypes;
+  KM_HandsCollection, KM_Hand,
+  KM_Projectiles,
+  KM_CommonGameTypes, KM_ResTypes;
 
 
 { TTaskThrowRock }

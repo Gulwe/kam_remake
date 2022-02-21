@@ -9,8 +9,9 @@ uses
 
 const
   HOUSE_MIN = htArmorSmithy;
-  HOUSE_MAX = htWall;
-  HOUSE_WORKSHOP = [htWeaponSmithy, htArmorSmithy, htWeaponWorkshop, htArmorWorkshop];
+  HOUSE_MAX = htObsTower;
+  HOUSES_VALID = [HOUSE_MIN..HOUSE_MAX];
+  HOUSE_WORKSHOP = [htWeaponSmithy, htArmorSmithy, htWeaponWorkshop, htArmorWorkshop, htSiegeWorkshop];
 
   HOUSES_CNT = Integer(HOUSE_MAX) - Integer(HOUSE_MIN) + 1;
 
@@ -39,13 +40,13 @@ type
     ResInput,ResOutput: array [1..4] of ShortInt; //KaM_Remake will use its own tables for this matter
     ResProductionX: ShortInt;
     MaxHealth,Sight: SmallInt;
-    OwnerType: ShortInt;
+    WorkerType: ShortInt;
     Foot1: array [1..12] of ShortInt; //Sound indices
     Foot2: array [1..12] of SmallInt; //vs sprite ID
   end;
 
   THouseArea = array [1..4, 1..4] of Byte;
-  THouseRes = array [1..4] of TKMWareType;
+  THouseRes = array [1..4] of TKMWareType; //todo: Rename to TKMHouseWares4
 
   //This class wraps KaM House info
   //it hides unused fields and adds new ones
@@ -60,7 +61,7 @@ type
     function GetHouseName: UnicodeString;
     function GetResInput: THouseRes;
     function GetResOutput: THouseRes;
-    function GetOwnerType: TKMUnitType;
+    function GetWorkerType: TKMUnitType;
     function GetReleasedBy: TKMHouseType;
     function GetTabletIcon: Word;
     function GetSnowPic: SmallInt;
@@ -89,7 +90,8 @@ type
     property WorkerRest: Smallint read fHouseDat.WorkerRest;
     property ResProductionX: ShortInt read fHouseDat.ResProductionX;
     property Sight: Smallint read fHouseDat.Sight;
-    property OwnerType: TKMUnitType read GetOwnerType;
+    property WorkerType: TKMUnitType read GetWorkerType;
+    function CanHasWorker: Boolean;
     //Additional properties added by Remake
     property BuildArea: THouseArea read GetArea;
     property GroundVisibleArea: THouseArea read GetGroundVisibleArea;
@@ -108,6 +110,7 @@ type
     function MaxHealth: Word;
     function ProducesWares: Boolean;
     procedure Outline(aList: TKMPointList);
+    function GetDoorwayOffset(aCheck: TKMCheckAxis): Single;
   end;
 
 
@@ -133,6 +136,9 @@ type
 
     procedure ExportCSV(const aPath: string);
   end;
+
+var
+  gResHouses: TKMResHouses;
 
 
 const
@@ -183,7 +189,7 @@ const
     );
 
   //These tables are used to convert between KaM script IDs and Remake enums
-  HOUSE_DAT_COUNT = 31;
+  HOUSE_DAT_COUNT = 32;
   //KaM scripts and HouseDat address houses in this order
   HOUSE_ID_TO_TYPE: array [0 .. HOUSE_DAT_COUNT - 1] of TKMHouseType = (
     htSawmill, htIronSmithy, htWeaponSmithy, htCoalMine, htIronMine,
@@ -191,7 +197,7 @@ const
     htArmorSmithy, htStore, htStables, htSchool, htQuary,
     htMetallurgists, htSwine, htWatchTower, htTownHall, htWeaponWorkshop,
     htArmorWorkshop, htBarracks, htMill, htSiegeWorkshop, htButchers,
-    htTannery, htNone, htInn, htWineyard, htMarketplace, htCharcoalFactory);
+    htTannery, htNone, htInn, htWineyard, htMarketplace, htCharcoalFactory, htObsTower);
 
   //TKMHouseType corresponds to this index in KaM scripts and libs
   //KaM scripts are 0 based, so we must use HouseTypeToIndex[H]-1 in script usage. Other cases are 1 based.
@@ -203,7 +209,7 @@ const
 
 implementation
 uses
-  KromUtils, KM_Outline, KM_Points, KM_PolySimplify, KM_ResTexts, KM_ResUnits;
+  TypInfo, KromUtils, KM_Outline, KM_Points, KM_PolySimplify, KM_ResTexts, KM_ResUnits;
 
 
 type
@@ -542,41 +548,41 @@ const
     SnowSpriteId:     2057;
     GroundArea:       ((0,0,0,0), (0,0,0,0), (3,0,1,0), (4,2,1,0));
     ),
-    ( //Charcoal factory
+        ( //Charcoal factory
     PlanYX:           ((0,0,0,0), (0,0,0,0), (1,1,1,0), (1,1,2,0));
     NeedsPlayerOrder: False;
     BuildIcon:        332;
-    TabletSpriteId:   274;
+    TabletSpriteId:   282;
     Input:            (wtTrunk,       wtNone,      wtNone,       wtNone);
     Output:           (wtCoal,       wtNone,       wtNone,       wtNone);
     UnlockedByHouse:  htWoodcutters;
-    SnowSpriteId:     2078;
+    SnowSpriteId:     0;
     GroundArea:       ((0,0,0,0), (0,0,0,0), (3,0,1,0), (4,2,1,0));
     ),
-        ( //Wall
-    PlanYX:           ((0,0,0,0), (0,0,0,0), (0,0,0,0), (0,0,1,0));
+                ( //htObsTower
+    PlanYX:           ((0,0,0,0), (0,0,0,0), (0,1,1,0), (0,1,2,0));
     NeedsPlayerOrder: False;
-    BuildIcon:        338;
-    TabletSpriteId:   0;
+    BuildIcon:        333;
+    TabletSpriteId:   283;
     Input:            (wtNone,       wtNone,      wtNone,       wtNone);
-    Output:           (wtNone,       wtNone,       wtNone,       wtNone);
-    UnlockedByHouse:  htQuary;
-    SnowSpriteId:     2078;
-    GroundArea:       ((0,0,0,0), (0,0,0,0), (0,0,0,0), (0,0,1,0));
+    Output:           (wtNone,       wtNone,      wtNone,       wtNone);
+    UnlockedByHouse:  htStore;
+    SnowSpriteId:     2079; //2099xx
+    GroundArea:       ((0,0,0,0), (0,0,0,0), (0,1,2,0), (0,3,1,0));
     )
     );
 
 
   //For some reason in KaM the piles of building supply are not aligned, each one has a different offset.
   //These values were taking from the barracks offsets and are for use with new houses.
-  BuildSupplyOffsets: THouseBuildSupply = ( ((MoveX:  0; MoveY: 0), (MoveX: -7; MoveY: 0), (MoveX:-26; MoveY: 0),  //Wood 1-3
-                                             (MoveX:-26; MoveY: 0), (MoveX:-26; MoveY:-1), (MoveX:-26; MoveY:-4)), //Wood 4-6
-                                            ((MoveX:  0; MoveY: 0), (MoveX:  0; MoveY: 0), (MoveX: -7; MoveY: 0),  //Stone 1-3
-                                             (MoveX: -7; MoveY:-4), (MoveX:-16; MoveY:-4), (MoveX:-16; MoveY:-4)));//Stone 4-6
+  BUILD_SUPPLY_OFFSETS: THouseBuildSupply = ( ((MoveX:  0; MoveY: 0), (MoveX: -7; MoveY: 0), (MoveX:-26; MoveY: 0),  //Wood 1-3
+                                               (MoveX:-26; MoveY: 0), (MoveX:-26; MoveY:-1), (MoveX:-26; MoveY:-4)), //Wood 4-6
+                                              ((MoveX:  0; MoveY: 0), (MoveX:  0; MoveY: 0), (MoveX: -7; MoveY: 0),  //Stone 1-3
+                                               (MoveX: -7; MoveY:-4), (MoveX:-16; MoveY:-4), (MoveX:-16; MoveY:-4)));//Stone 4-6
 
 
   //'This house is unoccupied' msg index
-  HouseTypeToUnoccupiedMsgIndex: array[TKMHouseType] of ShortInt = (
+  HOUSE_TYPE_2_UNOCCUPIED_MSG_INDEX: array[TKMHouseType] of ShortInt = (
     -1, -1,     //utNone, utAny
     0,1,2,
     -1,         //htBarracks
@@ -599,9 +605,6 @@ begin
   inherited Create;
   fHouseType := aHouseType;
   fNameTextID := TX_HOUSES_NAMES__29 + HOUSE_TYPE_TO_ID[fHouseType] - 1; //May be overridden for new houses
-  
-  
-    //fNameTextID := 1515;
 end;
 
 
@@ -653,31 +656,38 @@ end;
 procedure TKMHouseSpec.Outline(aList: TKMPointList);
 var
   I, K: Integer;
-  Tmp: TKMByte2Array;
-  Outlines: TKMShapesArray;
+  tmp: TKMByte2Array;
+  outlines: TKMShapesArray;
 begin
   aList.Clear;
-  SetLength(Tmp, 6, 6);
+  SetLength(tmp, 6, 6);
 
   for I := 0 to 3 do
   for K := 0 to 3 do
-    Tmp[I+1,K+1] := Byte(HOUSE_DAT_X[fHouseType].PlanYX[I+1,K+1] > 0);
+    tmp[I+1,K+1] := Byte(HOUSE_DAT_X[fHouseType].PlanYX[I+1,K+1] > 0);
 
-  GenerateOutline(Tmp, 2, Outlines);
-  Assert(Outlines.Count = 1, 'Houses are expected to have single outline');
+  GenerateOutline(tmp, 2, outlines);
+  Assert(outlines.Count = 1, 'Houses are expected to have single outline');
 
-  for I := 0 to Outlines.Shape[0].Count - 1 do
-    aList.Add(KMPoint(Outlines.Shape[0].Nodes[I].X, Outlines.Shape[0].Nodes[I].Y));
+  for I := 0 to outlines.Shape[0].Count - 1 do
+    aList.Add(KMPoint(outlines.Shape[0].Nodes[I].X, outlines.Shape[0].Nodes[I].Y));
 end;
 
 
-function TKMHouseSpec.GetOwnerType: TKMUnitType;
+function TKMHouseSpec.GetWorkerType: TKMUnitType;
 begin
   //fHouseDat.OwnerType is read from DAT file and is ShortInt, it can be out of range (i.e. -1)
-  if InRange(fHouseDat.OwnerType, Low(UNIT_ID_TO_TYPE), High(UNIT_ID_TO_TYPE)) then
-    Result := UNIT_ID_TO_TYPE[fHouseDat.OwnerType]
+  if InRange(fHouseDat.WorkerType, Low(UNIT_ID_TO_TYPE), High(UNIT_ID_TO_TYPE)) then
+    Result := UNIT_ID_TO_TYPE[fHouseDat.WorkerType]
   else
     Result := utNone;
+end;
+
+
+// Returns True if this house could have a worker (or occupant)
+function TKMHouseSpec.CanHasWorker: Boolean;
+begin
+  Result := WorkerType <> utNone;
 end;
 
 
@@ -725,14 +735,12 @@ end;
 
 function TKMHouseSpec.GetUnoccupiedMsgId: SmallInt;
 var
-  HouseUnnocupiedMsgIndex: ShortInt;
+  houseUnnocupiedMsgIndex: ShortInt;
 begin
   Result := -1;
-  HouseUnnocupiedMsgIndex := HouseTypeToUnoccupiedMsgIndex[fHouseType];
-  if HouseUnnocupiedMsgIndex <> -1 then
-    Result := TX_MSG_HOUSE_UNOCCUPIED__22 + HouseUnnocupiedMsgIndex;
-  if HouseUnnocupiedMsgIndex = 30 then
-    Result := 1519;
+  houseUnnocupiedMsgIndex := HOUSE_TYPE_2_UNOCCUPIED_MSG_INDEX[fHouseType];
+  if houseUnnocupiedMsgIndex <> -1 then
+    Result := TX_MSG_HOUSE_UNOCCUPIED__22 + houseUnnocupiedMsgIndex;
 end;
 
 
@@ -742,11 +750,24 @@ begin
 end;
 
 
+// Get doorway offset in tile fraction
+function TKMHouseSpec.GetDoorwayOffset(aCheck: TKMCheckAxis): Single;
+begin
+  if aCheck = axX then
+    Result := gResHouses[fHouseType].EntranceOffsetXpx - CELL_SIZE_PX div 2
+  else
+    Result := gResHouses[fHouseType].EntranceOffsetYpx;
+
+  Result := Result / CELL_SIZE_PX;
+end;
+
+
 { TKMResHouses }
 constructor TKMResHouses.Create;
 
   procedure AddAnimation(aHouse: TKMHouseType; aAnim: TKMHouseActionType; aMoveX, aMoveY: Integer; const aSteps: array of SmallInt);
-  var I: Integer;
+  var
+    I: Integer;
   begin
     with fItems[aHouse].fHouseDat.Anim[aAnim] do
     begin
@@ -759,7 +780,8 @@ constructor TKMResHouses.Create;
   end;
 
   procedure AddMarketBeastAnim(aBeast: Integer; const aStep: array of SmallInt);
-  var I: Integer;
+  var
+    I: Integer;
   begin
     // Beast anims are 0 indexed
     for I := 1 to 30 do
@@ -780,7 +802,7 @@ begin
   fItems[htTannery].fHouseDat.Anim[haFlag3].Count := 0; //fix for tannery 2 flags at one place. Flag3 is unnecessary
 
   fItems[htMarketplace].fHouseType := htMarketplace;
-  fItems[htMarketplace].fHouseDat.OwnerType := -1; //No unit works here (yet anyway)
+  fItems[htMarketplace].fHouseDat.WorkerType := -1; //No unit works here (yet anyway)
   fItems[htMarketplace].fHouseDat.StonePic := 150;
   fItems[htMarketplace].fHouseDat.WoodPic := 151;
   fItems[htMarketplace].fHouseDat.WoodPal := 152;
@@ -798,142 +820,16 @@ begin
   fItems[htMarketplace].fHouseDat.WoodCost := 5;
   fItems[htMarketplace].fHouseDat.StoneCost := 6;
   for I := 1 to 6 do begin
-    fItems[htMarketplace].fHouseDat.BuildSupply[1,I].MoveX := -55+ BuildSupplyOffsets[1,I].MoveX;
-    fItems[htMarketplace].fHouseDat.BuildSupply[1,I].MoveY := 15 + BuildSupplyOffsets[1,I].MoveY;
-    fItems[htMarketplace].fHouseDat.BuildSupply[2,I].MoveX := 28 + BuildSupplyOffsets[2,I].MoveX;
-    fItems[htMarketplace].fHouseDat.BuildSupply[2,I].MoveY := 20 + BuildSupplyOffsets[2,I].MoveY;
+    fItems[htMarketplace].fHouseDat.BuildSupply[1,I].MoveX := -55+ BUILD_SUPPLY_OFFSETS[1,I].MoveX;
+    fItems[htMarketplace].fHouseDat.BuildSupply[1,I].MoveY := 15 + BUILD_SUPPLY_OFFSETS[1,I].MoveY;
+    fItems[htMarketplace].fHouseDat.BuildSupply[2,I].MoveX := 28 + BUILD_SUPPLY_OFFSETS[2,I].MoveX;
+    fItems[htMarketplace].fHouseDat.BuildSupply[2,I].MoveY := 20 + BUILD_SUPPLY_OFFSETS[2,I].MoveY;
   end;
   fItems[htMarketplace].fHouseDat.Sight := 10;
   fItems[htMarketplace].fHouseDat.SizeArea := 11;
   fItems[htMarketplace].fHouseDat.SizeX := 4;
   fItems[htMarketplace].fHouseDat.SizeY := 3;
   fItems[htMarketplace].fHouseDat.MaxHealth := 550;
-  
-  fItems[htWall].fHouseType := htWall;
-  
-  { fItems[htCharcoalFactory].fHouseDat.Anim[haWork1].Count := 0; }
-  { fItems[htCharcoalFactory].fHouseDat.Anim[haWork2].Count := 15; }
-  { fItems[htCharcoalFactory].fHouseDat.Anim[haWork3].Count := 0; }
-  { fItems[htCharcoalFactory].fHouseDat.Anim[haWork4].Count := 0; }
-  { fItems[htCharcoalFactory].fHouseDat.Anim[haWork5].Count := 0; }
-  fItems[htWall].fHouseDat.MaxHealth := 200;
-  fItems[htWall].fHouseDat.WoodCost := 1;
-  fItems[htWall].fHouseDat.StoneCost := 2;
-  fItems[htWall].fHouseDat.OwnerType := -1; 
-  fItems[htWall].fHouseDat.SizeX := 1;
-  fItems[htWall].fHouseDat.SizeY := 1;
-  
-  fItems[htWall].fHouseDat.StonePic:= 128;
-  fItems[htWall].fHouseDat.WoodPic := 129;
-  //fItems[htWall].fHouseDat.WoodPal := 129; 
- // fItems[htWall].fHouseDat.StonePal := 144; 
- 
-   AddAnimation(htWall, haFire1, 0, 0, [2090]);
-   AddAnimation(htWall, haFire2, 0, 0, [2091]);
-   AddAnimation(htWall, haFire3, 0, 0, [2092]);
-   AddAnimation(htWall, haFire4, 0, 0, [2093]);
-   AddAnimation(htWall, haFire5, 0, 0, [2094]);
-   AddAnimation(htWall, haFire6, 0, 0, [2095]);
-   AddAnimation(htWall, haFire7, 0, 0, [2096]);
-   
-   fItems[htWall].fHouseDat.Anim[haFire1].MoveY := -55;
-   fItems[htWall].fHouseDat.Anim[haFire2].MoveY := -55;
-   fItems[htWall].fHouseDat.Anim[haFire3].MoveY := -55;
-   fItems[htWall].fHouseDat.Anim[haFire4].MoveY := -55;
-   fItems[htWall].fHouseDat.Anim[haFire5].MoveY := -55;
-   fItems[htWall].fHouseDat.Anim[haFire6].MoveY := -55;
-   fItems[htWall].fHouseDat.Anim[haFire7].MoveY := -55;
-     
- 
-  fItems[htWall].fNameTextID := 1520;
-  
-  fItems[htCharcoalFactory].fHouseType := htCharcoalFactory;
-  
-  fItems[htCharcoalFactory].fHouseDat.Anim[haWork1].Count := 0;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haWork2].Count := 15;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haWork3].Count := 0;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haWork4].Count := 0;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haWork5].Count := 0;
-  fItems[htCharcoalFactory].fHouseDat.MaxHealth := 500;
-  fItems[htCharcoalFactory].fHouseDat.WoodCost := 2;
-  fItems[htCharcoalFactory].fHouseDat.StoneCost := 2;
-  fItems[htCharcoalFactory].fHouseDat.OwnerType := 2; 
-  fItems[htCharcoalFactory].fHouseDat.SizeX := 2;
-  fItems[htCharcoalFactory].fHouseDat.SizeY := 3;
-  
-  
-
-  fItems[htCharcoalFactory].fHouseDat.StonePic:= 2086;
-  fItems[htCharcoalFactory].fHouseDat.WoodPic := 142;
-  fItems[htCharcoalFactory].fHouseDat.WoodPal := 143; 
-  fItems[htCharcoalFactory].fHouseDat.StonePal := 144;
-  
-  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].Count := 0;
-  AddAnimation(htCharcoalFactory, haSmoke, 0, 0, [888,889,890,891]);
-  AddAnimation(htCharcoalFactory, haWork2, 0, 0, [2083,2083,2083,2083,2084,2084,2085,2085,2084,2084,2083,2083,2083,2083]);
-  AddAnimation(htCharcoalFactory, haWork3, 0, 0, [2083,2083,2084,2085]);
-  
-  AddAnimation(htCharcoalFactory, haFlag3, 0, 0, [1161,1162,1158,1159,1160]);
-  
-  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].MoveX := 27;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].MoveY := -60;
-
-  fItems[htCharcoalFactory].fHouseDat.Anim[haWork1].MoveX := 4;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haWork2].MoveX := 4;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haWork1].MoveY := -2;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haWork2].MoveY := -2;
-  
-  fItems[htCharcoalFactory].fHouseDat.Anim[haSmoke].MoveX := -55;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haSmoke].MoveX := -55;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haSmoke].MoveY := 42;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haSmoke].MoveY := 42;
-  
-  fItems[htCharcoalFactory].fHouseDat.EntranceOffsetXpx := 10; //Enterance is slightly to the left
-  fItems[htCharcoalFactory].fHouseDat.EntranceOffsetYpx := 10;
-
- // fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,1] := 10;
- // fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,2] := 11;
- // fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,3] := 12;
- // fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,4] := 13;
- // fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,5] := 14;
-  
-  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,1] := 154;
-  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,2] := 155;
-  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,3] := 156;
-  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,4] := 157;
-  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,5] := 158;
-  
-  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,1] := 154;
-  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,2] := 155;
-  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,3] := 156;
-  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,4] := 157;
-  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,5] := 158;
-  
-  
-  
-  //property Anim: THouseAnim read fHouseDat.Anim;
-  //fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,1] := 26;
-  //fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,2] := 27;
-  //fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,3] := 28;
-  //fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,4] := 29;
-  //fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,5] := 30;
-  
-  //AddAnimation(htCharcoalFactory, haWork1, -80, -33, [10,11,12,13,14]);
-  
-  //fItems[htCharcoalFactory].ProducesWares();
-  //fItems[htCharcoalFactory].fHouseDat.WorkerWork := 1;
-  //fItems[htCharcoalFactory].GetResInput();
-  //fItems[htCharcoalFactory].GetResOutput();
-    // function TKMHouseSpec.GetResInput: THouseRes;
-    //function TKMHouseSpec.GetResOutput: THouseRes;
-  //  property ResInput: THouseRes read GetResInput;
-  //  property ResOutput: THouseRes read GetResOutput;
-
-  fItems[htCharcoalFactory].fHouseDat.ResProductionX := 2;
-  fItems[htCharcoalFactory].fNameTextID := 1515;
-  //fItems[htCharcoalFactory].HouseUnnocupiedMsgIndex := 1519;
-  
-  
   AddAnimation(htMarketplace, haFlag1, -80, -33, [1165,1166,1167,1163,1164]);
   AddAnimation(htMarketplace, haFlag2, -73, -7, [1163,1164,1165,1166,1167]);
   AddAnimation(htMarketplace, haFlag3, 73, -80, [1161,1162,1158,1159,1160]);
@@ -958,13 +854,122 @@ begin
   fMarketBeastAnim[2].Count := 30;
   fMarketBeastAnim[2].MoveX := MARKET_WARES_OFF_X;
   fMarketBeastAnim[2].MoveY := MARKET_WARES_OFF_Y;
+  
+  
+  fItems[htObsTower].fHouseType := htObsTower;
+  fItems[htObsTower].fHouseDat.MaxHealth := 150;
+  fItems[htObsTower].fHouseDat.WoodCost := 3;
+  fItems[htObsTower].fHouseDat.StoneCost := 2;
+  fItems[htObsTower].fHouseDat.WorkerType := 13;
+  fItems[htObsTower].fHouseDat.SizeX := 2;
+  fItems[htObsTower].fHouseDat.SizeY := 2;
+  fItems[htObsTower].fHouseDat.Sight := 10;
+
+  fItems[htObsTower].fHouseDat.StonePic:= 2080;
+  fItems[htObsTower].fHouseDat.WoodPic := 2081;
+  //fItems[htObsTower].fHouseDat.WoodPal := 2082;
+  //fItems[htObsTower].fHouseDat.StonePal := 2083;
+
+  fItems[htObsTower].fNameTextID := 1516;
+
+  fItems[htObsTower].fHouseDat.Anim[haWork1].Count := 0;
+  fItems[htObsTower].fHouseDat.Anim[haWork2].Count := 0;
+  fItems[htObsTower].fHouseDat.Anim[haWork3].Count := 0;
+  fItems[htObsTower].fHouseDat.Anim[haWork4].Count := 0;
+  fItems[htObsTower].fHouseDat.Anim[haWork5].Count := 0;
+  
+  fItems[htObsTower].fHouseDat.WoodPicSteps := 23;
+  fItems[htObsTower].fHouseDat.StonePicSteps := 140;
+
+  AddAnimation(htObsTower, haIdle, -2, -16, [1653,1653,1653,1653,1654,1654,1654,1655,1655,1655,1654,1654,1654,1653,1653,1653,1653]);
+  
+  AddAnimation(htObsTower, haFlag3, 6, -170, [1161,1162,1158,1159,1160]);
+
+ // fItems[htWall].fHouseType := htWall;
+  
+ 
+  
+  fItems[htCharcoalFactory].fHouseType := htCharcoalFactory;
+  
+  fItems[htCharcoalFactory].fHouseDat.Anim[haWork1].Count := 0;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haWork2].Count := 15;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haWork3].Count := 0;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haWork4].Count := 0;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haWork5].Count := 0;
+  fItems[htCharcoalFactory].fHouseDat.MaxHealth := 500;
+  fItems[htCharcoalFactory].fHouseDat.WoodCost := 2;
+  fItems[htCharcoalFactory].fHouseDat.StoneCost := 2;
+  fItems[htCharcoalFactory].fHouseDat.WorkerType := 2;
+  fItems[htCharcoalFactory].fHouseDat.SizeX := 2;
+  fItems[htCharcoalFactory].fHouseDat.SizeY := 3;
+
+  
+
+  fItems[htCharcoalFactory].fHouseDat.StonePic:= 2082;
+  fItems[htCharcoalFactory].fHouseDat.WoodPic := 2083;
+ // fItems[htCharcoalFactory].fHouseDat.WoodPal := 2087;
+ // fItems[htCharcoalFactory].fHouseDat.StonePal := 2087;
+
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].Count := 0;
+  AddAnimation(htCharcoalFactory, haIdle, 0, 0, [1134,1134,1134,
+  1135,1135,1135,
+  1136,1136,1136,
+  1137,1137,1137,
+  1138,1138,1138,
+  1137,1137,1137,
+  1136,1136,1136,
+  1135,1135,1135,
+  1134,1134,1134
+  ]);
+  AddAnimation(htCharcoalFactory, haSmoke, 0, 0, [888,889,890,891]);
+  //AddAnimation(htCharcoalFactory, haWork2, 0, 0, [2083,2083,2083,2083,2084,2084,2085,2085,2084,2084,2083,2083,2083,2083]);
+  //AddAnimation(htCharcoalFactory, haWork1, 0, 0, [2083,2083,2084,2085]);
+  //1134
+  
+  AddAnimation(htCharcoalFactory, haFlag3, 0, 0, [1161,1162,1158,1159,1160]);
+  
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].MoveX := 27;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].MoveY := -60;
+  
+  fItems[htCharcoalFactory].fHouseDat.Anim[haIdle].MoveY := 10;
+
+  fItems[htCharcoalFactory].fHouseDat.Anim[haWork1].MoveX := 4;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haWork2].MoveX := 4;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haWork1].MoveY := -2;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haWork2].MoveY := -2;
+  
+  fItems[htCharcoalFactory].fHouseDat.Anim[haSmoke].MoveX := -55;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haSmoke].MoveX := -55;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haSmoke].MoveY := 42;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haSmoke].MoveY := 42;
+  
+  fItems[htCharcoalFactory].fHouseDat.EntranceOffsetXpx := 10; //Enterance is slightly to the left
+  fItems[htCharcoalFactory].fHouseDat.EntranceOffsetYpx := 10;
+
+  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,1] := 154;
+  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,2] := 155;
+  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,3] := 156;
+  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,4] := 157;
+  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,5] := 158;
+  
+  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,1] := 154;
+  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,2] := 155;
+  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,3] := 156;
+  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,4] := 157;
+  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,5] := 158;
+  
+
+  fItems[htCharcoalFactory].fHouseDat.ResProductionX := 2;
+  fItems[htCharcoalFactory].fNameTextID := 1515;
+
 
   //ExportCSV(ExeDir+'Houses.csv');
 end;
 
 
 destructor TKMResHouses.Destroy;
-var H: TKMHouseType;
+var
+  H: TKMHouseType;
 begin
   for H := HOUSE_MIN to HOUSE_MAX do
     FreeAndNil(fItems[H]);
@@ -981,7 +986,7 @@ end;
 
 function TKMResHouses.IsValid(aType: TKMHouseType): Boolean;
 begin
-  Result := aType in [HOUSE_MIN..HOUSE_MAX];
+  Result := aType in HOUSES_VALID;
 end;
 
 
@@ -1003,7 +1008,7 @@ end;
 function TKMResHouses.LoadHouseDat(const aPath: string): Cardinal;
 var
   S: TKMemoryStream;
-  i:integer;
+  i: Integer;
 begin
   Assert(FileExists(aPath));
 
@@ -1033,6 +1038,8 @@ var
   S: string;
   SL: TStringList;
   I, K: Integer;
+  anim: TKMHouseActionType;
+
   procedure AddField(const aField: string); overload;
   begin S := S + aField + ';'; end;
   procedure AddField(aField: Integer); overload;
@@ -1052,6 +1059,7 @@ begin
     AddField(fItems[HT].StoneCost);
     AddField(fItems[HT].ResProductionX);
     SL.Append(S);
+
     for I := 1 to 4 do
     begin
       S := '';
@@ -1059,6 +1067,22 @@ begin
         AddField(fItems[HT].BuildArea[I, K]);
       SL.Append(S);
     end;
+
+    S := 'Animation;Count;OffsetX;OffsetY';
+    SL.Append(S);
+    for anim := Low(TKMHouseActionType) to High(TKMHouseActionType) do
+    begin
+      if fItems[HT].fHouseDat.Anim[anim].Count > 0 then
+      begin
+        S := '';
+        AddField(GetEnumName(TypeInfo(TKMHouseActionType), Integer(anim)));
+        AddField(fItems[HT].fHouseDat.Anim[anim].Count);
+        AddField(fItems[HT].fHouseDat.Anim[anim].MoveX);
+        AddField(fItems[HT].fHouseDat.Anim[anim].MoveY);
+        SL.Append(S);
+      end;
+    end;
+
     S := '';
     SL.Append(S);
   end;

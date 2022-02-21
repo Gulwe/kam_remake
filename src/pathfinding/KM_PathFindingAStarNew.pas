@@ -11,8 +11,8 @@ type
   TANodeRec = record
     RouteID: Cardinal;
     X,Y: SmallInt;
-    CostTo: Word;
-    Estim: Word;
+    CostTo: Cardinal;
+    Estim: Cardinal;
     Parent: PANodeRec;
   end;
 
@@ -82,7 +82,7 @@ end;
 
 function TPathFindingAStarNew.MakeRoute: Boolean;
 const
-  C_CLOSED = 65535;
+  C_CLOSED = High(Cardinal);
 var
   N: PANodeRec;
   X, Y: Word;
@@ -150,6 +150,8 @@ begin
           begin
             N.Parent := fMinN;
             N.CostTo := fMinN.CostTo + newCost;
+            //todo: Cost has changed and the location in the queue needs to change too
+            //fHeap.UpdateItem(N);
           end;
         end;
       end;

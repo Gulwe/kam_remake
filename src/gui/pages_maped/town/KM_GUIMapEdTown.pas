@@ -2,7 +2,7 @@ unit KM_GUIMapEdTown;
 {$I KaM_Remake.inc}
 interface
 uses
-  Classes, Controls, Math, SysUtils,
+  Classes, Math, SysUtils,
   KM_Controls, KM_Defaults, KM_Pics,
   KM_InterfaceDefaults,
   KM_GUIMapEdTownHouses,
@@ -44,6 +44,7 @@ type
     procedure KeyDown(Key: Word; Shift: TShiftState; var aHandled: Boolean);
     procedure ChangePlayer;
     procedure UpdatePlayerColor;
+    procedure UpdateHotkeys;
     procedure UpdateState;
     procedure UpdateStateIdle;
   end;
@@ -51,23 +52,21 @@ type
 
 implementation
 uses
-  KM_HandsCollection, KM_ResTexts, KM_GameCursor,
-  KM_InterfaceGame, KM_RenderUI, KM_Game, KM_Utils;
-
+  KM_Game,
+  KM_HandsCollection,
+  KM_InterfaceGame,
+  KM_ResTexts, KM_ResTypes,
+  KM_Cursor,
+  KM_RenderUI,
+  KM_Utils;
 
 { TKMMapEdTown }
 constructor TKMMapEdTown.Create(aParent: TKMPanel; aOnPageChange: TNotifyEvent);
 const
-  TabGlyph: array [TKMTownTab] of Word    = (391,   141,   62,        43,    53);
-  TabRXX  : array [TKMTownTab] of TRXType = (rxGui, rxGui, rxGuiMain, rxGui, rxGui);
-  TabHint : array [TKMTownTab] of Word = (
-    TX_MAPED_VILLAGE,
-    TX_MAPED_UNITS,
-    TX_MAPED_AI_TITLE,
-    TX_MAPED_AI_DEFENSE_OPTIONS,
-    TX_MAPED_AI_ATTACK);
+  TAB_GLYPH: array [TKMTownTab] of Word    = (391,   141,   62,        43,    53);
+  TAB_RXX  : array [TKMTownTab] of TRXType = (rxGui, rxGui, rxGuiMain, rxGui, rxGui);
 var
-  I: TKMTownTab;
+  TT: TKMTownTab;
 begin
   inherited Create;
 
@@ -76,11 +75,10 @@ begin
   Panel_Town := TKMPanel.Create(aParent, 0, 45, aParent.Width, aParent.Height - 45);
   Panel_Town.Anchors := [anLeft, anTop, anBottom];
 
-  for I := Low(TKMTownTab) to High(TKMTownTab) do
+  for TT := Low(TKMTownTab) to High(TKMTownTab) do
   begin
-    Button_Town[I] := TKMButton.Create(Panel_Town, 9 + SMALL_PAD_W * Byte(I), 0, SMALL_TAB_W, SMALL_TAB_H, TabGlyph[I], TabRXX[I], bsGame);
-    Button_Town[I].Hint := GetHintWHotKey(TabHint[I], MAPED_SUBMENU_HOTKEYS[Ord(I)]);
-    Button_Town[I].OnClick := PageChange;
+    Button_Town[TT] := TKMButton.Create(Panel_Town, 9 + SMALL_PAD_W * Byte(TT), 0, SMALL_TAB_W, SMALL_TAB_H, TAB_GLYPH[TT], TAB_RXX[TT], bsGame);
+    Button_Town[TT].OnClick := PageChange;
   end;
 
   fGuiHouses := TKMMapEdTownHouses.Create(Panel_Town);
@@ -106,7 +104,7 @@ end;
 procedure TKMMapEdTown.PageChange(Sender: TObject);
 begin
   //Reset cursor mode
-  gGameCursor.Mode := cmNone;
+  gCursor.Mode := cmNone;
 
   //Hide existing pages
   fGuiHouses.Hide;
@@ -220,6 +218,28 @@ begin
   if fGuiOffence.Visible then fGuiOffence.Show;
 
   UpdatePlayerColor;
+end;
+
+
+procedure TKMMapEdTown.UpdateHotkeys;
+const
+  TAB_HINT : array [TKMTownTab] of Word = (
+    TX_MAPED_VILLAGE,
+    TX_MAPED_UNITS,
+    TX_MAPED_AI_TITLE,
+    TX_MAPED_AI_DEFENSE_OPTIONS,
+    TX_MAPED_AI_ATTACK);
+var
+  TT: TKMTownTab;
+begin
+  for TT := Low(TKMTownTab) to High(TKMTownTab) do
+    Button_Town[TT].Hint := GetHintWHotkey(TAB_HINT[TT], MAPED_SUBMENU_HOTKEYS[Ord(TT)]);
+
+  fGuiHouses.UpdateHotkeys;
+  fGuiUnits.UpdateHotkeys;
+  fGuiDefence.UpdateHotkeys;
+  fGuiOffence.UpdateHotkeys;
+  fGuiScript.UpdateHotkeys;
 end;
 
 

@@ -2,9 +2,9 @@ unit KM_GUIMenuCampaign;
 {$I KaM_Remake.inc}
 interface
 uses
-  Classes, Controls, SysUtils, Math,
+  Classes, SysUtils, Math,
   KM_Controls, KM_Pics, KM_MapTypes, KM_CampaignTypes, KM_GameTypes,
-  KM_Campaigns, KM_InterfaceDefaults;
+  KM_Campaigns, KM_InterfaceDefaults, KM_InterfaceTypes;
 
 
 type
@@ -62,7 +62,11 @@ type
 
 implementation
 uses
-  KM_Audio, KM_GameSettings, KM_ResTexts, KM_RenderUI, KM_ResFonts, KM_Music, KM_Sound, KM_ResSound, KM_Defaults, KM_Video;
+  KM_Audio, KM_Music, KM_Sound, KM_Video,
+  KM_GameSettings,
+  KM_ResTexts, KM_ResFonts, KM_ResSound, KM_ResTypes,
+  KM_RenderUI,
+  KM_Defaults;
 
 const
   FLAG_LABEL_OFFSET_X = 10;
@@ -149,7 +153,7 @@ end;
 
 procedure TKMMenuCampaign.RefreshCampaign;
 const
-  MapPic: array [Boolean] of Byte = (10, 11);
+  MAP_PIC: array [Boolean] of Byte = (10, 11);
 var
   I: Integer;
 begin
@@ -165,7 +169,7 @@ begin
   for I := 0 to High(Image_CampaignFlags) do
   begin
     Image_CampaignFlags[I].Visible := I < fCampaign.MapCount;
-    Image_CampaignFlags[I].TexID   := MapPic[I <= fCampaign.UnlockedMap];
+    Image_CampaignFlags[I].TexID   := MAP_PIC[I <= fCampaign.UnlockedMap];
     Image_CampaignFlags[I].HighlightOnMouseOver := I <= fCampaign.UnlockedMap;
     Label_CampaignFlags[I].Visible := (I < fCampaign.MapCount) and (I <= fCampaign.UnlockedMap);
   end;
@@ -189,34 +193,34 @@ end;
 procedure TKMMenuCampaign.UpdateDifficultyLevel;
 var
   I: Integer;
-  MD, OldMD, DefMD: TKMMissionDifficulty;
-  DiffLevels: TKMMissionDifficultySet;
+  MD, oldMD, defMD: TKMMissionDifficulty;
+  diffLevels: TKMMissionDifficultySet;
 begin
   //Difficulty levels
-  OldMD := mdNone;
+  oldMD := mdNone;
   if fCampaign.MapsInfo[fMapIndex].TxtInfo.HasDifficultyLevels then
   begin
-    DiffLevels := fCampaign.MapsInfo[fMapIndex].TxtInfo.DifficultyLevels;
+    diffLevels := fCampaign.MapsInfo[fMapIndex].TxtInfo.DifficultyLevels;
 
-    if gGameSettings.CampaignLastDifficulty in DiffLevels then
-      OldMD := gGameSettings.CampaignLastDifficulty;
+    if gGameSettings.CampaignLastDifficulty in diffLevels then
+      oldMD := gGameSettings.CampaignLastDifficulty;
 
     DropBox_Difficulty.Clear;
     I := 0;
 
     //Set BestCompleteDifficulty as default
     if fCampaign.MapsProgressData[fMapIndex].Completed then
-      DefMD := fCampaign.MapsProgressData[fMapIndex].BestCompleteDifficulty
-    else if OldMD <> mdNone then
-      DefMD := OldMD
+      defMD := fCampaign.MapsProgressData[fMapIndex].BestCompleteDifficulty
+    else if oldMD <> mdNone then
+      defMD := oldMD
     else
-      DefMD := mdNormal;
+      defMD := mdNormal;
 
-    for MD in DiffLevels do
+    for MD in diffLevels do
     begin
       DropBox_Difficulty.Add(gResTexts[DIFFICULTY_LEVELS_TX[MD]], Byte(MD));
 
-      if MD = DefMD then
+      if MD = defMD then
         DropBox_Difficulty.ItemIndex := I;
       Inc(I);
     end;

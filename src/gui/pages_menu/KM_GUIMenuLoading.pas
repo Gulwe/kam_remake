@@ -2,8 +2,8 @@ unit KM_GUIMenuLoading;
 {$I KaM_Remake.inc}
 interface
 uses
-  Controls, Math, SysUtils,
-  KM_Controls, KM_InterfaceDefaults;
+  Math, SysUtils,
+  KM_Controls, KM_InterfaceDefaults, KM_InterfaceTypes;
 
 
 type

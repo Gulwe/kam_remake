@@ -8,8 +8,11 @@ type
   ERuntimeTypeError = class(Exception);
 
   TSet<T> = class
+  const
+    BIT_MASKS: array [0..7] of Byte = (1, 2, 4, 8, 16, 32, 64, 128);
   strict private
     class function TypeInfo: PTypeInfo; inline; static;
+    class function GetCardinality(const PSet: PByteArray; const SizeOfSet(*in bytes*): Integer): Integer; inline; static;
     class function GetSetToString(const PSet: PByteArray; const SizeOfSet(*in bytes*): Integer): String; static;
   public
     class function IsSet: Boolean; static;
@@ -32,11 +35,40 @@ type
     function GetWeightedRandom(out aValue: T): Boolean;
   end;
 
-  function GetCardinality(const PSet: PByteArray; const SizeOfSet(*in bytes*): Integer): Integer; inline;
+  TKMLimitedQueue<T> = class(TQueue<T>)
+  private
+    fMaxLength: Integer;
+  public
+    constructor Create(aMaxLength: Integer);
 
+    property MaxLength: Integer read fMaxLength write fMaxLength;
 
-const
-  Masks: array[0..7] of Byte = (1, 2, 4, 8, 16, 32, 64, 128);
+    procedure EnqueueItem(const Value: T);
+  end;
+
+  TKMLimitedList<T> = class(TList<T>)
+  private
+    fMaxLength: Integer;
+  public
+    constructor Create(aMaxLength: Integer);
+
+    property MaxLength: Integer read fMaxLength write fMaxLength;
+
+    function Add(const Value: T): Integer; reintroduce;
+    procedure Swap(const ValueFrom, ValueTo: T);
+  end;
+
+  TKMLimitedUniqueList<T> = class(TKMLimitedList<T>)
+  public
+    constructor Create(aMaxLength: Integer);
+
+    function Add(const Value: T): Integer; reintroduce;
+  end;
+
+  TKMEnumUtils = class
+    class function TryGetAs<T>(aEnumStr: String; out aEnumValue: T): Boolean;
+  end;
+
 
 implementation
 uses
@@ -54,19 +86,21 @@ begin
   Result := System.TypeInfo(T);
 end;
 
+
 class function TSet<T>.IsSet: Boolean;
 begin
   Result := TypeInfo.Kind = tkSet;
 end;
 
-function GetCardinality(const PSet: PByteArray; const SizeOfSet(*in bytes*): Integer): Integer; inline;
+
+class function TSet<T>.GetCardinality(const PSet: PByteArray; const SizeOfSet(*in bytes*): Integer): Integer;
 var
   I, J: Integer;
 begin
   Result := 0;
   for I := 0 to SizeOfSet - 1 do
     for J := 0 to 7 do
-      if (PSet^[I] and Masks[J]) > 0 then
+      if (PSet^[I] and BIT_MASKS[J]) > 0 then
         Inc(Result);
 end;
 
@@ -82,7 +116,7 @@ begin
 
   for I := 0 to SizeOfSet - 1 do
     for J := 0 to 7 do
-      if (PSet^[I] and Masks[J]) > 0 then
+      if (PSet^[I] and BIT_MASKS[J]) > 0 then
       begin
         if Result <> '' then
           Result := Result + ', ';
@@ -98,6 +132,7 @@ begin
       end;
   Result := '[' + Result + ']';
 end;
+
 
 class function TSet<T>.Cardinality(const Value: T): Integer;
 var
@@ -117,6 +152,27 @@ begin
     raise ERuntimeTypeError.Create('Invalid type in TSet<T>, T must be a set');
 
   Result := GetSetToString(PByteArray(@Value), SizeOf(Value));
+end;
+
+
+{ TKMEnumUtils }
+// example from https://stackoverflow.com/questions/2472487/converting-an-string-to-a-enum-type-using-tvalue
+// Get enum value from enum string
+class function TKMEnumUtils.TryGetAs<T>(aEnumStr: String; out aEnumValue: T): Boolean;
+var
+  tipInfo: PTypeInfo;
+  enumIntVal: Integer;
+  PEnumVal: Pointer;
+begin
+   tipInfo := TypeInfo(T);
+   enumIntVal := GetEnumValue(tipInfo, aEnumStr);
+
+   if enumIntVal = -1 then
+     Exit(False);
+
+   PEnumVal := @enumIntVal;
+   aEnumValue := T(PEnumVal^);
+   Result := True;
 end;
 
 
@@ -170,4 +226,75 @@ begin
 end;
 
 
+{ TKMLimitedQueue<T> }
+constructor TKMLimitedQueue<T>.Create(aMaxLength: Integer);
+begin
+  inherited Create;
+
+  fMaxLength := aMaxLength;
+end;
+
+
+procedure TKMLimitedQueue<T>.EnqueueItem(const Value: T);
+begin
+  inherited Enqueue(Value);
+
+  if Count > fMaxLength then
+    Dequeue;
+end;
+
+
+{ TKMLimitedList<T> }
+constructor TKMLimitedList<T>.Create(aMaxLength: Integer);
+begin
+  inherited Create;
+
+  fMaxLength := aMaxLength;
+end;
+
+
+function TKMLimitedList<T>.Add(const Value: T): Integer;
+begin
+  inherited Add(Value);
+
+  if Count > fMaxLength then
+    Delete(0); // Delete the oldest item
+end;
+
+
+
+procedure TKMLimitedList<T>.Swap(const ValueFrom, ValueTo: T);
+var
+  fromI, toI: Integer;
+begin
+  fromI := IndexOf(ValueFrom);
+  toI := IndexOf(ValueTo);
+
+  // Do not swap items, if not found any
+  if (fromI = -1) or (toI = -1) then Exit;
+
+  Items[toI] := ValueFrom;
+  Items[fromI] := ValueTo;
+end;
+
+
+{ TKMLimitedUniqueList }
+constructor TKMLimitedUniqueList<T>.Create(aMaxLength: Integer);
+begin
+  inherited Create(aMaxLength);
+end;
+
+
+function TKMLimitedUniqueList<T>.Add(const Value: T): Integer;
+begin
+  if Contains(Value) then Exit;
+
+  inherited Add(Value);
+
+  if Count > fMaxLength then
+    Delete(0); // Delete the oldest item
+end;
+
+
 end.
+

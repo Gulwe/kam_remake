@@ -77,6 +77,7 @@ begin
   gHands.CleanUpUnitPointer(fOpponent);
   if not KMSamePoint(fVertexOccupied, KMPOINT_ZERO) then
     DecVertex;
+
   inherited;
 end;
 
@@ -84,6 +85,7 @@ end;
 constructor TKMUnitActionFight.Load(LoadStream: TKMemoryStream);
 begin
   inherited;
+
   LoadStream.CheckMarker('UnitActionFight');
   LoadStream.Read(fOpponent, 4);
   LoadStream.Read(fFightDelay);
@@ -94,6 +96,7 @@ end;
 procedure TKMUnitActionFight.SyncLoad;
 begin
   inherited;
+
   fOpponent := gHands.GetUnitByUID(Cardinal(fOpponent));
 end;
 
@@ -153,16 +156,16 @@ end;
 procedure TKMUnitActionFight.MakeSound(IsHit: Boolean);
 var
   //Battlecry is the most noticable random sound, we would like to repeat it exactly the same in each replay (?)
-  MakeBattleCry: Boolean;
+  makeBattleCry: Boolean;
 begin
   //Randomly make a battle cry. KaMRandom must always happen regardless of tile revelation
-  MakeBattleCry := KaMRandom(20, 'TKMUnitActionFight.MakeSound') = 0;
+  makeBattleCry := KaMRandom(20, 'TKMUnitActionFight.MakeSound') = 0;
 
   //Do not play sounds if unit is invisible to gMySpectator
   //We should not use KaMRandom below this line because sound playback depends on FOW and is individual for each player
   if gMySpectator.FogOfWar.CheckTileRevelation(fUnit.Position.X, fUnit.Position.Y) < 255 then Exit;
 
-  if MakeBattleCry then
+  if makeBattleCry then
     gSoundPlayer.PlayWarrior(fUnit.UnitType, spBattleCry, fUnit.PositionF);
 
   case fUnit.UnitType of
@@ -261,8 +264,8 @@ end;
 //A result of true means exit from Execute
 function TKMUnitActionFight.ExecuteProcessMelee(Step: Byte): Boolean;
 var
-  IsHit: Boolean;
-  Damage: Word;
+  isHit: Boolean;
+  damage: Word;
 begin
   Result := False;
 
@@ -280,19 +283,19 @@ begin
   if Step = STRIKE_STEP then
   begin
     //Base damage is the unit attack strength + AttackHorse if the enemy is mounted
-    Damage := gRes.Units[fUnit.UnitType].Attack;
+    damage := gRes.Units[fUnit.UnitType].Attack;
     if (fOpponent.UnitType in [low(UNIT_TO_GROUP_TYPE) .. high(UNIT_TO_GROUP_TYPE)]) and (UNIT_TO_GROUP_TYPE[fOpponent.UnitType] = gtMounted) then
-      Damage := Damage + gRes.Units[fUnit.UnitType].AttackHorse;
+      damage := damage + gRes.Units[fUnit.UnitType].AttackHorse;
 
-    Damage := Damage * (GetDirModifier(fUnit.Direction, fOpponent.Direction) + 1); // Direction modifier
+    damage := damage * (GetDirModifier(fUnit.Direction, fOpponent.Direction) + 1); // Direction modifier
     //Defence modifier
-    Damage := Damage div Math.max(gRes.Units[fOpponent.UnitType].Defence, 1); //Not needed, but animals have 0 defence
+    damage := damage div Math.max(gRes.Units[fOpponent.UnitType].Defence, 1); //Not needed, but animals have 0 defence
 
-    IsHit := (Damage >= KaMRandom(101, 'TKMUnitActionFight.ExecuteProcessMelee')); //Damage is a % chance to hit
-    if IsHit then
+    isHit := (damage >= KaMRandom(101, 'TKMUnitActionFight.ExecuteProcessMelee')); //Damage is a % chance to hit
+    if isHit then
       fOpponent.HitPointsDecrease(1, fUnit);
 
-    MakeSound(IsHit); //Different sounds for hit and for miss
+    MakeSound(isHit); //Different sounds for hit and for miss
   end;
 
   //In KaM melee units pause for 1 tick on Steps [0,3,6]. Made it random so troops are not striking in sync,
@@ -316,17 +319,17 @@ end;
 
 function TKMUnitActionFight.Execute: TKMActionResult;
 var
-  Cycle, Step: Byte;
+  cycle, step: Byte;
 begin
-  Cycle := max(gRes.Units[fUnit.UnitType].UnitAnim[ActionType, fUnit.Direction].Count, 1);
-  Step  := fUnit.AnimStep mod Cycle;
+  cycle := max(gRes.Units[fUnit.UnitType].UnitAnim[ActionType, fUnit.Direction].Count, 1);
+  step  := fUnit.AnimStep mod cycle;
 
-  Result := ExecuteValidateOpponent(Step);
+  Result := ExecuteValidateOpponent(step);
   if Result = arActDone then Exit;
-  Step := fUnit.AnimStep mod Cycle; //Can be changed by ExecuteValidateOpponent, so recalculate it
+  step := fUnit.AnimStep mod cycle; //Can be changed by ExecuteValidateOpponent, so recalculate it
 
   //Opponent can walk next to us, keep facing him
-  if Step = 0 then //Only change direction between strikes, otherwise it looks odd
+  if step = 0 then //Only change direction between strikes, otherwise it looks odd
     fUnit.Direction := KMGetDirection(fUnit.PositionF, fOpponent.PositionF);
 
   //If the vertex usage has changed we should update it
@@ -340,16 +343,16 @@ begin
 
   if TKMUnitWarrior(fUnit).IsRanged then
   begin
-    if ExecuteProcessRanged(Step) then
+    if ExecuteProcessRanged(step) then
       Exit;
   end
   else
-    if ExecuteProcessMelee(Step) then
+    if ExecuteProcessMelee(step) then
       Exit;
 
   //Aiming Archers and pausing melee may miss a few ticks, (exited above) so don't put anything critical below!
 
-  StepDone := (fUnit.AnimStep mod Cycle = 0) or TKMUnitWarrior(fUnit).IsRanged; //Archers may abandon at any time as they need to walk off imediantly
+  StepDone := (fUnit.AnimStep mod cycle = 0) or TKMUnitWarrior(fUnit).IsRanged; //Archers may abandon at any time as they need to walk off imediantly
   Inc(fUnit.AnimStep);
 end;
 
@@ -357,6 +360,7 @@ end;
 procedure TKMUnitActionFight.Save(SaveStream: TKMemoryStream);
 begin
   inherited;
+
   SaveStream.PlaceMarker('UnitActionFight');
   if fOpponent <> nil then
     SaveStream.Write(fOpponent.UID) //Store ID, then substitute it with reference on SyncLoad

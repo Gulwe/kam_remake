@@ -4,7 +4,7 @@ interface
 uses
   Classes, SysUtils, KromUtils, Math,
   KM_CommonClasses, KM_Defaults, KM_Points,
-  KM_Houses, KM_Terrain, KM_Units, KM_Projectiles;
+  KM_Houses, KM_Terrain, KM_Units, KM_CommonGameTypes;
 
 
 type
@@ -29,8 +29,9 @@ type
     fNextOrderForced: Boolean; //Next order considered not forced if it comes as "repeated order" after Split/Link orders/Die member/Link after training
     fOrder: TKMWarriorOrder; //Order we are performing
     fOrderLoc: TKMPoint; //Dir is the direction to face after order
-    fOrderTargetUnit: TKMUnit; //Unit we are ordered to attack. This property should never be accessed, use public OrderTarget instead.
-    fOrderTargetHouse: TKMHouse; //House we are ordered to attack. This property should never be accessed, use public OrderHouseTarget instead.
+    fOrderTargetUnit: TKMUnit; //Unit we are ordered to attack. This property should never be accessed, use GetOrderTarget instead.
+    fAttackingUnit: TKMUnit; //Unit we are attacking or following to attack (f.e. group offenders). This property should never be accessed, use GetAttackingUnit instead.
+    fOrderTargetHouse: TKMHouse; //House we are ordered to attack. This property should never be accessed, use GetOrderHouseTarget instead.
     fUseExactTarget: Boolean; //Do we try to reach exact position or is it e.g. unwalkable
     fLastShootTime: Cardinal; //Used to prevent archer rate of fire exploit
 
@@ -39,9 +40,12 @@ type
 
     procedure FightEnemy(aEnemy: TKMUnit);
 
-    procedure ClearOrderTarget;
+    procedure ClearOrderTarget(aClearAttackingUnit: Boolean = True);
+    procedure ClearAttackingUnit;
     procedure SetOrderTarget(aUnit: TKMUnit);
-    function GetOrderTarget: TKMUnit;
+    procedure DoSetAttackingUnit(aUnit: TKMUnit);
+    function GetAttackingUnit: TKMUnit;
+    function GetOrderTargetUnit: TKMUnit;
     function GetOrderHouseTarget: TKMHouse;
     procedure SetOrderHouseTarget(aHouse: TKMHouse);
     procedure UpdateOrderTargets;
@@ -64,14 +68,17 @@ type
     OnWarriorWalkOut: TKMWarriorEvent;
     FaceDir: TKMDirection; //Direction we should face after walking. Only check for enemies in this direction.
 
-    constructor Create(aID: Cardinal; aUnitType: TKMUnitType; const aLoc: TKMPoint; aOwner: TKMHandID; aInHouse: Boolean);
+    constructor Create(aID: Cardinal; aUnitType: TKMUnitType; const aLoc: TKMPoint; aOwner: TKMHandID; aInHouse: TKMHouse);
     constructor Load(LoadStream: TKMemoryStream); override;
     procedure SyncLoad; override;
     procedure CloseUnit(aRemoveTileUsage: Boolean = True); override;
     destructor Destroy; override;
 
+    function GetPointer: TKMUnitWarrior; reintroduce;
+
     property Group: pointer read fGroup; // Property for GetGroupByMember function
-    procedure SetGroup(aGroup: Pointer); // This procedure should not be called by anyone except UnitGroups class(it is out of property)
+    // This procedure should not be called by anyone except UnitGroups class(it is out of property)
+    procedure SetGroup(aGroup: Pointer); //Explicitly use SetWorker, to make it clear its not only pointer assignment
 
     function GetWarriorActivityText(aIsAttackingUnit: Boolean): UnicodeString;
     procedure Kill(aFrom: TKMHandID; aShowAnimation, aForceDelay: Boolean); override;
@@ -113,6 +120,10 @@ type
     function FindEnemy: TKMUnit;
     function PathfindingShouldAvoid: Boolean; override;
 
+    function IsAttackingUnit(aUnit: TKMUnit): Boolean;
+
+    procedure SetAttackingUnit(aUnit: TKMUnit);
+
     procedure WalkedOut;
 
     procedure SetActionGoIn(aAction: TKMUnitActionType; aGoDir: TKMGoInDirection; aHouse: TKMHouse); override;
@@ -128,7 +139,7 @@ type
 
 implementation
 uses
-  TypInfo,
+  TypInfo, Generics.Collections,
   KM_ResTexts, KM_HandsCollection, KM_RenderPool, KM_UnitTaskAttackHouse, KM_HandLogistics,
   KM_UnitActionFight, KM_UnitActionGoInOut, KM_UnitActionWalkTo, KM_UnitActionStay,
   KM_UnitActionStormAttack, KM_Resource, KM_ResUnits, KM_Hand, KM_UnitGroup,
@@ -138,7 +149,7 @@ uses
 
 
 { TKMUnitWarrior }
-constructor TKMUnitWarrior.Create(aID: Cardinal; aUnitType: TKMUnitType; const aLoc: TKMPoint; aOwner: TKMHandID; aInHouse: Boolean);
+constructor TKMUnitWarrior.Create(aID: Cardinal; aUnitType: TKMUnitType; const aLoc: TKMPoint; aOwner: TKMHandID; aInHouse: TKMHouse);
 begin
   inherited;
 
@@ -163,6 +174,7 @@ begin
   LoadStream.Read(fOrderLoc);
   LoadStream.Read(fOrderTargetHouse, 4); //subst on syncload
   LoadStream.Read(fOrderTargetUnit, 4); //subst on syncload
+  LoadStream.Read(fAttackingUnit, 4); //subst on syncload
   LoadStream.Read(fRequestedFood);
   LoadStream.Read(fStormDelay);
   LoadStream.Read(fUseExactTarget);
@@ -176,8 +188,10 @@ begin
   inherited;
 
   fGroup := TKMUnitGroup(  gHands.GetGroupByUID( Cardinal(fGroup) )  );
-  fOrderTargetUnit := TKMUnitWarrior(gHands.GetUnitByUID(cardinal(fOrderTargetUnit)));
-  fOrderTargetHouse := gHands.GetHouseByUID(cardinal(fOrderTargetHouse));
+  fOrderTargetUnit := TKMUnitWarrior(gHands.GetUnitByUID( Cardinal(fOrderTargetUnit) ));
+  fAttackingUnit := TKMUnitWarrior(gHands.GetUnitByUID( Cardinal(fAttackingUnit) ));
+  fOrderTargetHouse := gHands.GetHouseByUID( Cardinal(fOrderTargetHouse) );
+
   if Action is TKMUnitActionGoInOut then
     TKMUnitActionGoInOut(Action).OnWalkedOut := WalkedOut;
 end;
@@ -194,6 +208,7 @@ begin
   SaveStream.Write(fOrderLoc);
   SaveStream.Write(fOrderTargetHouse.UID); //Store ID
   SaveStream.Write(fOrderTargetUnit.UID); //Store ID
+  SaveStream.Write(fAttackingUnit.UID); //Store ID
   SaveStream.Write(fRequestedFood);
   SaveStream.Write(fStormDelay);
   SaveStream.Write(fUseExactTarget);
@@ -220,6 +235,12 @@ begin
   gHands.CleanUpGroupPointer( TKMUnitGroup(fGroup) );
 
   inherited;
+end;
+
+
+function TKMUnitWarrior.GetPointer: TKMUnitWarrior;
+begin
+  Result := TKMUnitWarrior(inherited GetPointer);
 end;
 
 
@@ -294,29 +315,58 @@ begin
 end;
 
 
-procedure TKMUnitWarrior.ClearOrderTarget;
+procedure TKMUnitWarrior.ClearOrderTarget(aClearAttackingUnit: Boolean = True);
 begin
   //Set fOrderTargets to nil, removing pointer if it's still valid
   gHands.CleanUpUnitPointer(fOrderTargetUnit);
   gHands.CleanUpHousePointer(fOrderTargetHouse);
+  if aClearAttackingUnit then
+    ClearAttackingUnit;
+end;
+
+
+procedure TKMUnitWarrior.ClearAttackingUnit;
+begin
+  gHands.CleanUpUnitPointer(fAttackingUnit);
 end;
 
 
 procedure TKMUnitWarrior.SetOrderTarget(aUnit: TKMUnit);
 begin
   //Remove previous value
-  ClearOrderTarget;
+  ClearOrderTarget(False); // Don't clear attacking unit
   if aUnit <> nil then
     fOrderTargetUnit := aUnit.GetPointer; //Else it will be nil from ClearOrderTarget
 end;
 
 
-function TKMUnitWarrior.GetOrderTarget: TKMUnit;
+procedure TKMUnitWarrior.DoSetAttackingUnit(aUnit: TKMUnit);
+begin
+  //Remove previous value
+  ClearAttackingUnit;
+  if aUnit <> nil then
+    fAttackingUnit := aUnit.GetPointer; //Else it will be nil from ClearAttackingUnit
+end;
+
+
+function TKMUnitWarrior.GetAttackingUnit: TKMUnit;
+begin
+  //If the target unit has died then return nil
+  //Don't clear fAttackingUnit here, since we could get called from UI
+  //depending on player actions (getters should be side effect free)
+  if (fAttackingUnit <> nil) and fAttackingUnit.IsDead then
+    Result := nil
+  else
+    Result := fAttackingUnit;
+end;
+
+
+function TKMUnitWarrior.GetOrderTargetUnit: TKMUnit;
 begin
   //If the target unit has died then return nil
   //Don't clear fOrderTargetUnit here, since we could get called from UI
   //depending on player actions (getters should be side effect free)
-  if (fOrderTargetUnit <> nil) and (fOrderTargetUnit.IsDead) then
+  if (fOrderTargetUnit <> nil) and fOrderTargetUnit.IsDead then
     Result := nil
   else
     Result := fOrderTargetUnit;
@@ -379,6 +429,8 @@ begin
   case fType of
     utBowman,
     utArbaletman,
+    utCatapult: Result := 8;
+    utBallista: Result := 8;
     utSlingshot:   Result := RangeMin;
     else            Result := 0.5;
   end;
@@ -432,6 +484,21 @@ begin
 end;
 
 
+// Return true if we are attacking or following specified unit
+function TKMUnitWarrior.IsAttackingUnit(aUnit: TKMUnit): Boolean;
+begin
+  if (Self = nil) or (aUnit = nil) then Exit(False);
+  
+  Result := ((fOrder = woAttackUnit) and (aUnit = GetOrderTargetUnit)) or (aUnit = GetAttackingUnit);
+end;
+
+
+procedure TKMUnitWarrior.SetAttackingUnit(aUnit: TKMUnit);
+begin
+  DoSetAttackingUnit(aUnit);
+end;
+
+
 function TKMUnitWarrior.IsRanged: Boolean;
 begin
   Result := gRes.Units[fType].FightType = ftRanged;
@@ -441,14 +508,14 @@ end;
 function TKMUnitWarrior.FindLinkUnit(const aLoc: TKMPoint): TKMUnitWarrior;
 var
   I: Integer;
-  foundUnits: TList;
+  foundUnits: TList<TKMUnit>;
   U: TKMUnit;
   best, L: Single;
 begin
   Result := nil;
   best := MaxSingle;
 
-  foundUnits := TList.Create;
+  foundUnits := TList<TKMUnit>.Create;
   gHands[Owner].Units.GetUnitsInRect(KMRect(aLoc.X - LINK_RADIUS,
                                             aLoc.Y - LINK_RADIUS,
                                             aLoc.X + LINK_RADIUS,
@@ -508,7 +575,7 @@ end;
 procedure TKMUnitWarrior.SetActionGoIn(aAction: TKMUnitActionType; aGoDir: TKMGoInDirection; aHouse: TKMHouse);
 begin
   Assert(aGoDir = gdGoOutside, 'Walking inside is not implemented yet');
-  Assert((aHouse.HouseType = htBarracks) or (aHouse.HouseType = htTownHall) or (aHouse.HouseType = htSchool) or (aHouse.HouseType = htSiegeWorkshop), 'Only Barracks and TownHall so far');       //zmiana
+  Assert((aHouse.HouseType = htBarracks) or (aHouse.HouseType = htTownHall) or (aHouse.HouseType = htSiegeWorkshop), 'Only Barracks and TownHall so far');
   inherited;
 
   TKMUnitActionGoInOut(Action).OnWalkedOut := WalkedOut;
@@ -546,7 +613,7 @@ begin
                       end;
                     end;
     woWalkOut:      Result := IsIdle;
-    woAttackUnit:   Result := (GetOrderTarget = nil);
+    woAttackUnit:   Result := (GetOrderTargetUnit = nil);
     woAttackHouse:  Result := (GetOrderHouseTarget = nil);
     woStorm:        Result := IsIdle;
   end;
@@ -616,7 +683,7 @@ begin
 
     //Archers should only look for opponents when they are idle or when they are finishing another fight (function is called by TUnitActionFight)
     if (Action is TKMUnitActionWalkTo)
-    and ((GetOrderTarget = nil) or GetOrderTarget.IsDeadOrDying or not WithinFightRange(GetOrderTarget.Position))
+    and ((GetOrderTargetUnit = nil) or GetOrderTargetUnit.IsDeadOrDying or not WithinFightRange(GetOrderTargetUnit.Position))
     then
       Exit;
   end;
@@ -652,7 +719,7 @@ begin
     step := (FiringDelay + (gGameParams.Tick - TKMUnitWarrior(Self).LastShootTime)) mod cycle;
 
   if (Action is TKMUnitActionWalkTo) and not TKMUnitActionWalkTo(Action).CanAbandonExternal then
-    raise ELocError.Create('Unit fight overrides walk', fPosition);
+    raise ELocError.Create('Unit fight overrides walk', fPositionRound);
   SetAction(TKMUnitActionFight.Create(Self, aAction, aOpponent), step);
 end;
 
@@ -669,6 +736,8 @@ begin
     else
       FreeAndNil(fTask); //e.g. TaskAttackHouse
   end;
+
+  DoSetAttackingUnit(aEnemy);
 
   SetActionFight(uaWork, aEnemy);
   if aEnemy is TKMUnitWarrior then
@@ -700,7 +769,6 @@ begin
       utSlingShot:  Result := SLINGSHOT_FIRING_DELAY;
       utBallista:  Result := FIRING_DELAY;
       utCatapult:  Result := SLINGSHOT_FIRING_DELAY;
-
       else raise Exception.Create('Unknown shooter');
     end;
 end;
@@ -714,6 +782,7 @@ const
   SLINGSHOT_AIMING_DELAY_ADD   = 4; //random component
   CROSSBOWMEN_AIMING_DELAY_MIN = 8; //minimum time for crossbowmen to aim
   CROSSBOWMEN_AIMING_DELAY_ADD = 8; //random component
+
 begin
   Result := 0;
   if IsRanged then
@@ -722,7 +791,7 @@ begin
       utArbaletman: Result := CROSSBOWMEN_AIMING_DELAY_MIN + KaMRandom(CROSSBOWMEN_AIMING_DELAY_ADD, 'TKMUnitWarrior.GetAimingDelay 2');
       utSlingShot:  Result := SLINGSHOT_AIMING_DELAY_MIN + KaMRandom(SLINGSHOT_AIMING_DELAY_ADD, 'TKMUnitWarrior.GetAimingDelay 3');
       utBallista:  Result := CROSSBOWMEN_AIMING_DELAY_MIN + KaMRandom(SLINGSHOT_AIMING_DELAY_ADD, 'TKMUnitWarrior.GetAimingDelay 3');
-      utCatapult:  Result := SLINGSHOT_AIMING_DELAY_MIN + KaMRandom(SLINGSHOT_AIMING_DELAY_ADD, 'TKMUnitWarrior.GetAimingDelay 3');
+      utCatapult:  Result := SLINGSHOT_AIMING_DELAY_MIN + KaMRandom(SLINGSHOT_AIMING_DELAY_ADD, 'TKMUnitWarrior.GetAimingDelay 3'); //it needs to be adjust
       else raise Exception.Create('Unknown shooter');
     end;
 end;
@@ -776,10 +845,10 @@ end;
 function TKMUnitWarrior.GetRangeMax: Single;
 const
   RANGE_ARBALETMAN_MAX  = 10.99; //KaM: Unit standing 10 tiles from us will be shot, 11 tiles not
-  RANGE_BOWMAN_MAX      = 10.99;
+  RANGE_BOWMAN_MAX      = 12.99;
   RANGE_SLINGSHOT_MAX   = 10.99;
-  RANGE_Catapult   = 15.99;
-  
+  RANGE_Catapult   = 13.99;
+  RANGE_Ballista   = 15.99;
 begin
   Result := 0;
   if IsRanged then
@@ -787,7 +856,7 @@ begin
       utBowman:     Result := RANGE_BOWMAN_MAX;
       utArbaletman: Result := RANGE_ARBALETMAN_MAX;
       utSlingShot:  Result := RANGE_SLINGSHOT_MAX;
-      utBallista:    Result := RANGE_Catapult;
+      utBallista:    Result := RANGE_Ballista;
       utCatapult: Result := RANGE_Catapult;
       else raise Exception.Create('Unknown shooter');
     end;
@@ -817,7 +886,7 @@ var
   loc: TKMPoint;
 begin
   //Make sure attack orders are still valid
-  if ((fNextOrder = woAttackUnit) and (GetOrderTarget = nil))
+  if ((fNextOrder = woAttackUnit) and (GetOrderTargetUnit = nil))
     or ((fNextOrder = woAttackHouse) and (GetOrderHouseTarget = nil)) then
     fNextOrder := woNone;
 
@@ -845,7 +914,7 @@ begin
                         loc := gTerrain.GetClosestTile(fOrderLoc, Position, GetDesiredPassability, fUseExactTarget);
 
                         // No need to walk if we reached destination already
-                        if loc <> fPosition then
+                        if loc <> fPositionRound then
                           SetActionWalkToSpot(loc, uaWalk);
 
                         fNextOrder := woNone;
@@ -859,8 +928,8 @@ begin
                         FreeAndNil(fTask); //e.g. TaskAttackHouse
                         fNextOrder := woNone;
                         fOrder := woAttackUnit;
-                        fOrderLoc := GetOrderTarget.Position;
-                        FightEnemy(GetOrderTarget);
+                        fOrderLoc := GetOrderTargetUnit.Position;
+                        FightEnemy(GetOrderTargetUnit);
                       end;
                     end;
     woAttackHouse:  begin
@@ -963,8 +1032,8 @@ begin
   if Self = nil then Exit('nil');
 
   Result := inherited ObjToStringShort(aSeparator) +
-            Format('%sWarriorOrder = %s%sNextOrder = %s%sNextOrderForced = %s%sOrderLoc = %s%s' +
-                   'HasOrderTargetUnit = [%s]%sHasOrderTargetHouse = [%s]',
+            Format('%sWOrder = %s%sNextOrder = %s%sNextOrderForced = %s%sOrderLoc = %s%s' +
+                   'HasOTargetU = [%s]%sHasOTargetH = [%s]',
                    [aSeparator,
                     GetEnumName(TypeInfo(TKMWarriorOrder), Integer(fOrder)), aSeparator,
                     GetEnumName(TypeInfo(TKMWarriorOrder), Integer(fNextOrder)), aSeparator,
@@ -977,13 +1046,14 @@ end;
 
 function TKMUnitWarrior.ObjToString(const aSeparator: String = '|'): String;
 var
-  unitStr, houseStr, groupStr: String;
+  unitStr, attackUStr, houseStr, groupStr: String;
 begin
   if Self = nil then Exit('nil');
 
   groupStr := 'nil';
   unitStr := 'nil';
   houseStr := 'nil';
+  attackUStr := 'nil';
 
   if fGroup <> nil then
     groupStr := TKMUnitGroup(fGroup).ObjToString('|  ');
@@ -991,13 +1061,17 @@ begin
   if fOrderTargetUnit <> nil then
     unitStr := fOrderTargetUnit.ObjToStringShort('; ');
 
+  if fAttackingUnit <> nil then
+    attackUStr := fAttackingUnit.ObjToStringShort('; ');
+
   if fOrderTargetHouse <> nil then
     houseStr := fOrderTargetHouse.ObjToStringShort('; ');
 
   Result := inherited ObjToString(aSeparator) +
-            Format('%sOrderTargetUnit = [%s]%sOrderTargetHouse = [%s]%sGroup = %s%s',
+            Format('%sOrderTargetU = [%s]%sAttackingU = [%s]%sOrderTargetH = [%s]%sGroup = %s%s',
                    [aSeparator,
                     unitStr, aSeparator,
+                    attackUStr, aSeparator,
                     houseStr, aSeparator,
                     groupStr, aSeparator]);
 end;
@@ -1006,7 +1080,7 @@ end;
 function TKMUnitWarrior.UpdateState: Boolean;
 begin
   if fAction = nil then
-    raise ELocError.Create(gRes.Units[UnitType].GUIName+' has no action at start of TKMUnitWarrior.UpdateState',fPosition);
+    raise ELocError.Create(gRes.Units[UnitType].GUIName+' has no action at start of TKMUnitWarrior.UpdateState', fPositionRound);
 
   if IsDeadOrDying then
   begin
@@ -1028,7 +1102,7 @@ begin
     TakeNextOrder;
 
   if (fTicker mod 8 = 0) and not InFight then
-    CheckForEnemy; //Split into seperate procedure so it can be called from other places
+    CheckForEnemy; //Split into separate procedure so it can be called from other places
 
   Result := True; //Required for override compatibility
   if inherited UpdateState then Exit;
@@ -1056,7 +1130,7 @@ begin
   unitPos.X := V.PosF.X + UNIT_OFF_X + V.SlideX;
   unitPos.Y := V.PosF.Y + UNIT_OFF_Y + V.SlideY;
 
-  gRenderPool.AddUnit(fType, UID, act, V.Dir, V.AnimStep, unitPos.X, unitPos.Y, gHands[Owner].GameFlagColor, True);
+  gRenderPool.AddUnit(fType, UID, act, V.Dir, V.AnimStep, V.AnimFraction, unitPos.X, unitPos.Y, gHands[Owner].GameFlagColor, True);
 
   if fThought <> thNone then
     gRenderPool.AddUnitThought(fType, act, V.Dir, fThought, unitPos.X, unitPos.Y);

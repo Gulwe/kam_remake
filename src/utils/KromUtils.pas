@@ -1,12 +1,11 @@
 unit KromUtils;
-{$I ..\..\KaM_Remake.inc}
+{$I KaM_Remake.inc}
 interface
 uses
-  Classes,
-  {$IFDEF MSWindows}Windows, MMSystem, {$ENDIF}
-  {$IFDEF Unix}LCLType, {$ENDIF}
-  {$IFDEF FPC}LCLIntf, UTF8Process, LazHelpHTML {$ENDIF}
-  {$IFDEF WDC}ShellApi {$ENDIF}
+  Classes
+  {$IFDEF MSWindows}, Windows, MMSystem {$ENDIF}
+  {$IFDEF Unix}, LCLType {$ENDIF}
+  {$IFDEF FPC}, LCLIntf, UTF8Process, LazHelpHTML {$ENDIF}
   ;
 
 type
@@ -252,7 +251,7 @@ begin
     begin
       I := 0;
       repeat
-        Result := PByte(Cardinal(S1.Memory) + I)^ = PByte(Cardinal(S2.Memory) + I)^;
+        Result := PByte(NativeUInt(S1.Memory) + I)^ = PByte(NativeUInt(S2.Memory) + I)^;
         Inc(I);
       until (not Result or (I = S1.Size));
     end;
@@ -512,13 +511,13 @@ begin
   if aLength <> 0 then // Check to avoid CardinalOverflow on -1
   for I := 0 to aLength - 1 do
   begin
-    Inc(A, pByte(Cardinal(aPointer) + I)^);
+    Inc(A, pByte(NativeUInt(aPointer) + I)^);
     // We need to MOD B within cos it may overflow in files larger than 65kb, A overflows with files larger than 16mb
     B := (B + A) mod MAX_PRIME_16BIT;
   end;
 
   A := A mod MAX_PRIME_16BIT;
-  Adler32CRC := B + A shl 16; // Reverse order for smaller numbers
+  Result := B + A shl 16; // Reverse order for smaller numbers
 end;
 
 

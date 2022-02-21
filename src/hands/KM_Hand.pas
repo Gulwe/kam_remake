@@ -20,7 +20,7 @@ type
   end;
 
   //Player manages its assets
-  TKMHandCommon = class
+  TKMHandCommon = class abstract
   private
     fID: TKMHandID; //Index of this hand in gHands
     fUnits: TKMUnitsCollection;
@@ -49,6 +49,7 @@ type
   TKMHand = class(TKMHandCommon)
   private
     fAI: TKMHandAI;
+    fEnabled: Boolean;
     fConstructions: TKMHandConstructions;
     fDeliveries: TKMHandLogistics;
     fFogOfWar: TKMFogOfWar; //Stores FOW info for current player, which includes
@@ -62,8 +63,9 @@ type
     fOwnerNikname: AnsiString; //Multiplayer owner nikname
     fHandType: TKMHandType;
     fCanBeHuman: Boolean;
-    fHandAITypes: TKMAITypeSet;
+    fCanBeAITypes: TKMAITypeSet;
     fFlagColor: Cardinal;
+    fTeam: Integer;
     fTeamColor: Cardinal;
     fCenterScreen: TKMPoint;
     fChooseLocation: TKMChooseLoc;
@@ -91,7 +93,7 @@ type
     procedure EntityDestroyed(aEntity: TKMHandEntity);
     procedure GroupDied(aGroup: TKMUnitGroup);
     procedure HouseDestroyed(aHouse: TKMHouse; aFrom: TKMHandID);
-    procedure UnitDied(aUnit: TKMUnit; aFrom: TKMHandID);
+    procedure UnitDied(aUnit: TKMUnit);
 
     procedure UnitTrained(aUnit: TKMUnit);
     procedure WarriorWalkedOut(aWarrior: TKMUnitWarrior);
@@ -104,8 +106,12 @@ type
     procedure SetFlagColor(const Value: Cardinal);
 
     procedure SetOwnerNikname(const aName: AnsiString);
+    function GetDeliveries: TKMHandLogistics;
+    procedure SetHandType(const Value: TKMHandType);
+    procedure SetEnabled(const Value: Boolean);
+    function GetFlagTextColor: Cardinal;
   public
-    Enabled: Boolean;
+
     InCinematic: Boolean;
 
     //Used for syncing hotkeys in multiplayer saves only. UI keeps local value to avoid GIP delays
@@ -116,13 +122,15 @@ type
 
     property AI: TKMHandAI read GetAI;
     property Constructions: TKMHandConstructions read fConstructions;
-    property Deliveries: TKMHandLogistics read fDeliveries;
+    property Deliveries: TKMHandLogistics read GetDeliveries;
     property Houses: TKMHousesCollection read fHouses;
     property Locks: TKMHandLocks read fLocks;
     property Stats: TKMHandStats read fStats;
     property FogOfWar: TKMFogOfWar read fFogOfWar;
     property UnitGroups: TKMUnitGroups read fUnitGroups;
     property MessageLog: TKMMessageLog read fMessageLog;
+
+    property Enabled: Boolean read fEnabled write SetEnabled;
     property Disabled: Boolean read IsDisabled;
 
     procedure SetHandIndex(aNewIndex: TKMHandID);
@@ -130,14 +138,17 @@ type
     property OwnerNiknameU: UnicodeString read GetOwnerNiknameU;
     function CalcOwnerName: UnicodeString; //Universal owner name
     function OwnerName(aNumberedAIs: Boolean = True; aLocalized: Boolean = True): UnicodeString; //Universal owner name
+    function GetHandOwnerName(aIsHuman, aIsAdvAI: Boolean; aNumberedAIs: Boolean = True; aLocalized: Boolean = True): UnicodeString;
     function GetOwnerName: UnicodeString;
     function GetOwnerNameColored: AnsiString;
     function GetOwnerNameColoredU: UnicodeString;
     function HasAssets: Boolean;
-    property HandType: TKMHandType read fHandType write fHandType; //Is it Human or AI
+    property HandType: TKMHandType read fHandType write SetHandType; //Is it Human or AI
     property CanBeHuman: Boolean read fCanBeHuman write fCanBeHuman;
-    property HandAITypes: TKMAITypeSet read fHandAITypes;
+    property CanBeAITypes: TKMAITypeSet read fCanBeAITypes;
     property FlagColor: Cardinal read fFlagColor write SetFlagColor;
+    property FlagTextColor: Cardinal read GetFlagTextColor;
+    property Team: Integer read fTeam write fTeam;
     property TeamColor: Cardinal read fTeamColor write fTeamColor;
     property GameFlagColor: Cardinal read GetGameFlagColor;
     property FlagColorIndex: Byte read GetColorIndex;
@@ -154,6 +165,7 @@ type
     function IsAnimal: Boolean;
     function IsHuman: Boolean;
     function IsComputer: Boolean;
+    function CanBeAI: Boolean;
 
     procedure AfterMissionInit(aFlattenRoads: Boolean);
 
@@ -162,7 +174,7 @@ type
     function AddUnitGroup(aUnitType: TKMUnitType; const Position: TKMPoint; aDir: TKMDirection; aUnitPerRow, aCount: Word;
                           aMakeCheckpoint: Boolean = True): TKMUnitGroup;
 
-    function TrainUnit(aUnitType: TKMUnitType; const Position: TKMPoint): TKMUnit;
+    function TrainUnit(aUnitType: TKMUnitType; aInHouse: TKMHouse): TKMUnit;
 
     function GetNextHouseWSameType(aHouseType: TKMHouseType; aStartFromUID: Cardinal): TKMHouse; overload;
     function GetNextHouseWSameType(aHouseType: TKMHouseType; aStartFromUID: Cardinal;
@@ -194,6 +206,7 @@ type
     procedure ToggleFakeFieldPlan(const aLoc: TKMPoint; aFieldType: TKMFieldType);
     function AddHouse(aHouseType: TKMHouseType; PosX, PosY: Word; RelativeEntrace: Boolean): TKMHouse;
     procedure AddHousePlan(aHouseType: TKMHouseType; const aLoc: TKMPoint);
+    function HasHousePlan(const aLoc: TKMPoint): Boolean;
     function AddHouseWIP(aHouseType: TKMHouseType; const aLoc: TKMPoint): TKMHouse;
     function RemGroup(const Position: TKMPoint): Boolean;
     procedure RemHouse(const Position: TKMPoint; DoSilent: Boolean; IsEditor: Boolean = False);
@@ -203,7 +216,7 @@ type
     function FindInn(Loc: TKMPoint; aUnit: TKMUnit; UnitIsAtHome: Boolean = False): TKMHouseInn;
     function FindHouse(aType: TKMHouseType; const aPosition: TKMPoint; Index: Byte = 1): TKMHouse; overload;
     function FindHouse(aType: TKMHouseType; Index: Byte=1): TKMHouse; overload;
-    function FindHousesInRadius(const aLoc: TKMPoint; aSqrRadius: Single; aTypes: THouseTypeSet = [HOUSE_MIN..HOUSE_MAX]; aOnlyCompleted: Boolean = True): TKMHouseArray;
+    function FindHousesInRadius(const aLoc: TKMPoint; aSqrRadius: Single; aTypes: TKMHouseTypeSet = HOUSES_VALID; aOnlyCompleted: Boolean = True): TKMHouseArray;
     function FindCityCenter: TKMPoint;
     function HitTest(X,Y: Integer): TObject;
     function HousesHitTest(X, Y: Integer): TKMHouse;
@@ -225,7 +238,7 @@ type
     procedure IncAnimStep;
     procedure UpdateState(aTick: Cardinal); override;
     procedure Paint(const aRect: TKMRect; aTickLag: Single); override;
-    function ObjToString: String;
+    function ObjToString(aSeparator: String = ' '): String;
   end;
 
 
@@ -240,11 +253,12 @@ type
 implementation
 uses
   Classes, SysUtils, KromUtils, Math, TypInfo,
-  KM_GameCursor, KM_Game, KM_GameParams, KM_Terrain,
-  KM_HandsCollection, KM_Sound, KM_AIFields, KM_MapEditorHistory,
-  KM_Resource, KM_ResSound, KM_ResTexts, KM_ResMapElements, KM_ScriptingEvents, KM_ResUnits,
+  KM_Cursor, KM_Game, KM_GameParams, KM_Terrain,
+  KM_HandsCollection, KM_Sound, KM_AIFields, KM_MapEdTypes,
+  KM_Resource, KM_ResSound, KM_ResTexts, KM_ResMapElements, KM_ScriptingEvents, KM_ResUnits, KM_ResPalettes,
   KM_CommonUtils, KM_GameSettings,
-  KM_UnitGroupTypes;
+  KM_UnitGroupTypes,
+  KM_MapTypes;
 
 const
   TIME_TO_SET_FIRST_STOREHOUSE = 10*60*2; //We give 2 minutes to set first storehouse, otherwise player will be defeated
@@ -255,8 +269,8 @@ constructor TKMHandCommon.Create(aHandIndex: TKMHandID);
 begin
   inherited Create;
 
-  fID  := aHandIndex;
-  fUnits        := TKMUnitsCollection.Create;
+  fID := aHandIndex;
+  fUnits := TKMUnitsCollection.Create;
 end;
 
 
@@ -383,7 +397,7 @@ begin
   fOwnerNikname := '';
   fHandType     := hndComputer;
   fCanBeHuman   := False;
-  fHandAITypes  := [];
+  fCanBeAITypes  := [];
   for I := 0 to MAX_HANDS - 1 do
   begin
     fShareFOW[I] := True; //Share FOW between allies by default (it only affects allied players)
@@ -393,8 +407,9 @@ begin
     SelectionHotkeys[I] := -1; //Not set
 
   fAlliances[fID] := atAlly; //Others are set to enemy by default
-  fFlagColor := DefaultTeamColors[fID]; //Init with default color, later replaced by Script
+  fFlagColor := DEFAULT_TEAM_COLORS[fID]; //Init with default color, later replaced by Script
   fTeamColor := fFlagColor;
+  fTeam := NO_TEAM;
 
   fHSketch := TKMHouseSketchEdit.Create;
   fFirstHSketch := TKMHouseSketchEdit.Create;
@@ -433,6 +448,8 @@ end;
 
 procedure TKMHand.ResetChooseLocation;
 begin
+  if Self = nil then Exit;
+  
   fChooseLocation.Allowed := False;
   fChooseLocation.Placed := False;
 end;
@@ -495,10 +512,11 @@ end;
 
 //Start training unit in School/Barracks
 //User can cancel the training, so we don't add unit to stats just yet
-function TKMHand.TrainUnit(aUnitType: TKMUnitType; const Position: TKMPoint): TKMUnit;
+function TKMHand.TrainUnit(aUnitType: TKMUnitType; aInHouse: TKMHouse): TKMUnit;
 begin
+  Assert(aInHouse <> nil, 'House to train unit in could not be nil');
   // Add unit and specify that its made inside house (so there is no need to occupy terrain tile)
-  Result := fUnits.AddUnit(fID, aUnitType, Position, False, 0, True);
+  Result := fUnits.AddUnit(fID, aUnitType, aInHouse.Entrance, False, 0, aInHouse);
   Result.OnUnitDied := UnitDied;
   Result.OnUnitTrained := UnitTrained;
 
@@ -613,7 +631,7 @@ end;
 
 function TKMHand.IsAnimal: Boolean;
 begin
-  Result := fID = PLAYER_ANIMAL;
+  Result := fID = HAND_ANIMAL;
 end;
 
 
@@ -623,19 +641,25 @@ begin
 end;
 
 
+function TKMHand.CanBeAI: Boolean;
+begin
+  Result := (fCanBeAITypes <> []) and (fCanBeAITypes <> [aitNone]);
+end;
+
+
 //Lay out all roads at once to save time on Terrain lighting/passability recalculations
 procedure TKMHand.AfterMissionInit(aFlattenRoads: Boolean);
 begin
+  if (Self = nil) or not Enabled then Exit;
+
   Assert(fRoadsList <> nil);
 
   gTerrain.SetRoads(fRoadsList, fID, not aFlattenRoads); //If we are flattening roads that will update WalkConnect anyway
   if aFlattenRoads then
     gTerrain.FlattenTerrain(fRoadsList);
 
-  FreeAndNil(fRoadsList);
-
   if not gGameParams.IsMapEditor then
-    fAI.AfterMissionInit;
+    fAI.AfterMissionInit(fCanBeAITypes);
 end;
 
 
@@ -893,6 +917,12 @@ begin
 end;
 
 
+procedure TKMHand.SetHandType(const Value: TKMHandType);
+begin
+  fHandType := Value;
+end;
+
+
 procedure TKMHand.SetOwnerNikname(const aName: AnsiString); //MP owner nikname (empty in SP)
 begin
   fOwnerNikname := aName;
@@ -912,7 +942,7 @@ var
   obj: Word;
 begin
   isFieldSet := False;
-  obj := gTerrain.Land[aLoc.Y,aLoc.X].Obj;
+  obj := gTerrain.Land^[aLoc.Y,aLoc.X].Obj;
   //If we have corn/wine object on that tile, set appropriate field/wine stage
   if (aFieldType = ftCorn) and not gTerrain.TileIsCornField(aLoc) then
   begin
@@ -951,20 +981,18 @@ end;
 function TKMHand.GetGameFlagColor: Cardinal;
 begin
   Result := fFlagColor;
-  if (gGame <> nil) and not gGameParams.IsMapEditor then
-  begin
-    case gGameSettings.PlayersColorMode of
-      pcmAllyEnemy: begin
-                      if ID = gMySpectator.HandID then
-                        Result := gGameSettings.PlayerColorSelf
-                      else if (Alliances[gMySpectator.HandID] = atAlly) then
-                        Result := gGameSettings.PlayerColorAlly
-                      else
-                        Result := gGameSettings.PlayerColorEnemy;
-                    end;
-      pcmTeams:     Result := fTeamColor;
-    end;
+  if gGame = nil then Exit;
 
+  case gGameSettings.PlayersColorMode of
+    pcmAllyEnemy: begin
+                    if ID = gMySpectator.HandID then
+                      Result := gGameSettings.PlayerColorSelf
+                    else if (Alliances[gMySpectator.HandID] = atAlly) then
+                      Result := gGameSettings.PlayerColorAlly
+                    else
+                      Result := gGameSettings.PlayerColorEnemy;
+                  end;
+    pcmTeams:     Result := fTeamColor;
   end;
 end;
 
@@ -1019,12 +1047,12 @@ begin
   Result := gTerrain.CanPlaceHouse(aLoc, aHouseType);
   if not Result then Exit;
 
-  HA := gRes.Houses[aHouseType].BuildArea;
+  HA := gResHouses[aHouseType].BuildArea;
   for I := 1 to 4 do
   for K := 1 to 4 do
   if HA[I,K] <> 0 then
   begin
-    Tx := aLoc.X - gRes.Houses[aHouseType].EntranceOffsetX + K - 3;
+    Tx := aLoc.X - gResHouses[aHouseType].EntranceOffsetX + K - 3;
     Ty := aLoc.Y + I - 4;
     //AI ignores FOW (this function is used from scripting)
     Result := Result and gTerrain.TileInMapCoords(Tx, Ty, 1)
@@ -1063,8 +1091,8 @@ begin
     Exit;
 
   //Perform additional cheks for AI
-  HA := gRes.Houses[aHouseType].BuildArea;
-  enterOff := gRes.Houses[aHouseType].EntranceOffsetX;
+  HA := gResHouses[aHouseType].BuildArea;
+  enterOff := gResHouses[aHouseType].EntranceOffsetX;
   for I := 1 to 4 do
   for K := 1 to 4 do
   if HA[I,K] <> 0 then
@@ -1087,24 +1115,24 @@ begin
       if (HA[I,K] = 2) then
       begin
         terOwner := gAIFields.Influences.GetBestOwner(Tx,Ty);
-        if ((terOwner <> fID) and (terOwner <> PLAYER_NONE)) then
+        if ((terOwner <> fID) and (terOwner <> HAND_NONE)) then
           Exit;
       end;
     end;
 
     //Avoid placing houses in choke-points _/house\_ by checking upper corners
     if not (aHouseType in [htGoldMine, htIronMine]) then
-      if (gTerrain.Land[Ty-1, Tx - 1].Passability * [tpMakeRoads, tpWalkRoad] = [])
-      or (gTerrain.Land[Ty-1, Tx + 1].Passability * [tpMakeRoads, tpWalkRoad] = [])
+      if (gTerrain.Land^[Ty-1, Tx - 1].Passability * [tpMakeRoads, tpWalkRoad] = [])
+      or (gTerrain.Land^[Ty-1, Tx + 1].Passability * [tpMakeRoads, tpWalkRoad] = [])
       then
         Exit;
 
     //Make sure we can add road below house, full width + 1 on each side
     //Terrain already checked we are 1 tile away from map edge
     if (I = 4) and not (aHouseType in [htGoldMine, htIronMine]) then
-      if (gTerrain.Land[Ty+1, Tx - 1].Passability * [tpMakeRoads, tpWalkRoad] = [])
-      or (gTerrain.Land[Ty+1, Tx    ].Passability * [tpMakeRoads, tpWalkRoad] = [])
-      or (gTerrain.Land[Ty+1, Tx + 1].Passability * [tpMakeRoads, tpWalkRoad] = [])
+      if (gTerrain.Land^[Ty+1, Tx - 1].Passability * [tpMakeRoads, tpWalkRoad] = [])
+      or (gTerrain.Land^[Ty+1, Tx    ].Passability * [tpMakeRoads, tpWalkRoad] = [])
+      or (gTerrain.Land^[Ty+1, Tx + 1].Passability * [tpMakeRoads, tpWalkRoad] = [])
       then
         Exit;
 
@@ -1134,7 +1162,7 @@ procedure TKMHand.ToggleFieldPlan(const aLoc: TKMPoint; aFieldType: TKMFieldType
 var
   plan: TKMFieldType;
 begin
-  Assert(aFieldType in [ftRoad, ftCorn, ftWine, ftWall], 'Placing wrong FieldType');
+  Assert(aFieldType in [ftRoad, ftCorn, ftWine], 'Placing wrong FieldType');
 
   plan := fConstructions.FieldworksList.HasField(aLoc);
   if aFieldType = plan then //Same plan - remove it
@@ -1150,7 +1178,6 @@ begin
          ftRoad: gScriptEvents.ProcPlanRoadPlaced(fID, aLoc.X, aLoc.Y);
          ftCorn: gScriptEvents.ProcPlanFieldPlaced(fID, aLoc.X, aLoc.Y);
          ftWine: gScriptEvents.ProcPlanWinefieldPlaced(fID, aLoc.X, aLoc.Y);
-         ftWall: gScriptEvents.ProcPlanWinefieldPlaced(fID, aLoc.X, aLoc.Y);
       else
         raise Exception.Create('Unknown aFieldType');
       end;
@@ -1176,7 +1203,7 @@ procedure TKMHand.ToggleFakeFieldPlan(const aLoc: TKMPoint; aFieldType: TKMField
 var
   plan: TKMFieldType;
 begin
-  Assert(aFieldType in [ftRoad, ftCorn, ftWine, ftWall], 'Placing wrong fake FieldType');
+  Assert(aFieldType in [ftRoad, ftCorn, ftWine], 'Placing wrong fake FieldType');
 
   plan := fConstructions.FieldworksList.HasFakeField(aLoc);
   if aFieldType = plan then //Same plan - remove it
@@ -1229,15 +1256,21 @@ procedure TKMHand.AddHousePlan(aHouseType: TKMHouseType; const aLoc: TKMPoint);
 var
   loc: TKMPoint;
 begin
-  loc.X := aLoc.X - gRes.Houses[aHouseType].EntranceOffsetX;
+  loc.X := aLoc.X - gResHouses[aHouseType].EntranceOffsetX;
   loc.Y := aLoc.Y;
 
   fConstructions.HousePlanList.AddPlan(aHouseType, loc);
   fStats.HousePlanned(aHouseType);
-  gScriptEvents.ProcHousePlanPlaced(fID, loc.X, loc.Y, aHouseType);
+  gScriptEvents.EventHousePlanPlaced(fID, loc.X, loc.Y, aHouseType);
 
   if (ID = gMySpectator.HandID) and not gGameParams.IsReplayOrSpectate then
     gSoundPlayer.Play(sfxPlacemarker);
+end;
+
+
+function TKMHand.HasHousePlan(const aLoc: TKMPoint): Boolean;
+begin
+  Result := fConstructions.HousePlanList.HasPlan(aLoc);
 end;
 
 
@@ -1272,7 +1305,7 @@ begin
 
   fConstructions.HousePlanList.RemPlan(Position);
   fStats.HousePlanRemoved(hPlan.HouseType);
-  gScriptEvents.ProcHousePlanRemoved(fID, hPlan.Loc.X, hPlan.Loc.Y, hPlan.HouseType);
+  gScriptEvents.EventHousePlanRemoved(fID, hPlan.Loc.X, hPlan.Loc.Y, hPlan.HouseType);
   if (ID = gMySpectator.HandID) and not gGameParams.IsReplayOrSpectate then
     gSoundPlayer.Play(sfxClick);
 end;
@@ -1291,7 +1324,6 @@ begin
     ftRoad: gScriptEvents.ProcPlanRoadRemoved(fID, Position.X, Position.Y);
     ftCorn: gScriptEvents.ProcPlanFieldRemoved(fID, Position.X, Position.Y);
     ftWine: gScriptEvents.ProcPlanWinefieldRemoved(fID, Position.X, Position.Y);
-    ftWall: gScriptEvents.ProcPlanWinefieldRemoved(fID, Position.X, Position.Y);
   else
     raise Exception.Create('Unknown fieldType');
   end;
@@ -1365,7 +1397,7 @@ begin
 end;
 
 
-function TKMHand.FindHousesInRadius(const aLoc: TKMPoint; aSqrRadius: Single; aTypes: THouseTypeSet = [HOUSE_MIN..HOUSE_MAX]; aOnlyCompleted: Boolean = True): TKMHouseArray;
+function TKMHand.FindHousesInRadius(const aLoc: TKMPoint; aSqrRadius: Single; aTypes: TKMHouseTypeSet = HOUSES_VALID; aOnlyCompleted: Boolean = True): TKMHouseArray;
 begin
   Result := fHouses.FindHousesInRadius(aLoc, aSqrRadius, aTypes, aOnlyCompleted);
 end;
@@ -1417,7 +1449,7 @@ end;
 
 procedure TKMHand.AddAIType(aHandAIType: TKMAIType);
 begin
-  Include(fHandAITypes, aHandAIType);
+  Include(fCanBeAITypes, aHandAIType);
 end;
 
 
@@ -1425,7 +1457,8 @@ procedure TKMHand.PostLoadMission;
 var
   I: Integer;
 begin
-
+  if (Self = nil) or not Enabled then Exit;
+  
   for I := 0 to fHouses.Count - 1 do
     fHouses[I].PostLoadMission;
 end;
@@ -1473,8 +1506,14 @@ begin
     gMySpectator.NilLastSelected;
   if gMySpectator.Highlight = aEntity then
     gMySpectator.Highlight := nil;
-  if gMySpectator.HighlightDebug = aEntity then
-    gMySpectator.HighlightDebug := nil;
+  if gMySpectator.HighlightDebug.Entity = aEntity then
+    gMySpectator.HighlightDebug.Reset;
+  if gMySpectator.HighlightDebug2.Entity = aEntity then
+    gMySpectator.HighlightDebug2.Reset;
+  if gMySpectator.HighlightDebug3.Entity = aEntity then
+    gMySpectator.HighlightDebug3.Reset;
+  if gMySpectator.HighlightRoute.Entity = aEntity then
+    gMySpectator.HighlightRoute.Reset;
 end;
 
 
@@ -1504,7 +1543,7 @@ begin
     begin
       Stats.HouseLost(aHouse.HouseType);
 
-      if aFrom <> PLAYER_NONE then
+      if aFrom <> HAND_NONE then
         gHands[aFrom].Stats.HouseDestroyed(aHouse.HouseType);
     end;
   end;
@@ -1548,8 +1587,16 @@ var
 begin
   Result := 3; //3 = Black which can be the default when a non-palette 32 bit color value is used
   for I := 0 to 255 do
-    if gRes.Palettes.DefaultPalette.Color32(I) = fFlagColor then
+    if gResPalettes.DefaultPalette.Color32(I) = fFlagColor then
       Result := I;
+end;
+
+
+function TKMHand.GetDeliveries: TKMHandLogistics;
+begin
+  if Self = nil then Exit(nil);
+
+  Result := fDeliveries;
 end;
 
 
@@ -1591,6 +1638,12 @@ end;
 
 
 function TKMHand.OwnerName(aNumberedAIs: Boolean = True; aLocalized: Boolean = True): UnicodeString;
+begin
+  Result := GetHandOwnerName(IsHuman, AI.Setup.NewAI, aNumberedAIs, aLocalized);
+end;
+
+
+function TKMHand.GetHandOwnerName(aIsHuman, aIsAdvAI: Boolean; aNumberedAIs: Boolean = True; aLocalized: Boolean = True): UnicodeString;
 
   function GetText(aId: Word; aLocalized: Boolean): UnicodeString; inline;
   begin
@@ -1603,7 +1656,7 @@ function TKMHand.OwnerName(aNumberedAIs: Boolean = True; aLocalized: Boolean = T
 begin
   //If this location is controlled by an MP player - show his nik
   if (fOwnerNikname <> '')
-    and IsHuman then //we could ask AI to play on ex human loc, so fOwnerNikname will be still some human name
+    and aIsHuman then //we could ask AI to play on ex human loc, so fOwnerNikname will be still some human name
     Exit(UnicodeString(fOwnerNikname));
 
   //Try to take player name from mission text if we are in SP
@@ -1611,7 +1664,7 @@ begin
   if (gGameParams.Mode in [gmSingle, gmCampaign, gmMapEd, gmReplaySingle])
     and gGame.TextMission.HasText(HANDS_NAMES_OFFSET + fID) then
   begin
-    if IsHuman then
+    if aIsHuman then
       Result := GetText(TX_PLAYER_YOU, aLocalized) + ' (' + gGame.TextMission[HANDS_NAMES_OFFSET + fID] + ')'
     else
       Result := gGame.TextMission[HANDS_NAMES_OFFSET + fID];
@@ -1620,10 +1673,10 @@ begin
   end;
 
   //Default names
-  if IsHuman then
+  if aIsHuman then
     Result := GetText(TX_PLAYER_YOU, aLocalized)
   else
-    if AI.Setup.NewAI then
+    if aIsAdvAI then
     begin
       if aNumberedAIs then
         Result := Format(GetText(TX_ADVANCED_AI_PLAYER_SHORT_X, aLocalized), [fID + 1])
@@ -1682,6 +1735,12 @@ begin
 end;
 
 
+procedure TKMHand.SetEnabled(const Value: Boolean);
+begin
+  fEnabled := Value;
+end;
+
+
 procedure TKMHand.SetFlagColor(const Value: Cardinal);
 begin
   if Self = nil then Exit;
@@ -1729,8 +1788,14 @@ begin
   Result := 0;
     for I := 1 to gTerrain.MapY do
       for K := 1 to gTerrain.MapX do
-        if gTerrain.Land[I,K].TileOwner = fID then
+        if gTerrain.Land^[I,K].TileOwner = fID then
           Inc(Result);
+end;
+
+
+function TKMHand.GetFlagTextColor: Cardinal;
+begin
+  Result := FlagColorToTextColor(fFlagColor);
 end;
 
 
@@ -1790,15 +1855,15 @@ begin
   gTerrain.GetHouseMarks(aLoc, aHouseType, aList);
 
   //Override marks if there are House/FieldPlans (only we know about our plans) and or FogOfWar
-  HA := gRes.Houses[aHouseType].BuildArea;
+  HA := gResHouses[aHouseType].BuildArea;
 
   for I := 1 to 4 do
     for K := 1 to 4 do
       if (HA[I,K] <> 0)
-        and gTerrain.TileInMapCoords(aLoc.X + K - 3 - gRes.Houses[aHouseType].EntranceOffsetX, aLoc.Y + I - 4, 1) then
+        and gTerrain.TileInMapCoords(aLoc.X + K - 3 - gResHouses[aHouseType].EntranceOffsetX, aLoc.Y + I - 4, 1) then
       begin
         //This can't be done earlier since values can be off-map
-        P2 := KMPoint(aLoc.X + K - 3 - gRes.Houses[aHouseType].EntranceOffsetX, aLoc.Y + I - 4);
+        P2 := KMPoint(aLoc.X + K - 3 - gResHouses[aHouseType].EntranceOffsetX, aLoc.Y + I - 4);
 
         //Forbid planning on unrevealed areas and fieldplans
         allowBuild := aIgnoreFOW
@@ -1811,7 +1876,7 @@ begin
             if (gHands[fID].Alliances[J] = atAlly)
               and ((gHands[J].fConstructions.FieldworksList.HasField(P2) <> ftNone)
                 or gHands[J].fConstructions.HousePlanList.HasPlan(P2)) then
-              allowBuild := False; 
+              allowBuild := False;
 
         //Check surrounding tiles in +/- 1 range for other houses pressence
         for S := -1 to 1 do
@@ -1822,7 +1887,7 @@ begin
                   and gHands[J].fConstructions.HousePlanList.HasPlan(KMPoint(P2.X + S, P2.Y + T)) then
                 begin
                   BlockPoint(KMPoint(P2.X + S, P2.Y + T), TC_BLOCK); //Block surrounding points
-                  allowBuild := False; 
+                  allowBuild := False;
                 end;
 
         //Mark the tile according to previous check results
@@ -1841,7 +1906,7 @@ end;
 procedure TKMHand.Save(SaveStream: TKMemoryStream);
 begin
   SaveStream.PlaceMarker('Hand');
-  SaveStream.Write(Enabled);
+  SaveStream.Write(fEnabled);
   SaveStream.Write(InCinematic);
   if not Enabled then Exit;
 
@@ -1860,12 +1925,13 @@ begin
   SaveStream.WriteA(fOwnerNikname);
   SaveStream.Write(fHandType, SizeOf(fHandType));
   SaveStream.Write(fCanBeHuman, SizeOf(fCanBeHuman));
-  SaveStream.Write(fHandAITypes, SizeOf(fHandAITypes));
+  SaveStream.Write(fCanBeAITypes, SizeOf(fCanBeAITypes));
   SaveStream.Write(fAlliances, SizeOf(fAlliances));
   SaveStream.Write(fShareFOW, SizeOf(fShareFOW));
   SaveStream.Write(fShareBeacons, SizeOf(fShareBeacons));
   SaveStream.Write(fCenterScreen);
   SaveStream.Write(fFlagColor);
+  SaveStream.Write(fTeam);
   SaveStream.Write(SelectionHotkeys, SizeOf(SelectionHotkeys));
   SaveStream.Write(fChooseLocation, SizeOf(TKMChooseLoc));
 end;
@@ -1874,7 +1940,7 @@ end;
 procedure TKMHand.Load(LoadStream: TKMemoryStream);
 begin
   LoadStream.CheckMarker('Hand');
-  LoadStream.Read(Enabled);
+  LoadStream.Read(fEnabled);
   LoadStream.Read(InCinematic);
   if not Enabled then Exit;
 
@@ -1893,12 +1959,13 @@ begin
   LoadStream.ReadA(fOwnerNikname);
   LoadStream.Read(fHandType, SizeOf(fHandType));
   LoadStream.Read(fCanBeHuman, SizeOf(fCanBeHuman));
-  LoadStream.Read(fHandAITypes, SizeOf(fHandAITypes));
+  LoadStream.Read(fCanBeAITypes, SizeOf(fCanBeAITypes));
   LoadStream.Read(fAlliances, SizeOf(fAlliances));
   LoadStream.Read(fShareFOW, SizeOf(fShareFOW));
   LoadStream.Read(fShareBeacons, SizeOf(fShareBeacons));
   LoadStream.Read(fCenterScreen);
   LoadStream.Read(fFlagColor);
+  LoadStream.Read(fTeam);
   LoadStream.Read(SelectionHotkeys, SizeOf(SelectionHotkeys));
   LoadStream.Read(fChooseLocation, SizeOf(TKMChooseLoc));
 end;
@@ -1947,11 +2014,11 @@ begin
 end;
 
 
-procedure TKMHand.UnitDied(aUnit: TKMUnit; aFrom: TKMHandID);
+procedure TKMHand.UnitDied(aUnit: TKMUnit);
 begin
   Stats.UnitLost(aUnit.UnitType);
-  if aFrom <> PLAYER_NONE then
-    gHands[aFrom].Stats.UnitKilled(aUnit.UnitType);
+  if aUnit.KilledBy <> HAND_NONE then
+    gHands[aUnit.KilledBy].Stats.UnitKilled(aUnit.UnitType);
 
   //Demands: food for soldiers / stone or wood for workers
   Deliveries.Queue.RemDemand(aUnit);
@@ -1960,7 +2027,7 @@ begin
     AI.General.WarriorDied(TKMUnitWarrior(aUnit));
 
   //Call script event after updating statistics
-  gScriptEvents.ProcUnitDied(aUnit, aFrom);
+  gScriptEvents.ProcUnitDied(aUnit, aUnit.KilledBy);
 
   EntityDestroyed(aUnit);
 end;
@@ -2038,7 +2105,7 @@ begin
       with fConstructions.HousePlanList.Plans[I] do
         if (HouseType = htStore) then
         begin
-          entrance := KMPointAdd( Loc, KMPoint(gRes.Houses[HouseType].EntranceOffsetX,0) );
+          entrance := KMPointAdd( Loc, KMPoint(gResHouses[HouseType].EntranceOffsetX,0) );
           RemHousePlan(entrance);
           if CanAddFieldPlan(KMPoint(entrance.X, entrance.Y+1), ftRoad) then
             AddFirstStorehouse(entrance);
@@ -2050,8 +2117,8 @@ begin
   and (gMySpectator.HandID = ID)
   and not fChooseLocation.Placed then
   begin
-    gGameCursor.Mode := cmHouses;
-    gGameCursor.Tag1 := Byte(htStore);
+    gCursor.Mode := cmHouses;
+    gCursor.Tag1 := Byte(htStore);
   end;
 end;
 
@@ -2066,7 +2133,7 @@ procedure TKMHand.AddFirstStorehouse(aEntrance: TKMPoint);
       gTerrain.SetRoad(aPoint, fID);
       //Terrain under roads is flattened (fields are not)
       gTerrain.FlattenTerrain(aPoint);
-      if gMapElements[gTerrain.Land[aPoint.Y,aPoint.X].Obj].WineOrCorn then
+      if gMapElements[gTerrain.Land^[aPoint.Y,aPoint.X].Obj].WineOrCorn then
         gTerrain.RemoveObject(aPoint);
     end;
   end;
@@ -2095,7 +2162,7 @@ begin
       AddUnit(UT, KMPoint(aEntrance.X,aEntrance.Y+1));
   // Finish action
   fChooseLocation.Placed := True;
-  gGameCursor.Mode := cmNone; // Reset cursor
+  gCursor.Mode := cmNone; // Reset cursor
 end;
 
 
@@ -2119,7 +2186,7 @@ begin
   inherited;
 
   if mlUnits in gGameParams.VisibleLayers then
-    fUnitGroups.Paint(aRect);
+    fUnitGroups.Paint(aRect, aTickLag);
 
   if mlHouses in gGameParams.VisibleLayers then
     fHouses.Paint(aRect);
@@ -2141,14 +2208,14 @@ begin
 end;
 
 
-function TKMHand.ObjToString: String;
+function TKMHand.ObjToString(aSeparator: String = ' '): String;
 begin
-  Result := Format('Enabled = %5s ID = %d AI: [%s] Owner = %s HandType = %s',
-                   [BoolToStr(Enabled, True),
-                    fID,
-                    AI.ObjToString,
-                    OwnerName,
-                    GetEnumName(TypeInfo(TKMHandType), Integer(HandType))]);
+  Result := Format('Enabled = %5s%sID = %d%sAI: [%s]%sOwner = %s%sHandType = %s',
+                   [BoolToStr(Enabled, True), aSeparator,
+                    fID, aSeparator,
+                    AI.ObjToString, aSeparator,
+                    OwnerName, aSeparator,
+                    GetEnumName(TypeInfo(TKMHandType), Integer(fHandType))]);
 end;
 
 
@@ -2169,7 +2236,7 @@ begin
     if (U <> nil)
     and (U.UnitType = utFish)
     and (not U.IsDeadOrDying) //Fish are killed when they are caught or become stuck
-    and (gTerrain.Land[U.Position.Y, U.Position.X].WalkConnect[wcFish] = aWaterID)
+    and (gTerrain.Land^[U.Position.Y, U.Position.X].WalkConnect[wcFish] = aWaterID)
     and (TKMUnitAnimal(U).FishCount > highestGroupCount) then
     begin
       Result := TKMUnitAnimal(U);
@@ -2186,8 +2253,8 @@ function GetStatsUpdatePeriod: Integer;
 begin
   Result := 1000;
   case gGameParams.MissionMode of
-    mmNormal:  Result := CHARTS_SAMPLING_FOR_ECONOMY;
-    mmTactic:  Result := CHARTS_SAMPLING_FOR_TACTICS;
+    mmBuilding:  Result := CHARTS_SAMPLING_FOR_ECONOMY;
+    mmFighting:  Result := CHARTS_SAMPLING_FOR_TACTICS;
   end;
 end;
 

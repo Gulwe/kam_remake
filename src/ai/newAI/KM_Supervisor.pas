@@ -99,7 +99,8 @@ type
 implementation
 uses
   SysUtils, Math,
-  KM_Game, KM_GameParams, KM_HandsCollection, KM_Hand,
+  KM_Game, KM_GameParams,
+  KM_HandsCollection, KM_Hand, KM_HandTypes,
   {$IFDEF DEBUG_Supervisor}
     KM_RenderAux,
   {$ENDIF}
@@ -247,7 +248,7 @@ var
 begin
   if gGameParams.IsMapEditor then Exit; //No need to work in the mapEd
 
-  FillChar(fPL2Alli, SizeOf(fPL2Alli), #255); // TKMHandIndex = SmallInt => Byte(255) = -1 = PLAYER_NONE
+  FillChar(fPL2Alli, SizeOf(fPL2Alli), #255); // TKMHandIndex = SmallInt => Byte(255) = -1 = HAND_NONE
   SetLength(fAlli2PL, gHands.Count, gHands.Count);
   AlliCnt := 0;
   for PL1 := 0 to gHands.Count - 1 do
@@ -350,11 +351,10 @@ const
   TARGET_HOUSE_IN_INFLUENCE = 150;
 var
   CS: TKMCombatStatus;
-  Idx, K, L, M, CSNum: Integer;
+  K, L, M, CSNum: Integer;
   P: TKMPoint;
   G: TKMUnitGroup;
   pCluster: pTKMCombatCluster;
-  House: TKMHouse;
   Owner, PL: TKMHandID;
 begin
   Result := csNeutral;
@@ -474,11 +474,11 @@ const
     2.0,2.5,2.0,2.5,     // utPikeman,utHallebardman,utHorseScout,utCavalry
     2.5,1.5,1.5,2.5,1.5  // utBarbarian,utPeasant,utSlingshot,utMetalBarbarian,utHorseman
   );
-  ThreatGain: array [TKMGroupType] of Single = (
+  ThreatGain: array [GROUP_TYPE_MIN..GROUP_TYPE_MAX] of Single = (
   // gtMelee, gtAntiHorse, gtRanged, gtMounted
          0.5,         1.0,      3.0,       3.0
   );
-  OpportunityArr: array [TKMGroupType,TKMGroupType] of Single = (
+  OpportunityArr: array [GROUP_TYPE_MIN..GROUP_TYPE_MAX, GROUP_TYPE_MIN..GROUP_TYPE_MAX] of Single = (
   // gtMelee, gtAntiHorse, gtRanged, gtMounted
     (    1.0,         2.0,      3.0,       0.5), // gtMelee
     (    0.5,         1.0,      2.0,       4.0), // gtAntiHorse
@@ -488,8 +488,7 @@ const
 
 var
   IdxA,IdxE, CntA, CntE, Overflow, Overflow2, BestIdxE, BestIdxA: Integer;
-  SqrDistFromRanged, SqrDist, BestSqrDistFromRanged, BestSqrDist, BestThreat, Opportunity, BestOpportunity: Single;
-  G: TKMUnitGroup;
+  BestThreat, Opportunity, BestOpportunity: Single;
   U: TKMUnit;
   UW: TKMUnitWarrior;
   pGCWA: pTKMGroupCounterWeight;
@@ -559,6 +558,7 @@ begin
     SetLength(Threat, Length(E));
     for IdxE := 0 to CntE - 1 do
     begin
+      // Estimate threat
       Threat[IdxE].Distance := 1E6;
       Threat[IdxE].DistRanged := 1E6;
       for IdxA := 0 to Length(A) - 1 do // Over all groups
@@ -566,6 +566,7 @@ begin
           Threat[IdxE].DistRanged := Dist[ GetIdx(CntE,IdxA,IdxE) ]
         else if (Dist[ GetIdx(CntE,IdxA,IdxE) ] < Threat[IdxE].Distance) then
           Threat[IdxE].Distance := Dist[ GetIdx(CntE,IdxA,IdxE) ];
+      // Estimate group price (use just 1 warrior type * count)
       UW := E[IdxE].GetAliveMember;
       Threat[IdxE].WeightedCount := E[IdxE].Count * WarriorPrice[UW.UnitType];
       case E[IdxE].GroupType of // + City influence - Group in combat
@@ -573,10 +574,13 @@ begin
         gtAntiHorse: Threat[IdxE].Risk := Threat[IdxE].WeightedCount * AI_Par[ATTACK_SUPERVISOR_EvalTarget_ThreatGainAntiHorse];
         gtRanged:    Threat[IdxE].Risk := Threat[IdxE].WeightedCount * AI_Par[ATTACK_SUPERVISOR_EvalTarget_ThreatGainRanged];
         gtMounted:   Threat[IdxE].Risk := Threat[IdxE].WeightedCount * AI_Par[ATTACK_SUPERVISOR_EvalTarget_ThreatGainMounted];
+        else         Threat[IdxE].Risk := NO_THREAT;
       end;
-      Threat[IdxE].Risk := + Threat[IdxE].Risk
-                           - Threat[IdxE].DistRanged * AI_Par[ATTACK_SUPERVISOR_EvalTarget_ThreatGainRangDist] * Byte(Threat[IdxE].DistRanged <> 1E6)
-                           - Threat[IdxE].Distance   * AI_Par[ATTACK_SUPERVISOR_EvalTarget_ThreatGainDist]  * Byte(Threat[IdxE].Distance <> 1E6);
+      // Consider distance
+      Threat[IdxE].Risk :=
+        + Threat[IdxE].Risk
+        - Threat[IdxE].DistRanged * AI_Par[ATTACK_SUPERVISOR_EvalTarget_ThreatGainRangDist] * Byte(Threat[IdxE].DistRanged <> 1E6)
+        - Threat[IdxE].Distance   * AI_Par[ATTACK_SUPERVISOR_EvalTarget_ThreatGainDist]     * Byte(Threat[IdxE].Distance   <> 1E6);
     end;
 
     {$IFDEF DEBUG_Supervisor}
@@ -590,7 +594,8 @@ begin
     {$ENDIF}
 
     // Set targets
-    // Archers - higher distance
+
+    // Archers - shoot the nearest enemy
     for IdxA := 0 to CntA - 1 do
       if (A[IdxA].Group.GroupType = gtRanged) then
       begin
@@ -609,11 +614,13 @@ begin
           A[IdxA] := nil;
         end;
       end;
-    // Melee
+
+    // Melee - attack the most dangerous enemy
     Overflow := 0;
     while (Overflow < Length(E)) do
     begin
       Inc(Overflow);
+      // Find the most dangerous enemy (closest and strongest group)
       BestThreat := NO_THREAT;
       for IdxE := Low(Threat) to High(Threat) do
         if (Threat[IdxE].Risk > BestThreat) then
@@ -623,7 +630,7 @@ begin
         end;
       if (BestThreat <= NO_THREAT) then
         break;
-
+      // Find something that can beat it (distance, strength and group type)
       with Threat[BestIdxE] do
       begin
         Overflow2 := 0;
@@ -632,10 +639,10 @@ begin
           Inc(Overflow2);
           BestOpportunity := NO_THREAT;
           for IdxA := 0 to CntA - 1 do
-            if (A[IdxA] <> nil) then
+            if (A[IdxA] <> nil) then // Skip already used group
             begin
               Opportunity := + OpportunityArr[ A[IdxA].Group.GroupType, E[BestIdxE].GroupType ] * AI_Par[ATTACK_SUPERVISOR_EvalTarget_OpportunityGain]
-                             - Dist[ GetIdx(CntE,IdxA,BestIdxE) ]                        * AI_Par[ATTACK_SUPERVISOR_EvalTarget_OpportunityDistGain];
+                             - Dist[ GetIdx(CntE,IdxA,BestIdxE) ]                               * AI_Par[ATTACK_SUPERVISOR_EvalTarget_OpportunityDistGain];
               if (BestOpportunity < Opportunity) then
               begin
                 BestIdxA := IdxA;
@@ -661,6 +668,7 @@ begin
     end;
   end;
 
+  // Attack houses
   for IdxE := 0 to Length(H) - 1 do
   begin
     Overflow := 0;
@@ -794,7 +802,7 @@ begin
   SetLength(Result, 0);
 
   // Find center points of cities / armies (where we should start scan - init point / center screen is useless for this)
-  for IdxPL := 0 to Length(aPlayers) - 1 do
+  for IdxPL := 0 to High(aPlayers) do
   begin
     Player := aPlayers[IdxPL];
     gAIFields.Eye.OwnerUpdate(Player);
@@ -885,10 +893,9 @@ procedure TKMSupervisor.AttackDecision(aTeam: Byte);
     DISTANCE_COEF_FFA = 2;
   var
     ATargetSoldiers, ETargetSoldiers: Boolean;
-    Distance, BestDist, MinDist, MaxDist: Word;
+    Distance, MinDist, MaxDist: Word;
     K, L, ACnt, ECnt, TeamIdx: Integer;
     Comparison, DistCoef: Single;
-    APL, EPL: TKMHandID;
     TargetPL: TKMHandIDArray;
     AllyPoly,EnemyPoly,RoutePoly,DistArr: TKMWordArray;
   begin
@@ -981,7 +988,7 @@ begin
           DefRatio := Max(DefRatio, AI.ArmyManagement.Defence.DefenceStatus);
           KMSwapInt(fAlli2PL[aTeam, 0], fAlli2PL[aTeam, IdxPL]); // Make sure that player in first index is new AI
         end;
-    // AI does not have enought soldiers
+    // AI does not have enough soldiers
     if (DefRatio < MIN_DEF_RATIO) then
       Exit;
   end;
@@ -1074,7 +1081,7 @@ type
     if (Length(DefEval) > 0) then
     begin
       // Sort by evaluation
-      Sort(DefEval[0], Low(DefEval), Cnt-1, sizeof(DefEval[0]), CompareDef);
+      SortCustom(DefEval[0], Low(DefEval), Cnt-1, SizeOf(DefEval[0]), CompareDef);
       // Prepare output array
       for I := 0 to Length(aOwners) - 1 do
         with DistributedPos[ aOwners[I] ] do
@@ -1142,15 +1149,15 @@ procedure TKMSupervisor.DivideResources();
     // Get only mines in influence of alliance
     Cnt := 0;
     SetLength(Mines, Length(aMines));
-    for K := Length(aMines) - 1 downto 0 do
+    for K := High(aMines) downto 0 do
     begin
       // Evaluate point if there can be mine (in dependence on influence)
       PL := gAIFields.Influences.GetBestOwner(aMines[K].X,aMines[K].Y);
-      for IdxPL := 0 to Length(aPlayers) - 1 do
+      for IdxPL := 0 to High(aPlayers) do
         if (PL = aPlayers[IdxPL]) then
         begin
           PLCnt := 0;
-          for IdxPL2 := 0 to Length(aPlayers) - 1 do // Mark players which can place mine here (by influence)
+          for IdxPL2 := 0 to High(aPlayers) do // Mark players which can place mine here (by influence)
             if (gAIFields.Influences.OwnPoint[aPlayers[IdxPL2], aMines[K]] > 0) then
             begin
               Inc(PLPossibleMines[IdxPL2]);
@@ -1164,13 +1171,13 @@ procedure TKMSupervisor.DivideResources();
     if (Cnt > 0) then
     begin
       // Sort mines by evaluation
-      Sort(Mines[0], Low(Mines), Cnt-1, sizeof(Mines[0]), CompareMines);
+      SortCustom(Mines[0], Low(Mines), Cnt-1, SizeOf(Mines[0]), CompareMines);
       // Distribute mines by evaluation and possible mine cnt per a player
       for K := 0 to Cnt - 1 do // Lower index = less players can own this mine
       begin
         IdxPL2 := 0;
         BestPrice := High(Word);
-        for IdxPL := 0 to Length(aPlayers) - 1 do
+        for IdxPL := 0 to High(aPlayers) do
           if (gAIFields.Influences.OwnPoint[aPlayers[IdxPL], Mines[K].pPoint^] > 0)
             AND (PLPossibleMines[IdxPL] + PLMines[IdxPL] < BestPrice) then
           begin
@@ -1181,7 +1188,7 @@ procedure TKMSupervisor.DivideResources();
         begin
           Inc(PLMines[IdxPL2]);
           // Decrease possible mine cnt
-          for IdxPL2 := 0 to Length(aPlayers) - 1 do
+          for IdxPL2 := 0 to High(aPlayers) do
             if (gAIFields.Influences.OwnPoint[aPlayers[IdxPL2], Mines[K].pPoint^] > 0) then
               Dec(PLPossibleMines[IdxPL2]);
         end;
@@ -1225,7 +1232,7 @@ begin
   if not OVERLAY_AI_SUPERVISOR then
     Exit;
   SelectedTeam := -1;
-  if (gMySpectator.HandID <> PLAYER_NONE) then
+  if (gMySpectator.HandID <> HAND_NONE) then
     SelectedTeam := fPL2Alli[ gMySpectator.HandID ];
   // Head
   Cnt := 0;
@@ -1313,7 +1320,7 @@ begin
 
   {$IFDEF DEBUG_Supervisor}
     Owner := gMySpectator.HandID;
-    if (Owner = PLAYER_NONE) then
+    if (Owner = HAND_NONE) then
       Exit;
 
     MaxThreat := -1E10;

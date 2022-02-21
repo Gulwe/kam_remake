@@ -2,7 +2,7 @@ unit KM_GUIMapEdMessage;
 {$I KaM_Remake.inc}
 interface
 uses
-   Classes, Controls, SysUtils,
+   Classes, SysUtils,
    KM_Controls, KM_Defaults;
 
 type

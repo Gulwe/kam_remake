@@ -4,9 +4,12 @@ interface
 uses
   {$IFDEF MSWindows} Windows, {$ENDIF}
   {$IFDEF Unix} LCLType, {$ENDIF}
-  Classes, Controls, Math, SysUtils, KromUtils, KM_Campaigns,
+  Classes, Math, SysUtils,
+  Controls,
+  KromUtils, KM_Campaigns,
   KM_Controls, KM_Points, KM_Defaults, KM_Pics, KM_Networking, KM_ResFonts, KM_CommonTypes, KM_GameTypes,
   KM_InterfaceDefaults,
+  KM_InterfaceTypes,
   KM_GUIMenuCampaign,
   KM_GUIMenuCampaigns,
   KM_GUIMenuCredits,
@@ -46,8 +49,8 @@ type
     Panel_Menu: TKMPanel;
     Panel_Background: TKMImage;
     Label_Version: TKMLabel;
-    function GetHintPositionBase: TKMPoint; override;
     function GetHintFont: TKMFont; override;
+    function GetHintKind: TKMHintKind; override;
   public
     constructor Create (X,Y: Word; aCampaigns: TKMCampaignsCollection;
                         aOnNewSingleMap: TKMNewSingleMapEvent;
@@ -55,7 +58,7 @@ type
                         aOnNewMapEditor: TKMNewMapEditorEvent;
                         aOnNewReplay: TUnicodeStringEvent;
                         aOnNewSingleSave: TUnicodeStringEvent;
-                        aOnToggleLocale: TAnsiStringEvent;
+                        aOnToggleLocale: TKMToggleLocaleEvent;
                         aOnPreloadGameResources: TEvent;
                         aOnNetworkInit: TEvent);
     destructor Destroy; override;
@@ -77,13 +80,20 @@ type
     procedure SetOnOptionsChange(aEvent: TEvent);
     procedure RefreshCampaigns;
     procedure Resize(X,Y: Word); override;
-    procedure UpdateState(aTickCount: Cardinal); override;
+    procedure UpdateHotkeys; override;
+    procedure UpdateState(aGlobalTickCount: Cardinal); override;
   end;
 
 
 implementation
 uses
-  KM_Main, KM_ResTexts, KM_GameApp, KM_Log, KM_RenderUI, KM_NetworkTypes, KM_CampaignTypes;
+  KM_Main,
+  KM_GameApp,
+  KM_ResTexts, KM_ResTypes,
+  KM_RenderUI,
+  KM_NetworkTypes,
+  KM_CampaignTypes,
+  KM_Log;
 
 
 { TKMMainMenuInterface }
@@ -93,7 +103,7 @@ constructor TKMMainMenuInterface.Create(X,Y: Word; aCampaigns: TKMCampaignsColle
                                         aOnNewMapEditor: TKMNewMapEditorEvent;
                                         aOnNewReplay: TUnicodeStringEvent;
                                         aOnNewSingleSave: TUnicodeStringEvent;
-                                        aOnToggleLocale: TAnsiStringEvent;
+                                        aOnToggleLocale: TKMToggleLocaleEvent;
                                         aOnPreloadGameResources: TEvent;
                                         aOnNetworkInit: TEvent);
 var
@@ -122,7 +132,7 @@ begin
   fMenuLobby         := TKMMenuLobby.Create(Panel_Menu, PageChange);
   fMenuMapEditor     := TKMMenuMapEditor.Create(Panel_Menu, PageChange);
   fMenuReplays       := TKMMenuReplays.Create(Panel_Menu, PageChange);
-  fMenuOptions       := TKMMenuOptions.Create(Panel_Menu, PageChange);
+  fMenuOptions       := TKMMenuOptions.Create(Panel_Menu, PageChange, nil, UpdateHotkeys);
   fMenuCredits       := TKMMenuCredits.Create(Panel_Menu, PageChange);
   fMenuError         := TKMMenuError.Create(Panel_Menu, PageChange);
   fMenuLoading       := TKMMenuLoading.Create(Panel_Menu, PageChange);
@@ -134,8 +144,10 @@ begin
   fMenuReplays.OnNewReplay          := aOnNewReplay;
   fMenuLoad.OnNewSingleSave         := aOnNewSingleSave;
 
-  fMenuOptions.OnToggleLocale         := aOnToggleLocale;
-  fMenuOptions.OnPreloadGameResources := aOnPreloadGameResources;
+  fMenuOptions.GUICommonOptions.OnToggleLocale         := aOnToggleLocale;
+  fMenuOptions.GUICommonOptions.OnPreloadGameResources := aOnPreloadGameResources;
+
+  fMenuCredits.OnToggleLocale         := aOnToggleLocale;
 
   fMenuMultiplayer.OnNetworkInit      := aOnNetworkInit;
 
@@ -187,15 +199,15 @@ begin
 end;
 
 
-function TKMMainMenuInterface.GetHintPositionBase: TKMPoint;
-begin
-  Result := KMPoint(Panel_Menu.Left - 5, Min(Panel_Menu.Bottom + 15, Panel_Main.Height));
-end;
-
-
 function TKMMainMenuInterface.GetHintFont: TKMFont;
 begin
   Result := fntGrey;
+end;
+
+
+function TKMMainMenuInterface.GetHintKind: TKMHintKind;
+begin
+  Result := hkControl;
 end;
 
 
@@ -346,7 +358,7 @@ begin
 
       Panel_Menu.Childs[I].Show;
 
-      gGameApp.PrintScreen(path + 'Panel' + int2fix(I, 3) + '.jpg');
+      gGameApp.PrintScreen(path + 'Panel' + int2fix(I, 3) + '.jpeg');
     end;
 end;
 
@@ -364,12 +376,14 @@ end;
 
 procedure TKMMainMenuInterface.SetOnOptionsChange(aEvent: TEvent);
 begin
-  fMenuOptions.OnOptionsChange := aEvent;
+  fMenuOptions.GUICommonOptions.OnOptionsChange := aEvent;
 end;
 
 
 procedure TKMMainMenuInterface.KeyDown(Key: Word; Shift: TShiftState; var aHandled: Boolean);
 begin
+  inherited;
+
   aHandled := True; // assume we handle all keys here
 
   if fMyControls.KeyDown(Key, Shift) then Exit; //Handled by Controls
@@ -398,6 +412,8 @@ end;
 
 procedure TKMMainMenuInterface.MouseDown(Button: TMouseButton; Shift: TShiftState; X,Y: Integer);
 begin
+  inherited;
+
   fMyControls.MouseDown(X, Y, Shift, Button);
 end;
 
@@ -405,6 +421,8 @@ end;
 //Do something related to mouse movement in menu
 procedure TKMMainMenuInterface.MouseMove(Shift: TShiftState; X,Y: Integer; var aHandled: Boolean);
 begin
+  UpdateCursor(X, Y, Shift);
+
   aHandled := True; // assume we always handle mouse move
 
   fMyControls.MouseMove(X, Y, Shift);
@@ -420,8 +438,17 @@ begin
 end;
 
 
+
+procedure TKMMainMenuInterface.UpdateHotkeys;
+begin
+  inherited;
+
+  // Do nothing for now
+end;
+
+
 //Should update anything we want to be updated, obviously
-procedure TKMMainMenuInterface.UpdateState(aTickCount: Cardinal);
+procedure TKMMainMenuInterface.UpdateState(aGlobalTickCount: Cardinal);
 begin
   inherited;
   fMenuLobby.UpdateState;
@@ -429,7 +456,7 @@ begin
   fMenuLoad.UpdateState;
   fMenuReplays.UpdateState;
   fMenuSingleMap.UpdateState;
-  fMenuCampaign.UpdateState(aTickCount);
+  fMenuCampaign.UpdateState(aGlobalTickCount);
 end;
 
 

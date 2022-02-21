@@ -2,7 +2,7 @@ unit KM_GUIMapEdMarkerDefence;
 {$I KaM_Remake.inc}
 interface
 uses
-   Classes, Controls, Math, StrUtils, SysUtils,
+   Classes, Math, StrUtils, SysUtils,
    KM_Controls, KM_Defaults, KM_Pics, KM_Points, KM_InterfaceGame;
 
 
@@ -40,8 +40,12 @@ type
 
 implementation
 uses
-  KM_HandsCollection, KM_ResTexts, KM_Game,
-  KM_RenderUI, KM_ResFonts, KM_AIDefensePos, KM_Hand;
+  KM_Game,
+  KM_AIDefensePos,
+  KM_HandsCollection, KM_Hand,
+  KM_ResTexts, KM_ResFonts, KM_ResTypes,
+  KM_RenderUI,
+  KM_AITypes;
 
 
 { TKMMapEdMarkerDefence }
@@ -96,8 +100,8 @@ var
 begin
   DP := gHands[fOwner].AI.General.DefencePositions[fIndex];
   DP.Radius := TrackBar_DefenceRad.Position;
-  DP.DefenceType := TAIDefencePosType(DropList_DefenceType.ItemIndex);
-  DP.GroupType := TKMGroupType(DropList_DefenceGroup.ItemIndex);
+  DP.DefenceType := TKMAIDefencePosType(DropList_DefenceType.ItemIndex);
+  DP.GroupType := TKMGroupType(GROUP_TYPE_MIN_OFF + DropList_DefenceGroup.ItemIndex);
 
   if Sender = Button_DefenceCW then
     DP.Position := KMPointDir(DP.Position.Loc, KMNextDirection(DP.Position.Dir));
@@ -120,7 +124,8 @@ end;
 
 
 procedure TKMMapEdMarkerDefence.Marker_UpdateOrder(Sender: TObject; Shift: TShiftState);
-var I: Integer;
+var
+  I: Integer;
 begin
   if Sender = Button_Priority_Inc then
     for I := 1 to 1 + 9*Byte(ssRight in Shift) do
@@ -153,8 +158,8 @@ begin
 
   Label_MarkerType.Caption := gResTexts[TX_MAPED_AI_DEFENCE_POSITION];
   Image_MarkerPic.TexID := 338;
-  DropList_DefenceGroup.ItemIndex := Byte(gHands[fOwner].AI.General.DefencePositions[fIndex].GroupType);
-  DropList_DefenceType.ItemIndex := Byte(gHands[fOwner].AI.General.DefencePositions[fIndex].DefenceType);
+  DropList_DefenceGroup.ItemIndex := Ord(gHands[fOwner].AI.General.DefencePositions[fIndex].GroupType) - GROUP_TYPE_MIN_OFF;
+  DropList_DefenceType.ItemIndex := Ord(gHands[fOwner].AI.General.DefencePositions[fIndex].DefenceType);
   TrackBar_DefenceRad.Position := gHands[fOwner].AI.General.DefencePositions[fIndex].Radius;
   Marker_UpdateOrder(nil, []);
 

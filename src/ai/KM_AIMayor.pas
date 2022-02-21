@@ -11,7 +11,7 @@ uses
 
 
 type
-  //Mayor is the one who manages the town
+  // Mayor is the one who manages the town
   TKMayor = class
   private
     fOwner: TKMHandID;
@@ -63,15 +63,16 @@ type
 implementation
 uses
   Classes, Math,
-  KM_Game, KM_Hand, KM_HandsCollection,
+  KM_Game,
+  KM_Hand, KM_HandsCollection, KM_HandTypes,
   KM_AIFields, KM_Terrain,
-  KM_Houses, KM_HouseSchool,
+  KM_Houses, KM_HouseSchool, KM_HouseStore,
   KM_Units, KM_UnitsCollection, KM_UnitActionWalkTo, KM_UnitTaskGoEat, KM_UnitTaskDelivery,
-  KM_Resource, KM_ResWares,
+  KM_Resource, KM_ResWares, KM_AITypes,
   KM_CommonUtils, KM_DevPerfLog, KM_DevPerfLogTypes;
 
 
-const //Sample list made by AntonP
+const // Sample list made by AntonP
   WarriorHouses: array [0..44] of TKMHouseType = (
   htSchool, htInn, htQuary, htQuary, htQuary,
   htWoodcutters, htWoodcutters, htWoodcutters, htWoodcutters, htWoodcutters,
@@ -208,8 +209,8 @@ begin
   //Count overall unit requirement (excluding Barracks and ownerless houses)
   FillChar(UnitReq, SizeOf(UnitReq), #0); //Clear up
   for H := HOUSE_MIN to HOUSE_MAX do
-    if (gRes.Houses[H].OwnerType <> utNone) and (H <> htBarracks) then
-      Inc(UnitReq[gRes.Houses[H].OwnerType], P.Stats.GetHouseQty(H));
+    if gResHouses[H].CanHasWorker and (H <> htBarracks) then
+      Inc(UnitReq[gResHouses[H].WorkerType], P.Stats.GetHouseQty(H));
 
   //Schools
   //Count overall schools count and exclude already training units from UnitReq
@@ -294,34 +295,34 @@ begin
     if not H.IsDestroyed and (ResOrder = 0) then
     case H.HouseType of
       htArmorSmithy:     for K := 1 to 4 do
-                            if gRes.Houses[H.HouseType].ResOutput[K] = wtMetalShield then
+                            if gResHouses[H.HouseType].ResOutput[K] = wtMetalShield then
                               H.ResOrder[K] := Round(WarfareRatios[wtMetalShield] * PORTIONS)
                             else
-                            if gRes.Houses[H.HouseType].ResOutput[K] = wtMetalArmor then
+                            if gResHouses[H.HouseType].ResOutput[K] = wtMetalArmor then
                               H.ResOrder[K] := Round(WarfareRatios[wtMetalArmor] * PORTIONS);
       htArmorWorkshop:   for K := 1 to 4 do
-                            if gRes.Houses[H.HouseType].ResOutput[K] = wtShield then
+                            if gResHouses[H.HouseType].ResOutput[K] = wtShield then
                               H.ResOrder[K] := Round(WarfareRatios[wtShield] * PORTIONS)
                             else
-                            if gRes.Houses[H.HouseType].ResOutput[K] = wtArmor then
+                            if gResHouses[H.HouseType].ResOutput[K] = wtArmor then
                               H.ResOrder[K] := Round(WarfareRatios[wtArmor] * PORTIONS);
       htWeaponSmithy:    for K := 1 to 4 do
-                            if gRes.Houses[H.HouseType].ResOutput[K] = wtSword then
+                            if gResHouses[H.HouseType].ResOutput[K] = wtSword then
                               H.ResOrder[K] := Round(WarfareRatios[wtSword] * PORTIONS)
                             else
-                            if gRes.Houses[H.HouseType].ResOutput[K] = wtHallebard then
+                            if gResHouses[H.HouseType].ResOutput[K] = wtHallebard then
                               H.ResOrder[K] := Round(WarfareRatios[wtHallebard] * PORTIONS)
                             else
-                            if gRes.Houses[H.HouseType].ResOutput[K] = wtArbalet then
+                            if gResHouses[H.HouseType].ResOutput[K] = wtArbalet then
                               H.ResOrder[K] := Round(WarfareRatios[wtArbalet] * PORTIONS);
       htWeaponWorkshop:  for K := 1 to 4 do
-                            if gRes.Houses[H.HouseType].ResOutput[K] = wtAxe then
+                            if gResHouses[H.HouseType].ResOutput[K] = wtAxe then
                               H.ResOrder[K] := Round(WarfareRatios[wtAxe] * PORTIONS)
                             else
-                            if gRes.Houses[H.HouseType].ResOutput[K] = wtPike then
+                            if gResHouses[H.HouseType].ResOutput[K] = wtPike then
                               H.ResOrder[K] := Round(WarfareRatios[wtPike] * PORTIONS)
                             else
-                            if gRes.Houses[H.HouseType].ResOutput[K] = wtBow then
+                            if gResHouses[H.HouseType].ResOutput[K] = wtBow then
                               H.ResOrder[K] := Round(WarfareRatios[wtBow] * PORTIONS);
     end;
   end;
@@ -357,11 +358,11 @@ begin
   for I := 0 to DefLines.Count - 1 do
     with DefLines.Lines[I] do
     begin
-      Point1 := gAIFields.NavMesh.Nodes[ DefLines.Lines[I].Nodes[0] ];
-      Point2 := gAIFields.NavMesh.Nodes[ DefLines.Lines[I].Nodes[1] ];
+      Point1 := gAIFields.NavMesh.Nodes[DefLines.Lines[I].Nodes[0]];
+      Point2 := gAIFields.NavMesh.Nodes[DefLines.Lines[I].Nodes[1]];
       PL1 := gAIFields.Influences.GetBestAllianceOwner(fOwner, Point1, atAlly);
       PL2 := gAIFields.Influences.GetBestAllianceOwner(fOwner, Point2, atAlly);
-      if (PL1 <> fOwner) AND (PL2 <> fOwner) AND (PL1 <> PLAYER_NONE) AND (PL2 <> PLAYER_NONE) then
+      if (PL1 <> fOwner) AND (PL2 <> fOwner) AND (PL1 <> HAND_NONE) AND (PL2 <> HAND_NONE) then
         Continue;
       DefCount := Ceil( KMLength(Point1, Point2) / DISTANCE_BETWEEN_TOWERS );
       for K := 0 to DefCount - 1 do
@@ -530,6 +531,10 @@ begin
 
   //Place house before road, so that road is made around it
   P.AddHousePlan(aHouse, Loc);
+
+  // Script could delete house plan we placed, so check if we actually added it
+  if not P.HasHousePlan(Loc) then
+    Exit(False);
 
   //Try to connect newly planned house to road network
   //if it is not possible - scrap the plan
@@ -706,11 +711,7 @@ var
     Result := Max(1, Result);
   end;
 
-const
-  MAX_TRIES = 10; //We could get into infinite loop on some scripted maps, f.e. Furrioir Warriors
-
 var
-  K: Integer;
   H: TKMHouseType;
 begin
   P := gHands[fOwner];
@@ -732,10 +733,8 @@ begin
     while (fDefenceTowers.Count > 0) and (P.Stats.GetHouseWip(htAny) < MaxPlansForTowers) do
       TryBuildDefenceTower;
 
-  K := 0;
-  while (P.Stats.GetHouseWip(htAny) < GetMaxPlans) and (K < Max(GetMaxPlans, MAX_TRIES)) do
+  while P.Stats.GetHouseWip(htAny) < GetMaxPlans do
   begin
-    Inc(K);
     H := fBalance.Peek;
 
     //There are no more suggestions
@@ -861,7 +860,7 @@ procedure TKMayor.SetArmyDemand(aFootmen, aPikemen, aHorsemen, aArchers: Single)
         gtAntiHorse: Result := gHands[fOwner].Locks.GetUnitBlocked(utHallebardman);
         gtRanged:    Result := gHands[fOwner].Locks.GetUnitBlocked(utArbaletman);
         gtMounted:   Result := gHands[fOwner].Locks.GetUnitBlocked(utCavalry);
-        else          Result := True;
+        else         Result := True;
       end
     else
       case aGT of
@@ -870,7 +869,7 @@ procedure TKMayor.SetArmyDemand(aFootmen, aPikemen, aHorsemen, aArchers: Single)
         gtAntiHorse: Result := gHands[fOwner].Locks.GetUnitBlocked(utPikeman);
         gtRanged:    Result := gHands[fOwner].Locks.GetUnitBlocked(utBowman);
         gtMounted:   Result := gHands[fOwner].Locks.GetUnitBlocked(utHorseScout);
-        else          Result := True;
+        else         Result := True;
       end;
   end;
 
@@ -963,12 +962,16 @@ end;
 
 
 procedure TKMayor.CheckAutoRepair;
-var I: Integer;
+var
+  I: Integer;
 begin
   with gHands[fOwner] do
-    if IsComputer then
+  begin
+    // Change repair mode for all houses only for rmRepairNever and rmRepairAlways
+    if IsComputer and (fSetup.RepairMode in [rmRepairNever, rmRepairAlways]) then
       for I := 0 to Houses.Count - 1 do
-        Houses[I].BuildingRepair := fSetup.AutoRepair;
+        Houses[I].BuildingRepair := fSetup.IsRepairAlways;
+  end;
 end;
 
 

@@ -2,21 +2,26 @@ unit KM_Log;
 {$I KaM_Remake.inc}
 interface
 uses
-  SyncObjs, KM_CommonTypes;
+  SyncObjs, KM_CommonTypes, KM_CommonClasses
+  {$IFDEF KMR_GAME} // Not needed for server and other tools
+  , Generics.Collections
+  {$ENDIF}
+  ;
 
 
 type
   // Log message type
   TKMLogMessageType = (
-    lmtDefault,            //default type
-    lmtDelivery,           //delivery messages
-    lmtCommands,           //all GIC commands
-    lmtRandomChecks,       //Random Checks
-    lmtNetConnection,      //messages about net connection/disconnection/reconnection
-    lmtNetPacketOther,     //log messages about net packets (all packets, except GIP commands/ping/fps)
-    lmtNetPacketCommand,   //log messages about GIP commands net packets
-    lmtNetPacketPingFps,   //log messages about ping/fps net packets
-    lmtDebug);             //debug
+    lmtDefault,            // Default type
+    lmtDelivery,           // Delivery messages
+    lmtCommands,           // All GIC commands
+    lmtRandomChecks,       // Random checks
+    lmtNetConnection,      // Messages about net connection/disconnection/reconnection
+    lmtNetPacketOther,     // Messages about net packets (all packets, except GIP commands/ping/fps)
+    lmtNetPacketCommand,   // Messages about GIP commands net packets
+    lmtNetPacketPingFps,   // Messages about ping/fps net packets
+    lmtDebug               // Debug
+  );
 
   TKMLogMessageTypeSet = set of TKMLogMessageType;
 
@@ -24,24 +29,29 @@ type
   TKMLog = class
   private
     CS: TCriticalSection;
-    fl: textfile;
+    fLogFile: TextFile;
     fLogPath: UnicodeString;
     fFirstTick: cardinal;
     fPreviousTick: cardinal;
     fPreviousDate: TDateTime;
-    fOnLogMessage: TUnicodeStringEvent;
+
+    {$IFDEF KMR_GAME}
+    fOnLogMessageList: TList<TUnicodeStringEvent>;
+    {$ENDIF}
 
     procedure Lock;
     procedure Unlock;
 
     procedure InitLog;
 
+    procedure NotifyLogSubs(aText: UnicodeString);
+
     procedure AddLineTime(const aText: UnicodeString; aLogType: TKMLogMessageType; aDoCloseFile: Boolean = True); overload;
     procedure AddLineTime(const aText: UnicodeString; aFlushImmidiately: Boolean = True); overload;
     procedure AddLineNoTime(const aText: UnicodeString; aWithPrefix: Boolean = True; aDoCloseFile: Boolean = True); overload;
     procedure AddLineNoTime(const aText: UnicodeString; aLogType: TKMLogMessageType; aWithPrefix: Boolean = True; aDoCloseFile: Boolean = True); overload;
   public
-    MultithreadLogging: Boolean; // Enable thread safe mode (resource protection) while logging with multi threads
+    MultithreadLogging: Boolean; // Enable thread safe mode (resource protection) when logging from multiple threads
     MessageTypes: TKMLogMessageTypeSet;
     constructor Create(const aPath: UnicodeString);
     destructor Destroy; override;
@@ -80,7 +90,9 @@ type
     procedure AddNoTimeNoFlush(const aText: UnicodeString);
     procedure DeleteOldLogs;
     property LogPath: UnicodeString read fLogPath; //Used by dedicated server
-    property OnLogMessage: TUnicodeStringEvent read fOnLogMessage write fOnLogMessage;
+//    property OnLogMessage: TUnicodeStringEvent read fOnLogMessage write fOnLogMessage;
+    procedure AddOnLogEventSub(const aOnLogMessage: TUnicodeStringEvent);
+    procedure RemoveOnLogEventSub(const aOnLogMessage: TUnicodeStringEvent);
   end;
 
 var
@@ -158,6 +170,10 @@ begin
     Include(MessageTypes, lmtDebug);
 
   CS := TCriticalSection.Create;
+  {$IFDEF KMR_GAME}
+  fOnLogMessageList := TList<TUnicodeStringEvent>.Create;
+  {$ENDIF}
+
   InitLog;
 end;
 
@@ -171,6 +187,10 @@ end;
 destructor TKMLog.Destroy;
 begin
   CS.Free;
+  {$IFDEF KMR_GAME}
+  fOnLogMessageList.Free;
+  {$ENDIF}
+
   inherited;
 end;
 
@@ -191,14 +211,21 @@ procedure TKMLog.InitLog;
 begin
   if BLOCK_FILE_WRITE then Exit;
 
-  ForceDirectories(ExtractFilePath(fLogPath));
+  try
+    ForceDirectories(ExtractFilePath(fLogPath));
 
-  AssignFile(fl, fLogPath);
-  Rewrite(fl);
-  //           hh:nn:ss.zzz 12345.678s 1234567ms     text-text-text
-  WriteLn(fl, '   Timestamp    Elapsed     Delta     Description');
-  CloseFile(fl);
-
+    AssignFile(fLogFile, fLogPath);
+    Rewrite(fLogFile);
+    //           hh:nn:ss.zzz 12345.678s 1234567ms     text-text-text
+    WriteLn(fLogFile, '   Timestamp    Elapsed     Delta     Description');
+    CloseFile(fLogFile);
+  except
+    on E: Exception do
+    begin
+      E.Message := E.Message + '. Tried to init Log on path ''' + fLogPath + '''';
+      raise E;
+    end;
+  end;
   AddLineTime('Log is up and running. Game version: ' + UnicodeString(GAME_VERSION));
 end;
 
@@ -210,6 +237,36 @@ begin
 
   //No need to remember the instance, it's set to FreeOnTerminate
   TKMOldLogsDeleter.Create(ExtractFilePath(fLogPath));
+end;
+
+
+procedure TKMLog.AddOnLogEventSub(const aOnLogMessage: TUnicodeStringEvent);
+begin
+  {$IFDEF KMR_GAME}
+  fOnLogMessageList.Add(aOnLogMessage);
+  {$ENDIF}
+end;
+
+
+procedure TKMLog.RemoveOnLogEventSub(const aOnLogMessage: TUnicodeStringEvent);
+begin
+  {$IFDEF KMR_GAME}
+  fOnLogMessageList.Remove(aOnLogMessage);
+  {$ENDIF}
+end;
+
+
+procedure TKMLog.NotifyLogSubs(aText: UnicodeString);
+{$IFDEF KMR_GAME}
+var
+  I: Integer;
+{$ENDIF}
+begin
+  {$IFDEF KMR_GAME}
+  for I := 0 to fOnLogMessageList.Count - 1  do
+    if Assigned(fOnLogMessageList[I]) then
+      fOnLogMessageList[I](aText);
+  {$ENDIF}
 end;
 
 
@@ -231,22 +288,22 @@ begin
     if not FileExists(fLogPath) then
       InitLog;  // Recreate log file, if it was deleted
 
-    Append(fl);
+    Append(fLogFile);
     //Write a line when the day changed since last time (useful for dedicated server logs that could be over months)
     if Abs(Trunc(fPreviousDate) - Trunc(Now)) >= 1 then
     begin
-      WriteLn(fl, '========================');
-      WriteLn(fl, '    Date: ' + FormatDateTime('yyyy/mm/dd', Now));
-      WriteLn(fl, '========================');
+      WriteLn(fLogFile, '========================');
+      WriteLn(fLogFile, '    Date: ' + FormatDateTime('yyyy/mm/dd', Now));
+      WriteLn(fLogFile, '========================');
     end;
-    WriteLn(fl, Format('%12s %9.3fs %7dms     %s', [
+    WriteLn(fLogFile, Format('%12s %9.3fs %7dms     %s', [
                   FormatDateTime('hh:nn:ss.zzz', Now),
                   TimeSince(fFirstTick) / 1000,
                   TimeSince(fPreviousTick),
                   aText]));
 
     if aDoCloseFile then
-      CloseFile(fl);
+      CloseFile(fLogFile);
 
     fPreviousTick := TimeGet;
     fPreviousDate := Now;
@@ -255,8 +312,7 @@ begin
       UnLock;
   end;
 
-  if Assigned(fOnLogMessage) then
-    fOnLogMessage(aText);
+  NotifyLogSubs(aText);
 end;
 
 
@@ -285,20 +341,20 @@ begin
   if MultithreadLogging then
     Lock;
   try
-    Append(fl);
+    Append(fLogFile);
     if aWithPrefix then
-      WriteLn(fl, '                                      ' + aText)
+      WriteLn(fLogFile, '                                      ' + aText)
     else
-      WriteLn(fl, aText);
+      WriteLn(fLogFile, aText);
+
     if aDoCloseFile then
-      CloseFile(fl);
+      CloseFile(fLogFile);
   finally
     if MultithreadLogging then
       UnLock;
   end;
 
-  if Assigned(fOnLogMessage) then
-    fOnLogMessage(aText);
+  NotifyLogSubs(aText);
 end;
 
 

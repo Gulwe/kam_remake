@@ -203,9 +203,9 @@ begin
   //ArmorWorkshop is needed to produce Shields before Tannery is made
   //Handle in generic way since in custom missions it might apply to other houses
   if not gHands[fOwner].Locks.HouseCanBuild(aHouse)
-  and (gRes.Houses[aHouse].ReleasedBy <> htNone) //Storehouse might be blocked
-  and (gHands[fOwner].Stats.GetHouseTotal(gRes.Houses[aHouse].ReleasedBy) = 0) then
-    Append(gRes.Houses[aHouse].ReleasedBy);
+  and (gResHouses[aHouse].ReleasedBy <> htNone) //Storehouse might be blocked
+  and (gHands[fOwner].Stats.GetHouseTotal(gResHouses[aHouse].ReleasedBy) = 0) then
+    Append(gResHouses[aHouse].ReleasedBy);
 
   //If the same house is asked for independently then don't add it again, since f.e. gold and iron
   //might both ask for a coal mine, when only 1 extra is needed.
@@ -757,7 +757,7 @@ begin
 
     for I := WARFARE_MIN to WARFARE_MAX do
     if WeaponUsed(I) then
-      S := S + Format('%s: %.2f - %.2f|', [gRes.Wares[I].Title,
+      S := S + Format('%s: %.2f - %.2f|', [gResWares[I].Title,
                                                   Warfare[I].Production,
                                                   Warfare[I].Demand]);
 
@@ -996,7 +996,7 @@ begin
   finally
     fAdviceText := 'Advice: ';
     for I := 0 to High(fAdvice) do
-      fAdviceText := fAdviceText + gRes.Houses[fAdvice[I]].HouseName + IfThen(I < High(fAdvice), ', ', '.');
+      fAdviceText := fAdviceText + gResHouses[fAdvice[I]].HouseName + IfThen(I < High(fAdvice), ', ', '.');
   end;
 end;
 

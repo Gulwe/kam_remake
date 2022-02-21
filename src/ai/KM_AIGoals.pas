@@ -2,7 +2,7 @@ unit KM_AIGoals;
 {$I KaM_Remake.inc}
 interface
 uses
-  KM_CommonClasses, KM_Defaults;
+  KM_CommonClasses, KM_Defaults, KM_MapTypes;
 
 
 type

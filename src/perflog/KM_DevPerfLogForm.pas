@@ -2,8 +2,8 @@ unit KM_DevPerfLogForm;
 {$I KaM_Remake.inc}
 interface
 uses
-  SysUtils, Classes, Vcl.Graphics, Vcl.Forms, Vcl.StdCtrls, Vcl.Controls, Vcl.ExtCtrls, Types,
-  KM_DevPerfLog, KM_DevPerfLogTypes, Vcl.Samples.Spin, KM_Helpers;
+  SysUtils, Classes, Graphics, Forms, StdCtrls, Controls, ExtCtrls, Types,
+  KM_DevPerfLog, KM_DevPerfLogTypes, Spin, KM_VclHelpers;
 
 type
   TFormPerfLogs = class(TForm)
@@ -17,6 +17,7 @@ type
     lblPerflogSaveThreshold: TLabel;
     btnPerfLogExport: TButton;
     cbEnabled: TCheckBox;
+    cbClearOnGameStart: TCheckBox;
     procedure UpdateAllChkboxState;
     procedure DoChange(Sender: TObject);
     procedure DoExport(Sender: TObject);
@@ -38,9 +39,10 @@ type
 implementation
 {$R *.dfm}
 uses
+  TypInfo,
   {$IFDEF MSWindows} Windows, {$ENDIF}
   {$IFDEF Unix} LCLIntf, LCLType, {$ENDIF}
-  Math, KM_Defaults;
+  Math, KM_Defaults, KM_CommonUtils;
 
 const
   PS_IS_GFX_KIND: array[Boolean] of TKMPerfLogKind = (plkCPU, plkGFX);
@@ -65,7 +67,7 @@ end;
 
 procedure TFormPerfLogs.Show(aPerfLogs: TKMPerfLogs);
 const
-  TY = 56;
+  TY = 70;
   DY = 16;
   DY_SPLIT = DY + 10;
   DX_SPLIT = 37;
@@ -85,6 +87,8 @@ const
     aCheckBox.Top := TY + DY + LineNum(aPS, aIsGFX) * DY + Byte(aIsGFX or IsGFXSection(aPS))*DY_SPLIT;
     aCheckBox.Tag := Ord(aPS);
     aCheckBox.OnClick := DoChange;
+    aCheckBox.Name := 'cbA' + GetEnumName(TypeInfo(TPerfSectionDev), Integer(aPS)) + IntToStr(aN) + BoolStrShort(aIsGFX);
+    aCheckBox.Caption := '';
   end;
 
 
@@ -194,11 +198,12 @@ begin
     btnPerfLogExport.Top := bottom;
   end;
 
-  cbEnabled.Checked := False;
+  cbEnabled.Checked     := False;
   cbStackedCPU.Enabled  := False;
   cbStackedGFX.Enabled  := False;
   seScale.Enabled       := False;
   cbSmoothLines.Enabled := False;
+  cbClearOnGameStart.Enabled := False;
   sePerfLogSaveThreshold.Enabled := False;
   btnPerfLogExport.Enabled := False;
 
@@ -326,6 +331,7 @@ begin
   cbStackedGFX.Enabled  := enabled;
   seScale.Enabled       := enabled;
   cbSmoothLines.Enabled := enabled;
+  cbClearOnGameStart.Enabled := enabled;
   sePerfLogSaveThreshold.Enabled := enabled;
   btnPerfLogExport.Enabled := enabled;
 
@@ -338,6 +344,7 @@ begin
   fPerfLogs.Scale := seScale.Value;
 
   fPerfLogs.Smoothing := cbSmoothLines.Checked;
+  fPerfLogs.ClearOnGameStart := cbClearOnGameStart.Checked;
 
   if (Sender = cbStackedCPU) or (Sender = cbStackedGFX) then
     SyncStackPerfLog(PS_IS_GFX_KIND[Sender = cbStackedGFX])

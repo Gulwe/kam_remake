@@ -1,20 +1,20 @@
 unit KromShellUtils;
-{$I ..\..\KaM_Remake.inc}
+{$I KaM_Remake.inc}
 interface
 uses
+  Classes,
   {$IFDEF MSWindows}Windows, MMSystem, {$ENDIF}
   {$IFDEF Unix}LCLType, {$ENDIF}
   {$IFDEF FPC}LCLIntf, UTF8Process, LazHelpHTML, {$ENDIF}
   {$IFDEF WDC}ShellApi, {$ENDIF}
-	Forms, Classes, Dialogs, Controls;
+	Forms, Dialogs, Controls;
 
 	function RunOpenDialog(Sender: TOpenDialog; const aName, aPath, aFilter: string): Boolean;
   function RunSaveDialog(Sender: TSaveDialog; aFileName, aFilePath, aFilter: string; const aFileExt: string = ''): Boolean;
 	procedure DoClientAreaResize(aForm: TForm);
 	function BrowseURL(const aURL: string) : Boolean;
-  function OpenPDF(const aURL: string): Boolean;
   procedure MailTo(const aAddress, aSubject, aBody:string);
-  procedure OpenMySite(const aToolName: string; const aAddress: string = 'http://krom.reveur.de');
+  function IsUnderWine: Boolean;
 
 
 implementation
@@ -64,18 +64,6 @@ begin
 end;
 
 
-function OpenPDF(const aURL: string): Boolean;
-begin
-  {$IFDEF WDC}
-  Result := ShellExecute(Application.Handle, 'open', PChar(aURL), nil, nil, SW_SHOWNORMAL) > 32;
-  {$ENDIF}
-
-  {$IFDEF FPC}
-  Result := OpenDocument(URL);
-  {$ENDIF}
-end;
-
-
 function BrowseURL(const aURL: string): Boolean;
 {$IFDEF FPC}
 var
@@ -101,12 +89,12 @@ begin
 
     p:=System.Pos('%s', BrowserParams);
     System.Delete(BrowserParams,p,2);
-    System.Insert(URL,BrowserParams,p);
+    System.Insert(aURL,BrowserParams,p);
 
     // start browser
     BrowserProcess:=TProcessUTF8.Create(nil);
     try
-      BrowserProcess.CommandLine:=BrowserPath+' '+BrowserParams;
+      BrowserProcess.CommandLine := BrowserPath + ' ' + BrowserParams;
       BrowserProcess.Execute;
       Result := True;
     finally
@@ -125,9 +113,17 @@ begin
 end;
 
 
-procedure OpenMySite(const aToolName: string; const aAddress: string = 'http://krom.reveur.de');
+function IsUnderWine: Boolean;
+var
+  H: Cardinal;
 begin
-  BrowseURL(aAddress + '/index_r.php?t=' + aToolName); // Maybe add tool version later..
+  Result := False;
+  H := LoadLibrary('ntdll.dll');
+  if H > HINSTANCE_ERROR then
+  begin
+    Result := Assigned(GetProcAddress(H, 'wine_get_version'));
+    FreeLibrary(H);
+  end;
 end;
 
 

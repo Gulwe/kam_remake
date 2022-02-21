@@ -7,7 +7,7 @@ uses
   Classes, Math, StrUtils, SysUtils,
 
   KM_Networking, KM_NetworkTypes,
-  KM_InterfaceGame, KM_InterfaceDefaults, KM_CommonTypes,
+  KM_InterfaceGame, KM_InterfaceTypes, KM_CommonTypes,
   KM_Controls, KM_Defaults, KM_Points, KM_Console;
 
 
@@ -195,7 +195,7 @@ end;
 
 function TKMGUIGameChat.DoPost: Boolean;
 var
-  NetI: Integer;
+  netI: Integer;
 begin
   Result := False;
   if not gGameApp.Chat.IsPostAllowed then
@@ -205,12 +205,16 @@ begin
   begin
     if gGameApp.Chat.Mode = cmWhisper then
     begin
-      NetI := gNetworking.NetPlayers.ServerToLocal(gGameApp.Chat.WhisperRecipient);
-      if not gNetworking.NetPlayers[NetI].Connected
-        or gNetworking.NetPlayers[NetI].Dropped then
+      netI := gNetworking.NetPlayers.ServerToLocal(gGameApp.Chat.WhisperRecipient);
+
+      // Do not allow to whisper to disconnected player
+      if netI = -1 then Exit;
+      
+      if not gNetworking.NetPlayers[netI].Connected
+        or gNetworking.NetPlayers[netI].Dropped then
       begin
         gNetworking.PostLocalMessage(Format(gResTexts[TX_MULTIPLAYER_CHAT_PLAYER_NOT_CONNECTED_ANYMORE],
-                                                [gNetworking.NetPlayers[NetI].NiknameColored]),
+                                                [gNetworking.NetPlayers[netI].NiknameColored]),
                                           csSystem);
         Chat_MenuSelect(CHAT_MENU_ALL);
       end else
@@ -227,7 +231,7 @@ end;
 
 function TKMGUIGameChat.Chat_Post(Sender: TObject; Key: Word; Shift: TShiftState): Boolean;
 var
-  Str: String;
+  str: String;
 begin
   Result := False;
   if IsKeyEvent_Return_Handled(Self, Key) then
@@ -235,18 +239,18 @@ begin
     case Key of
       VK_RETURN:  Result := DoPost;
       VK_UP:      begin
-                    Str := gGameApp.Chat.GetNextHistoryMsg;
-                    if Str <> '' then
+                    str := gGameApp.Chat.GetNextHistoryMsg;
+                    if str <> '' then
                     begin
-                      Edit_ChatMsg.Text := Str;
+                      Edit_ChatMsg.Text := str;
                       Result := True;
                     end;
                   end;
       VK_DOWN:    begin
-                    Str := gGameApp.Chat.GetPrevHistoryMsg;
-                    if Str <> '' then
+                    str := gGameApp.Chat.GetPrevHistoryMsg;
+                    if str <> '' then
                     begin
-                      Edit_ChatMsg.Text := Str;
+                      Edit_ChatMsg.Text := str;
                       Result := True;
                     end;
                   end;
@@ -289,7 +293,7 @@ procedure TKMGUIGameChat.Chat_MenuSelect(aItemTag: TKMNetHandleIndex);
   end;
 
 var
-  NetI: Integer;
+  netI: Integer;
 begin
   case aItemTag of
     CHAT_MENU_ALL:        begin //All
@@ -310,13 +314,13 @@ begin
                             Edit_ChatMsg.OutlineColor := $FF66FF66;
                           end;
     else  begin //Whisper to player
-            NetI := gNetworking.NetPlayers.ServerToLocal(aItemTag);
-            if NetI <> -1 then
+            netI := gNetworking.NetPlayers.ServerToLocal(aItemTag);
+            if netI <> -1 then
             begin
               gGameApp.Chat.Mode := cmWhisper;
               Edit_ChatMsg.DrawOutline := True;
               Edit_ChatMsg.OutlineColor := $FF00B9FF;
-              with gNetworking.NetPlayers[NetI] do
+              with gNetworking.NetPlayers[netI] do
               begin
                 gGameApp.Chat.WhisperRecipient := aItemTag;
                 UpdateButtonCaption(NiknameU, IfThen(IsColorSet, FlagColorToTextColor(FlagColor), 0));

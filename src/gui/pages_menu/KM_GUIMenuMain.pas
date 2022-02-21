@@ -2,8 +2,8 @@ unit KM_GUIMenuMain;
 {$I KaM_Remake.inc}
 interface
 uses
-  Controls, Math, SysUtils,
-  KM_Controls, KM_Pics, KM_InterfaceDefaults;
+  Math, SysUtils,
+  KM_Controls, KM_Pics, KM_InterfaceDefaults, KM_InterfaceTypes;
 
 
 type
@@ -34,7 +34,10 @@ type
 
 implementation
 uses
-  KM_Main, KM_ResTexts, KM_GameApp, KM_RenderUI, KM_ResFonts;
+  KM_Main,
+  KM_GameApp,
+  KM_ResTexts, KM_ResFonts, KM_ResTypes,
+  KM_RenderUI;
 
 
 { TKMGUIMenuMain }
@@ -126,7 +129,10 @@ begin
     if gMain.LockMutex then
     begin
       if not gGameApp.CheckDATConsistency then
-        fOnPageChange(gpError, gResTexts[TX_ERROR_MODS])
+      begin
+        fOnPageChange(gpError, gResTexts[TX_ERROR_MODS]);
+        gMain.UnlockMutex;
+      end
       else
         fOnPageChange(gpMultiplayer);
     end

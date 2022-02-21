@@ -3,28 +3,39 @@ unit KM_Settings;
 interface
 
 type
+  TKMSettingsLocation = (
+    slExeDir, // In the games folder (handy for debug)
+    slShared  // In the MyDocuments when possible (good for players to retain the settings between game builds)
+  );
+
   // Abstract settings entity
   TKMSettings = class abstract
+  private
+    fSettingsLoc: TKMSettingsLocation;
+    procedure LoadFromDefaultFile;
+    procedure SaveToDefaultFile;
+
+    function GetDirectory: string;
+    function GetPath: string;
   protected
     fNeedsSave: Boolean;
 
-    procedure Changed;
     function GetDefaultSettingsName: string; virtual; abstract;
-    function NeedToSave: Boolean; virtual;
 
     procedure LoadFromFile(const aPath: string); virtual; abstract;
     procedure SaveToFile(const aPath: string); virtual; abstract;
 
-    procedure LoadFromDefaultFile;
-    procedure SaveToDefaultFile;
-
     function GetSettingsName: string; virtual; abstract;
   public
-    constructor Create;
+    constructor Create(aSettingsLoc: TKMSettingsLocation);
     destructor Destroy; override;
 
+    property Path: string read GetPath;
+
     procedure ReloadSettings;
-    procedure SaveSettings(aForce: Boolean = False);
+    procedure SaveSettings;
+
+    class function GetDir(aSettingsLoc: TKMSettingsLocation = slShared): string;
   end;
 
 
@@ -33,20 +44,21 @@ uses
   SysUtils,
   KM_Defaults,
   KM_FileIO,
+  KM_CommonUtils,
   KM_Log;
 
 
 { TKMSettings }
-constructor TKMSettings.Create;
+constructor TKMSettings.Create(aSettingsLoc: TKMSettingsLocation);
 begin
-  inherited;
+  inherited Create;
+
+  fSettingsLoc := aSettingsLoc;
 
   LoadFromDefaultFile;
   // Save settings to default directory immidiately
   // If there were any problems with settings then we want to be able to customise them
   SaveToDefaultFile;
-
-  fNeedsSave := False;
 end;
 
 
@@ -58,13 +70,26 @@ begin
 end;
 
 
+function TKMSettings.GetPath: string;
+begin
+  Result := GetDirectory + GetDefaultSettingsName;
+end;
+
+
+function TKMSettings.GetDirectory: string;
+begin
+  Result := GetDir(fSettingsLoc);
+end;
+
+
 procedure TKMSettings.LoadFromDefaultFile;
 var
   path: string;
 begin
-  path := GetDocumentsSavePath + GetDefaultSettingsName;
+  path := GetPath;
+  gLog.AddTime(Format('Start loading ''%s'' from ''%s''', [GetSettingsName, path]));
   LoadFromFile(path);
-  gLog.AddTime(GetSettingsName + ' loaded from ' + path);
+  gLog.AddTime(Format('''%s'' was successfully loaded from ''%s''', [GetSettingsName, path]));
 end;
 
 
@@ -72,17 +97,17 @@ procedure TKMSettings.SaveToDefaultFile;
 var
   saveFolder, path: string;
 begin
-  saveFolder := GetDocumentsSavePath;
+  saveFolder := GetDirectory;
   ForceDirectories(saveFolder);
   path := saveFolder + GetDefaultSettingsName;
+  gLog.AddTime(Format('Start saving ''%s'' to ''%s''', [GetSettingsName, path]));
+  // Debug output of the current stacktrace.
+  // We want to catch odd bug, when 'Start saving server settings' is called twice one after another
+  // (without '%s was successfully saved string in the log)
+  // todo: remove from released version after bugfix
+  gLog.AddNoTime(GetStackTrace(20), False);
   SaveToFile(path);
-  gLog.AddTime(GetSettingsName + ' saved to ' + path);
-end;
-
-
-function TKMSettings.NeedToSave: Boolean;
-begin
-  Result := fNeedsSave;
+  gLog.AddTime(Format('''%s'' was successfully saved to ''%s''', [GetSettingsName, path]));
 end;
 
 
@@ -92,18 +117,20 @@ begin
 end;
 
 
-procedure TKMSettings.SaveSettings(aForce: Boolean);
+procedure TKMSettings.SaveSettings;
 begin
   if SKIP_SETTINGS_SAVE then Exit;
 
-  if NeedToSave or aForce then
-    SaveToDefaultFile;
+  SaveToDefaultFile;
 end;
 
 
-procedure TKMSettings.Changed;
+class function TKMSettings.GetDir(aSettingsLoc: TKMSettingsLocation = slShared): string;
 begin
-  fNeedsSave := True;
+  if USE_KMR_DIR_FOR_SETTINGS or (aSettingsLoc = slExeDir) then
+    Result := ExtractFilePath(ParamStr(0))
+  else
+    Result := CreateAndGetDocumentsSavePath; // Use %My documents%/My Games/
 end;
 
 

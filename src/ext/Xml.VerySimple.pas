@@ -1,4 +1,4 @@
-﻿{ VerySimpleXML v2.0.4 - a lightweight, one-unit, cross-platform XML reader/writer
+{ VerySimpleXML v2.0.4 - a lightweight, one-unit, cross-platform XML reader/writer
   for Delphi 2010 - 10.2.2 Tokyo by Dennis Spreen
   http://blog.spreendigital.de/2014/09/13/verysimplexml-2-0/
   (c) Copyrights 2011-2018 Dennis D. Spreen <dennis@spreendigital.de>
@@ -54,6 +54,9 @@ type
     function AsInteger(aDefault: Integer): Integer; overload;
     function AsString: string; overload;
     function AsString(aDefault: string): string; overload;
+
+    // Added for KMR !
+    class function New(aValue: string): TSimpleVariant; static;
   end;
 
   TXmlVerySimple = class;
@@ -1726,6 +1729,12 @@ begin
   // Custom code ensures we ALWAYS get the same format
   Result.fValue := IntToStr(YearOf(A)) + '.' + IntToStr(MonthOf(A)) + '.' + IntToStr(DayOf(A)) + ' ' +
                    IntToStr(HourOf(A)) + ':' + IntToStr(MinuteOf(A)) + ':' + IntToStr(SecondOf(A));
+end;
+
+// Added for KMR !
+class function TSimpleVariant.New(aValue: string): TSimpleVariant;
+begin
+  Result.fValue := aValue;
 end;
 
 { TStreamReaderHelper }

@@ -1,9 +1,15 @@
+// SPDX-License-Identifier: LGPL-3.0-linking-exception
+{$i bgrasse.inc}
+
   var
     xLen: single;       //horizontal length in pixels
     t: single;          //initial horizontal position in [0..1]
     texVect: TPointF;   //texture vector between start and end of line
     texPos: TPointF;    //texture start position
     texStep: TPointF;   //texture step
+    intTexPos: packed record
+          x,y: integer;
+        end;
 
     //loop variables
     pdest: PBGRAPixel;
@@ -15,12 +21,12 @@
 
     procedure NextLight; inline;
     begin
-      inc(light,lightStep);
+      light := (light+lightStep) and 65535;
       inc(lightAcc,lightDiff);
       if lightAcc >= lightMod then
       begin
         dec(lightAcc,lightMod);
-        inc(light);
+        light := (light + 1) and 65535;
       end;
     end;
   {$ENDIF}
@@ -47,43 +53,62 @@
     begin
       light := info1.lightness;
       lightLen := info2.lightness-info1.lightness;
-      lightStep := lightLen div (ix2-ix1);
-      lightMod := ix2-ix1;
-      lightDiff := lightLen - lightStep*(ix2-ix1);
+      if lightLen >= 0 then
+      begin
+        lightStep := lightLen div (ix2-ix1);
+        lightMod := ix2-ix1;
+        lightDiff := lightLen - lightStep*(ix2-ix1);
+      end else
+      begin
+        lightStep := (-lightLen+(ix2-ix1-1)) div (ix2-ix1);
+        lightMod := ix2-ix1;
+        lightDiff := lightLen + lightStep*(ix2-ix1);
+        lightStep := 65536 - lightStep;
+      end;
     end;
     lightAcc := lightDiff div 2;
   {$ENDIF}
 
+    {$IFDEF BGRASSE_AVAILABLE}
+    if UseSSE then
+    begin
+      {$DEFINE PARAM_USESSE}
+      if UseSSE2 then
+      begin
+        {$DEFINE PARAM_USESSE2}
+        if WithInterpolation then
+        begin
+          {$DEFINE PARAM_USEINTERPOLATION}
+          {$i lineartexscan2.inc}
+          {$UNDEF PARAM_USEINTERPOLATION}
+        end else
+        begin
+          {$i lineartexscan2.inc}
+        end;
+        {$UNDEF PARAM_USESSE2}
+      end else
+      begin
+        if WithInterpolation then
+        begin
+          {$DEFINE PARAM_USEINTERPOLATION}
+          {$i lineartexscan2.inc}
+          {$UNDEF PARAM_USEINTERPOLATION}
+        end else
+        begin
+          {$i lineartexscan2.inc}
+        end;
+      end;
+      {$UNDEF PARAM_USESSE}
+    end else
+    {$ENDIF}
     if WithInterpolation then
     begin
-      for i := ix1 to ix2 do
-      begin
-        DrawPixelInlineWithAlphaCheck(pdest,
-          {$IFDEF PARAM_USELIGHTING} ApplyLightnessFast( {$ENDIF}
-          scanAtFunc(texPos.x,texPos.y)
-          {$IFDEF PARAM_USELIGHTING} ,light) {$ENDIF}
-          );
-        texPos += texStep;
-        {$IFDEF PARAM_USELIGHTING}
-          NextLight;
-        {$ENDIF}
-        inc(pdest);
-      end;
+      {$DEFINE PARAM_USEINTERPOLATION}
+      {$i lineartexscan2.inc}
+      {$UNDEF PARAM_USEINTERPOLATION}
     end else
     begin
-      for i := ix1 to ix2 do
-      begin
-        DrawPixelInlineWithAlphaCheck(pdest,
-          {$IFDEF PARAM_USELIGHTING} ApplyLightnessFast( {$ENDIF}
-          scanAtFunc(round(texPos.x),round(texPos.y))
-          {$IFDEF PARAM_USELIGHTING} ,light) {$ENDIF}
-          );
-        texPos += texStep;
-        {$IFDEF PARAM_USELIGHTING}
-          NextLight;
-        {$ENDIF}
-        inc(pdest);
-      end;
+      {$i lineartexscan2.inc}
     end;
   end;
 {$undef PARAM_USELIGHTING}

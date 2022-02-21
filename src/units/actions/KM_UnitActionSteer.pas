@@ -31,9 +31,10 @@ uses
 
 
 { TUnitActionSteer }
-constructor TKMUnitActionSteer.Create(aUnit: TKMUnit; aActionType:TKMUnitActionType; aLocked:boolean);
+constructor TKMUnitActionSteer.Create(aUnit: TKMUnit; aActionType: TKMUnitActionType; aLocked: Boolean);
 begin
   inherited Create(aUnit, aActionType, aLocked);
+
   Assert(aUnit is TKMUnitAnimal); //Only animals do steering
   fVertexOccupied := KMPOINT_ZERO;
   fNextPos        := KMPOINT_ZERO;
@@ -44,13 +45,15 @@ destructor TKMUnitActionSteer.Destroy;
 begin
   if not KMSamePoint(fVertexOccupied, KMPOINT_ZERO) then
     DecVertex;
-  Inherited;
+
+  inherited;
 end;
 
 
 constructor TKMUnitActionSteer.Load(LoadStream: TKMemoryStream);
 begin
-  Inherited;
+  inherited;
+
   LoadStream.CheckMarker('UnitActionSteer');
   LoadStream.Read(fDesireToSteer);
   LoadStream.Read(fStuckFor);
@@ -94,35 +97,35 @@ end;
 function TKMUnitActionSteer.ChooseNextStep(out Point: TKMPoint): Boolean;
 var
   I,K,J: Integer;
-  Loc: TKMPoint;
-  List: TKMPointList;
-  GoodSpot: Boolean;
+  loc: TKMPoint;
+  list: TKMPointList;
+  goodSpot: Boolean;
 begin
   Inc(fDesireToSteer);
   //Default is the next tile in the direction we're going
-  Loc := KMGetPointInDir(fUnit.Position, fUnit.Direction);
+  loc := KMGetPointInDir(fUnit.Position, fUnit.Direction);
   //Decide whether we should change direction or not
   if (KaMRandom(10, 'TKMUnitActionSteer.ChooseNextStep') < fDesireToSteer)
-  or not fUnit.CanStepTo(Loc.X, Loc.Y, fUnit.DesiredPassability) then
+  or not fUnit.CanStepTo(loc.X, loc.Y, fUnit.DesiredPassability) then
   begin
     fDesireToSteer := 0; //Reset it
-    List := TKMPointList.Create;
-    Loc := fUnit.Position;
+    list := TKMPointList.Create;
+    loc := fUnit.Position;
     for I:=-1 to 1 do
       for K:=-1 to 1 do
-        if ((I<>0)or(K<>0)) and fUnit.CanStepTo(Loc.X+I, Loc.Y+K, fUnit.DesiredPassability) then
+        if ((I<>0)or(K<>0)) and fUnit.CanStepTo(loc.X+I, loc.Y+K, fUnit.DesiredPassability) then
         begin
           //Directions next to our current one are preferable (looks nicer if animals don't make jarring direction changes often)
-          GoodSpot := KMGetDirection(I, K) in [KMNextDirection(fUnit.Direction), KMPrevDirection(fUnit.Direction)];
-          for J:=0 to 5*Byte(GoodSpot) do
-            List.Add(KMPoint(Loc.X+I, Loc.Y+K));
+          goodSpot := KMGetDirection(I, K) in [KMNextDirection(fUnit.Direction), KMPrevDirection(fUnit.Direction)];
+          for J:=0 to 5*Byte(goodSpot) do
+            list.Add(KMPoint(loc.X+I, loc.Y+K));
         end;
-    Result := List.GetRandom(Point);
-    List.Free;
+    Result := list.GetRandom(Point);
+    list.Free;
   end
   else
   begin
-    Point := Loc;
+    Point := loc;
     Result := True;
   end;
 end;
@@ -130,32 +133,33 @@ end;
 
 function TKMUnitActionSteer.Execute: TKMActionResult;
 var
-  DX,DY:shortint;
-  WalkX,WalkY,Distance:single;
-  FirstStep: Boolean;
+  dx, dy: Shortint;
+  walkX, walkY, distance: Single;
+  firstStep: Boolean;
 begin
   if KMSamePoint(fNextPos, KMPOINT_ZERO) then
   begin
     fNextPos := fUnit.Position; //Set fNextPos to current pos so it initializes on the first run
-    FirstStep := True;
+    firstStep := True;
   end
   else
-    FirstStep := False;
-      
-  Distance := gRes.Units[fUnit.UnitType].Speed;
-  if KMSamePointF(fUnit.PositionF, KMPointF(fNextPos), Distance/2) then
+    firstStep := False;
+
+  // Use umtWalk move type here, since we just want to evaluate if we are close enough
+  distance := gRes.Units[fUnit.UnitType].GetEffectiveWalkSpeed(False);
+  if KMSamePointF(fUnit.PositionF, KMPointF(fNextPos), distance/2) then
   begin
     //Set precise position to avoid rounding errors
     fUnit.PositionF := KMPointF(fNextPos);
 
     //No longer using previous vertex
-    if KMStepIsDiag(fUnit.PrevPosition, fUnit.NextPosition) and not FirstStep and (fStuckFor = 0) then
+    if KMStepIsDiag(fUnit.PrevPosition, fUnit.NextPosition) and not firstStep and (fStuckFor = 0) then
       DecVertex;
 
     //Decide on next step
     if not ChooseNextStep(fNextPos) then
     begin
-      inc(fStuckFor);
+      Inc(fStuckFor);
       if fStuckFor > 200 then
         Result := arActAborted //We have been stuck for a while so abort and TKMUnitAnimal.UpdateState will kill us
       else
@@ -173,18 +177,17 @@ begin
     fUnit.Direction := KMGetDirection(fUnit.PrevPosition, fUnit.NextPosition);
   end;
 
-  WalkX := fNextPos.X - fUnit.PositionF.X;
-  WalkY := fNextPos.Y - fUnit.PositionF.Y;
-  DX := sign(WalkX); //-1,0,1
-  DY := sign(WalkY); //-1,0,1
+  walkX := fNextPos.X - fUnit.PositionF.X;
+  walkY := fNextPos.Y - fUnit.PositionF.Y;
+  dx := sign(walkX); //-1,0,1
+  dy := sign(walkY); //-1,0,1
 
-  if (DX <> 0) and (DY <> 0) then
-    Distance := Distance / 1.41; {sqrt (2) = 1.41421 }
+  distance := gRes.Units[fUnit.UnitType].GetEffectiveWalkSpeed((dx <> 0) and (dy <> 0));
 
-  fUnit.PositionF := KMPointF(fUnit.PositionF.X + DX*Math.min(Distance,abs(WalkX)),
-                              fUnit.PositionF.Y + DY*Math.min(Distance,abs(WalkY)));
+  fUnit.PositionF := KMPointF(fUnit.PositionF.X + dx*Math.min(distance,abs(walkX)),
+                              fUnit.PositionF.Y + dy*Math.min(distance,abs(walkY)));
 
-  inc(fUnit.AnimStep);
+  Inc(fUnit.AnimStep);
   Result := arActContinues;
 end;
 
@@ -192,6 +195,7 @@ end;
 procedure TKMUnitActionSteer.Save(SaveStream: TKMemoryStream);
 begin
   inherited;
+
   SaveStream.PlaceMarker('UnitActionSteer');
   SaveStream.Write(fDesireToSteer);
   SaveStream.Write(fStuckFor);

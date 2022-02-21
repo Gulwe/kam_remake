@@ -15,6 +15,7 @@ type
     fTimes: array of record
       Time: Int64;
       Tag: Integer;
+      TagS: string;
       Count: Integer;
     end;
     function GetCount: Integer;
@@ -33,6 +34,7 @@ type
     property EnterTick: Integer read GetEnterTick;
     procedure SectionEnter(aTick: Integer = -1; aTag: Integer = 0);
     procedure SectionLeave;
+    procedure SectionAddValue(aValue: Int64; aTick: Integer = -1; aTagS: string = '');
     procedure Clear;
     procedure Render(aLeft, aWidth, aHeight, aScaleY: Integer; aEmaAlpha: Single; aScale: Integer; aSmoothing: Boolean);
     procedure SaveToFile(const aFilename: string; aSaveThreshold: Integer);
@@ -68,7 +70,9 @@ type
 
 implementation
 uses
-  KM_CommonUtils, KM_Points, KM_RenderAux, KM_Render;
+  KM_CommonUtils, KM_Points,
+  KM_Resource, KM_ResFonts,
+  KM_RenderAux, KM_Render, KM_RenderUI;
 
 
 { TKMPerfLogSingle }
@@ -123,6 +127,31 @@ begin
 end;
 
 
+procedure TKMPerfLogSingle.SectionAddValue(aValue: Int64; aTick: Integer = -1; aTagS: string = '');
+begin
+  if Self = nil then Exit;
+  if not Enabled then Exit;
+
+  fEnterTick := aTick;
+  fEnterTag := 0;
+
+  if aTick = -1 then
+    Inc(fCount)
+  else
+    fCount := aTick;
+
+  if fCount-1 >= Length(fTimes) then
+    SetLength(fTimes, fCount + 1024);
+
+  fTimes[fCount-1].Tag := 0;
+  fTimes[fCount-1].TagS := aTagS;
+  if fEnterTick = -1 then
+    fTimes[fCount-1].Time := aValue
+  else
+    fTimes[fCount-1].Time := fTimes[fCount-1].Time + aValue;
+end;
+
+
 procedure TKMPerfLogSingle.Clear;
 begin
   if Self = nil then Exit;
@@ -133,11 +162,17 @@ end;
 
 
 procedure TKMPerfLogSingle.Render(aLeft, aWidth, aHeight, aScaleY: Integer; aEmaAlpha: Single; aScale: Integer; aSmoothing: Boolean);
+const
+  TAG_POS = 10;
+  TAG_PAD = 2;
+  TAG_FONT = fntMonospaced;
 var
   I, K: Integer;
   vaChart: TKMPointFArray;
   cCount: Integer;
   accum: Single;
+  tagStr: string;
+  txtSize: TKMPoint;
 begin
   if Self = nil then Exit;
   if not Display then Exit;
@@ -163,6 +198,30 @@ begin
 
   // Chart
   gRenderAux.Line(vaChart, Color);
+
+  I := TAG_POS;
+  K := fCount - 1 - I;
+
+  // Tags
+  if InRange(K, Low(fTimes), High(fTimes)) then
+  begin
+    tagStr := '';
+    if fTimes[K].TagS <> '' then
+      tagStr := fTimes[K].TagS
+    else
+    if (fTimes[K].Tag <> 0) then
+      tagStr := IntToStr(fTimes[K].Tag);
+
+    if (tagStr <> '') then
+    begin
+      txtSize := gRes.Fonts[TAG_FONT].GetTextSize(tagStr);
+      gRenderAux.Square(KMRect(Round(vaChart[I].X) - (txtSize.X div 2) - TAG_PAD,
+                               Round(vaChart[I].Y) - (txtSize.Y div 2) - TAG_PAD,
+                               Round(vaChart[I].X) + (txtSize.X div 2) + TAG_PAD,
+                               Round(vaChart[I].Y) + (txtSize.Y div 2) + TAG_PAD), Color);
+      TKMRenderUI.WriteText(Round(vaChart[I].X) - txtSize.X div 2, Round(vaChart[I].Y) - 7, txtSize.X, tagStr, TAG_FONT, taLeft);
+    end;
+  end;
 end;
 
 

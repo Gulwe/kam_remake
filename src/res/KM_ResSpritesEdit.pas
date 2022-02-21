@@ -4,12 +4,14 @@ interface
 uses
   {$IFDEF Unix} LCLIntf, LCLType, {$ENDIF}
   Classes, Dialogs, Graphics, Math, Types, StrUtils, SysUtils,
-  KM_Defaults, KM_Pics, KM_ResHouses, KM_ResPalettes, KM_ResSprites,
-  KM_ResTileset
+  KM_Defaults, KM_ResTypes, KM_ResHouses, KM_ResPalettes, KM_ResSprites,
+  KM_ResTileset, KM_CommonTypes
   {$IFDEF FPC}, zstream {$ENDIF}
   {$IFDEF WDC}, ZLib {$ENDIF};
 
 type
+  TInterpExportType = (ietNormal, ietBase, ietBaseAlpha, ietBaseBlack, ietBaseWhite, ietShadows, ietTeamMask);
+
   //Class with additional editing properties
   TKMSpritePackEdit = class(TKMSpritePack)
   private
@@ -27,18 +29,23 @@ type
     procedure SoftWater(aTileset: TKMResTileset);
     procedure Delete(aIndex: Integer);
     procedure LoadFromRXFile(const aFileName: string);
-    procedure LoadFromFolder(const aFolder: string);
     procedure SaveToRXXFile(const aFileName: string);
+    procedure SaveToRXAFile(const aFileName: string);
     function TrimSprites: Cardinal; //For debug
     procedure ClearTemp; override;
     procedure GetImageToBitmap(aIndex: Integer; aBmp, aMask: TBitmap);
+
+    function ExportImageForInterp(const aFile: string; aIndex, aIndexBase: Integer; aBaseMoveX, aBaseMoveY: Integer; aExportType: TInterpExportType; aCanvasSize: Integer; aSimpleShadows: Boolean; aBkgColour: Cardinal): Boolean;
+    function ExportPixelsForInterp(var pngData: TKMCardinalArray; aIndex: Integer; aMoveX, aMoveY: Integer; aExportType: TInterpExportType; aCanvasSize: Integer; aSimpleShadows: Boolean; aBkgColour: Cardinal): Boolean;
   end;
 
 
 implementation
 uses
   KM_SoftShadows,
-  KM_ResTypes;
+  KM_IoPNG,
+  KM_RenderTypes,
+  KM_CommonClasses;
 
 
 var
@@ -156,6 +163,227 @@ begin
           HasMask[H] := True;
         end else
           RGBA[H, Pixel] := Palette.Color32(L);
+      end;
+    end;
+  end;
+end;
+
+
+function TKMSpritePackEdit.ExportImageForInterp(const aFile: string; aIndex, aIndexBase: Integer; aBaseMoveX, aBaseMoveY: Integer; aExportType: TInterpExportType; aCanvasSize: Integer; aSimpleShadows: Boolean; aBkgColour: Cardinal): Boolean;
+var
+  pngData, pngDataBackground, pngAlpha, pngAlphaBackground: TKMCardinalArray;
+  I: Integer;
+  AlphaForeground, AlphaBackground: Byte;
+  ResultBackground: Boolean;
+begin
+  if aIndex >= 0 then
+    Result := ExportPixelsForInterp(pngData, aIndex, 0, 0, aExportType, aCanvasSize, aSimpleShadows, aBkgColour)
+  else
+  begin
+    Result := True;
+    SetLength(pngData, aCanvasSize*aCanvasSize);
+  end;
+
+  if aIndexBase >= 0 then
+  begin
+    ResultBackground := ExportPixelsForInterp(pngDataBackground, aIndexBase, aBaseMoveX, aBaseMoveY, aExportType, aCanvasSize, aSimpleShadows, aBkgColour);
+    Result := Result or ResultBackground;
+
+    //Since not all export formats contain the alpha value, we need to export the alpha so we can blend properly
+    if aIndex >= 0 then
+      ExportPixelsForInterp(pngAlpha, aIndex, 0, 0, ietNormal, aCanvasSize, aSimpleShadows, aBkgColour)
+    else
+      SetLength(pngAlpha, aCanvasSize*aCanvasSize);
+
+    ExportPixelsForInterp(pngAlphaBackground, aIndexBase, aBaseMoveX, aBaseMoveY, ietNormal, aCanvasSize, aSimpleShadows, aBkgColour);
+
+    //Place background pixels where it has higher alpha
+    for I := Low(pngData) to High(pngData) do
+    begin
+      AlphaForeground := pngAlpha[I] shr 24;
+      AlphaBackground := pngAlphaBackground[I] shr 24;
+      if AlphaBackground > AlphaForeground then
+        pngData[I] := pngDataBackground[I];
+    end;
+  end;
+
+  SaveToPng(aCanvasSize, aCanvasSize, pngData, aFile);
+end;
+
+
+function TKMSpritePackEdit.ExportPixelsForInterp(var pngData: TKMCardinalArray; aIndex: Integer; aMoveX, aMoveY: Integer; aExportType: TInterpExportType; aCanvasSize: Integer; aSimpleShadows: Boolean; aBkgColour: Cardinal): Boolean;
+var
+  I, K, X, Y, dstX, dstY, CentreX, CentreY: Integer;
+  M, A: Byte;
+  C, RGB, R, G, B: Cardinal;
+  TreatMask, isShadow: Boolean;
+  srcWidth, srcHeight: Word;
+  dstWidth, dstHeight: Word;
+const
+  CANVAS_Y_OFFSET = 14;
+begin
+  Result := False;
+
+  CentreX := aCanvasSize div 2;
+  CentreY := aCanvasSize div 2 + CANVAS_Y_OFFSET;
+
+  srcWidth := fRXData.Size[aIndex].X;
+  srcHeight := fRXData.Size[aIndex].Y;
+
+  dstWidth := aCanvasSize;
+  dstHeight := aCanvasSize;
+
+  SetLength(pngData, dstWidth * dstHeight);
+
+  {if EXPORT_SPRITES_NO_ALPHA then
+    for I := Low(pngData) to High(pngData) do
+      pngData[I] := $FFAF6B6B;}
+
+  //Shadow export uses a black background
+  if aExportType in [ietShadows, ietTeamMask, ietBaseAlpha] then
+    for I := Low(pngData) to High(pngData) do
+      pngData[I] := $FF000000;
+
+  if (srcWidth > aCanvasSize) or (srcHeight > aCanvasSize) then
+    Exit;
+
+  //Export RGB values
+  for I := 0 to fRXData.Size[aIndex].Y - 1 do
+  for K := 0 to fRXData.Size[aIndex].X - 1 do
+  begin
+    dstY := I;
+    dstX := K;
+    if  (abs(fRXData.Pivot[aIndex].X) < CentreX)
+    and (abs(fRXData.Pivot[aIndex].Y) < CentreY) then
+    begin
+      dstY := I + CentreY + fRXData.Pivot[aIndex].Y + aMoveY;
+      dstX := K + CentreX + fRXData.Pivot[aIndex].X + aMoveX;
+    end;
+
+    TreatMask := fRXData.HasMask[aIndex] and (fRXData.Mask[aIndex, I*srcWidth + K] > 0);
+    if (fRT = rxHouses)
+      and ((aIndex < 680)
+        or (aIndex = 1657)
+        or (aIndex = 1659)
+        or (aIndex = 1681)
+        or (aIndex = 1683)
+        or (aIndex > 2050)) then
+      TreatMask := False;
+
+    C := fRXData.RGBA[aIndex, I*srcWidth + K];
+    RGB := C and $FFFFFF;
+    A := (C shr 24);
+
+    isShadow := (A > 0) and (A < $FF) and (not aSimpleShadows or (RGB = $0));
+
+    if aExportType = ietShadows then
+    begin
+      //Find shadow pixels and make a greyscale mask
+      if isShadow then
+      begin
+        pngData[dstY*dstWidth + dstX] := A or (A shl 8) or (A shl 16) or $FF000000;
+        Result := True;
+      end;
+
+      Continue;
+    end;
+
+    if aExportType = ietTeamMask then
+    begin
+      if fRXData.HasMask[aIndex] then
+        M := fRXData.Mask[aIndex, I*srcWidth + K]
+      else
+        M := 0;
+
+      if M > 0 then
+        Result := True;
+
+      pngData[dstY*dstWidth + dstX] := M or (M shl 8) or (M shl 16) or $FF000000;
+
+      Continue;
+    end;
+
+    if aExportType = ietBaseAlpha then
+    begin
+      if not isShadow then
+      begin
+        pngData[dstY*dstWidth + dstX] := A or (A shl 8) or (A shl 16) or $FF000000;
+        Result := True;
+      end;
+
+      Continue;
+    end;
+
+    Result := True;
+
+    if TreatMask and (aExportType = ietNormal) then
+    begin
+      M := fRXData.Mask[aIndex, I*srcWidth + K];
+
+      //Replace background with corresponding brightness of Red
+      if fRXData.RGBA[aIndex, I*srcWidth + K] = FLAG_COLOR_DARK then
+        //Brightness < 0.5, mix with black
+        pngData[dstY*dstWidth + dstX] := M
+      else
+        //Brightness > 0.5, mix with white
+        pngData[dstY*dstWidth + dstX] := $FF + (255 - M) * $010100;
+    end
+    else
+      pngData[dstY*dstWidth + dstX] := RGB;
+
+    //Apply alpha
+    if (aExportType = ietBaseWhite) or (aExportType = ietBaseBlack) then
+      pngData[dstY*dstWidth + dstX] := pngData[dstY*dstWidth + dstX] or $FF000000
+    else if (aExportType = ietBase) or (aExportType = ietNormal) then
+      pngData[dstY*dstWidth + dstX] := pngData[dstY*dstWidth + dstX] or (fRXData.RGBA[aIndex, I*srcWidth + K] and $FF000000);
+
+    //Is this a background pixel?
+    if isShadow or (A = 0) then
+    begin
+      if aExportType = ietBase then
+        pngData[dstY*dstWidth + dstX] := aBkgColour and $00FFFFFF
+      else if aExportType = ietBaseWhite then
+        pngData[dstY*dstWidth + dstX] := $FFFFFFFF
+      else if aExportType = ietBaseBlack then
+        pngData[dstY*dstWidth + dstX] := $FF000000;
+    end;
+  end;
+
+  //1px grow of RGB into transparent areas
+  //This helps because the interp algo handles transparency badly: It blends RGB from fully transparent pixels
+  //Without this step you get a black halo around interpolated stuff
+  if aExportType = ietBase then
+  begin
+    for Y := 0 to aCanvasSize-1 do
+    for X := 0 to aCanvasSize-1 do
+    begin
+      if pngData[Y*aCanvasSize + X] shr 24 = 0 then
+      begin
+        C := 0;
+        R := 0;
+        G := 0;
+        B := 0;
+        for I := -1 to 1 do
+        for K := -1 to 1 do
+        begin
+          dstY := EnsureRange(Y+I, 0, aCanvasSize-1);
+          dstX := EnsureRange(X+K, 0, aCanvasSize-1);
+          if pngData[dstY*aCanvasSize + dstX] shr 24 > 0 then
+          begin
+            Inc(C);
+            R := R +  pngData[dstY*aCanvasSize + dstX]         and $FF;
+            G := G + (pngData[dstY*aCanvasSize + dstX] shr 8 ) and $FF;
+            B := B + (pngData[dstY*aCanvasSize + dstX] shr 16) and $FF;
+          end;
+        end;
+        if C > 0 then
+        begin
+          R := R div C;
+          G := G div C;
+          B := B div C;
+          RGB := (R and $FF) or ((G shl 8) and $FF00) or ((B shl 16) and $FF0000);
+          pngData[Y*aCanvasSize + X] := RGB and $FFFFFF;
+        end;
       end;
     end;
   end;
@@ -418,6 +646,7 @@ procedure TKMSpritePackEdit.LoadFromRXFile(const aFileName: string);
 var
   I: Integer;
   S: TMemoryStream;
+  pivot: record X,Y: Integer; end;
 begin
   if not FileExists(aFileName) then
   begin
@@ -438,7 +667,9 @@ begin
     if fRXData.Flag[I] = 1 then
     begin
       S.ReadBuffer(fRXData.Size[I].X, 4);
-      S.ReadBuffer(fRXData.Pivot[I].X, 8);
+      S.ReadBuffer(pivot, 8);
+      fRXData.Pivot[I].X := pivot.X; // We use SmallInt for pivot, while it is Integer in RX
+      fRXData.Pivot[I].Y := pivot.Y;
       //Data part of each sprite is 8BPP paletted in KaM RX
       SetLength(fRXData.Data[I], fRXData.Size[I].X * fRXData.Size[I].Y);
       S.ReadBuffer(fRXData.Data[I,0], fRXData.Size[I].X * fRXData.Size[I].Y);
@@ -449,21 +680,69 @@ begin
 end;
 
 
-//Load sprites from folder
-procedure TKMSpritePackEdit.LoadFromFolder(const aFolder: string);
-var ft: TextFile;
+procedure TKMSpritePackEdit.SaveToRXAFile(const aFileName: string);
+const
+  SNS_MAX_ABS_VAL = CELL_SIZE_PX*5; // Empirical value
+var
+  I, Count: Integer;
+  SAT: TSpriteAtlasType;
+  InputStream: TCompressionStream;
+  OutputStream: TFileStream;
+  baseRAM, idealRAM, colorRAM, texCount: Cardinal;
 begin
-  if not DirectoryExists(aFolder) then Exit;
-  if not FileExists(aFolder + IntToStr(Byte(fRT) + 1) + '.txt') then Exit;
+  if IsEmpty then Exit;
 
-  AssignFile(ft, aFolder + IntToStr(Byte(fRT) + 1) + '.txt');
-    Reset(ft);
-    ReadLn(ft, fRXData.Count);
-  CloseFile(ft);
+  MakeGFX_BinPacking(tfRGBA8, 1, baseRAM, colorRAM, texCount, False, nil);
 
-  Allocate(fRXData.Count);
+  ForceDirectories(ExtractFilePath(aFileName));
 
-  OverloadFromFolder(aFolder);
+  OutputStream := TFileStream.Create(aFileName, fmCreate);
+  InputStream := TCompressionStream.Create(clMax, OutputStream);
+
+  //Sprite info
+  InputStream.Write(fRXData.Count, 4);
+  InputStream.Write(fRXData.Flag[1], fRXData.Count);
+
+  for I := 1 to fRXData.Count do
+    if fRXData.Flag[I] = 1 then
+    begin
+      InputStream.Write(fRXData.Size[I].X, SizeOf(fRXData.Size[I]));
+      InputStream.Write(fRXData.Pivot[I].X, SizeOf(fRXData.Pivot[I]));
+      if fRT = rxUnits then
+      begin
+        // Protection from incorect values
+        fRXData.SizeNoShadow[I].left    := EnsureRange(fRXData.SizeNoShadow[I].left,   -SNS_MAX_ABS_VAL, SNS_MAX_ABS_VAL);
+        fRXData.SizeNoShadow[I].top     := EnsureRange(fRXData.SizeNoShadow[I].top,    -SNS_MAX_ABS_VAL, SNS_MAX_ABS_VAL);
+        fRXData.SizeNoShadow[I].right   := EnsureRange(fRXData.SizeNoShadow[I].right,  -SNS_MAX_ABS_VAL, SNS_MAX_ABS_VAL);
+        fRXData.SizeNoShadow[I].bottom  := EnsureRange(fRXData.SizeNoShadow[I].bottom, -SNS_MAX_ABS_VAL, SNS_MAX_ABS_VAL);
+
+        InputStream.Write(fRXData.SizeNoShadow[I].left, SizeOf(fRXData.SizeNoShadow[I]));
+      end;
+      InputStream.Write(fRXData.HasMask[I], 1);
+    end;
+
+  //Atlases
+  for SAT := Low(TSpriteAtlasType) to High(TSpriteAtlasType) do
+  begin
+    Count := Length(fGFXPrepData[SAT]);
+    InputStream.Write(Count, 4);
+    for I := Low(fGFXPrepData[SAT]) to High(fGFXPrepData[SAT]) do
+      with fGFXPrepData[SAT, I] do
+      begin
+        InputStream.Write(SpriteInfo.Width, 2);
+        InputStream.Write(SpriteInfo.Height, 2);
+        Count := Length(SpriteInfo.Sprites);
+        InputStream.Write(Count, 4);
+        InputStream.Write(SpriteInfo.Sprites[0], Count*SizeOf(SpriteInfo.Sprites[0]));
+        InputStream.Write(TexType, SizeOf(TTexFormat));
+        Count := Length(Data);
+        InputStream.Write(Count, 4);
+        InputStream.Write(Data[0], Count*SizeOf(Data[0]));
+      end;
+  end;
+
+  InputStream.Free;
+  OutputStream.Free;
 end;
 
 
@@ -475,6 +754,7 @@ var
   CompressionStream: TCompressionStream;
 begin
   // No image was loaded yet
+  //@Rey: Perhaps we should erase the file in such case, otherwise mapmaker will have to go into folder to delete rxx himself if he decided to "clear" it
   if IsEmpty then Exit;
 
   ForceDirectories(ExtractFilePath(aFileName));
@@ -487,11 +767,11 @@ begin
   for I := 1 to fRXData.Count do
     if fRXData.Flag[I] = 1 then
     begin
-      InputStream.Write(fRXData.Size[I].X, 4);
-      InputStream.Write(fRXData.Pivot[I].X, 8);
+      InputStream.Write(fRXData.Size[I].X, SizeOf(fRXData.Size[I]));
+      InputStream.Write(fRXData.Pivot[I].X, SizeOf(fRXData.Pivot[I]));
 
       if fRT = rxUnits then
-        InputStream.Write(fRXData.SizeNoShadow[I].left, 16);
+        InputStream.Write(fRXData.SizeNoShadow[I].left, SizeOf(fRXData.SizeNoShadow[I]));
       InputStream.Write(fRXData.RGBA[I, 0], 4 * fRXData.Size[I].X * fRXData.Size[I].Y);
       InputStream.Write(fRXData.HasMask[I], 1);
       if fRXData.HasMask[I] then

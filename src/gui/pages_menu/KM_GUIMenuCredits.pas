@@ -5,9 +5,10 @@ uses
   {$IFDEF Unix} LCLType, {$ENDIF}
   {$IFDEF WDC} ShellAPI, Windows, {$ENDIF} // Required for OpenURL in Delphi
   {$IFDEF FPC} LCLIntf, {$ENDIF} // Required for OpenURL in Lazarus
-  Classes, Forms, Controls,
+  Classes,
+  Forms,
   KM_Controls, KM_Defaults,
-  KM_InterfaceDefaults;
+  KM_InterfaceDefaults, KM_InterfaceTypes;
 
 
 type
@@ -22,18 +23,23 @@ type
     Label_Credits_KaM: TKMLabelScroll;
     Label_Credits_Remake: TKMLabelScroll;
     Button_CreditsHomepage: TKMButton;
+    Button_CreditsDiscord: TKMButton;
     Button_CreditsFacebook: TKMButton;
     Button_CreditsBack: TKMButton;
   public
-    constructor Create(aParent: TKMPanel; aOnPageChange: TKMMenuChangeEventText);
+    OnToggleLocale: TKMToggleLocaleEvent;
 
+    constructor Create(aParent: TKMPanel; aOnPageChange: TKMMenuChangeEventText);
     procedure Show;
   end;
 
 
 implementation
 uses
-  KM_ResTexts, KM_RenderUI, KM_ResFonts, KM_ResLocales, KM_CommonUtils;
+  KM_RenderUI,
+  KM_System, 
+  KM_ResTexts, KM_Resource, KM_ResFonts, KM_ResLocales, KM_ResTypes,
+  KM_GameSettings, KM_CommonUtils;
 
 
 { TKMGUIMainCredits }
@@ -51,8 +57,8 @@ begin
 
     TKMLabel.Create(Panel_Credits, aParent.Width div 2 - OFFSET, 70, gResTexts[TX_CREDITS],fntOutline,taCenter);
     Label_Credits_Remake := TKMLabelScroll.Create(Panel_Credits, aParent.Width div 2 - OFFSET, 110, 0, aParent.Height - 130,
-      gResTexts[TX_CREDITS_PROGRAMMING] + '|Krom|Lewin||' +
-      gResTexts[TX_CREDITS_ADDITIONAL_PROGRAMMING] + '|Alex|Rey|andreus|Danjb|ZblCoder||' +
+      gResTexts[TX_CREDITS_PROGRAMMING] + '|Krom|Lewin|Rey||' +
+      gResTexts[TX_CREDITS_ADDITIONAL_PROGRAMMING] + '|Alex|andreus|Danjb|ZblCoder||' +
       gResTexts[TX_CREDITS_ADDITIONAL_GRAPHICS] + '|StarGazer|Malin|H.A.H.||' +
       gResTexts[TX_CREDITS_ADDITIONAL_MUSIC] + '|Andre Sklenar - www.juicelab.cz||' +
       gResTexts[TX_CREDITS_ADDITIONAL_SOUNDS] + '|trb1914||' +
@@ -66,9 +72,13 @@ begin
     Label_Credits_KaM := TKMLabelScroll.Create(Panel_Credits, aParent.Width div 2 + OFFSET, 110, 0, aParent.Height - 130, gResTexts[TX_CREDITS_TEXT], fntGrey, taCenter);
     Label_Credits_KaM.Anchors := [anLeft,anTop,anBottom];
 
-    Button_CreditsHomepage := TKMButton.Create(Panel_Credits,400,610,224,30, '[$F8A070]www.kamremake.com[]', bsMenu);
+    Button_CreditsHomepage := TKMButton.Create(Panel_Credits,400,574,224,30, '[$F8A070]www.kamremake.com[]', bsMenu);
     Button_CreditsHomepage.Anchors := [anLeft,anBottom];
     Button_CreditsHomepage.OnClick := LinkClick;
+
+    Button_CreditsDiscord := TKMButton.Create(Panel_Credits,400,610,224,30, '[$F8A070]Discord[]', bsMenu);
+    Button_CreditsDiscord.Anchors := [anLeft,anBottom];
+    Button_CreditsDiscord.OnClick := LinkClick;
 
     Button_CreditsFacebook := TKMButton.Create(Panel_Credits,400,646,224,30, '[$F8A070]Facebook[]', bsMenu);
     Button_CreditsFacebook.Anchors := [anLeft,anBottom];
@@ -94,13 +104,26 @@ procedure TKMMenuCredits.LinkClick(Sender: TObject);
   end;
 
 begin
-  if Sender = Button_CreditsHomepage then GoToURL('http://www.kamremake.com/redirect.php?page=homepage&rev=' + UnicodeString(GAME_REVISION));
-  if Sender = Button_CreditsFacebook then GoToURL('http://www.kamremake.com/redirect.php?page=facebook&rev=' + UnicodeString(GAME_REVISION));
+  if Sender = Button_CreditsHomepage then
+    GoToURL('http://www.kamremake.com/');
+  if Sender = Button_CreditsFacebook then
+    GoToURL('https://www.facebook.com/KaMRemake/');
+  if Sender = Button_CreditsDiscord then
+    GoToURL('https://discord.gg/UkkYceR');
 end;
 
 
 procedure TKMMenuCredits.Show;
 begin
+  // Load asian fonts, since there are some credits information on asian languages
+  // No need to redraw all UI, as we do on the Options page, since there is no info rendered on the credits page yet
+  if gRes.Fonts.LoadLevel <> fllFull then
+  begin
+    gSystem.Cursor := kmcAnimatedDirSelector;
+    gRes.LoadLocaleFonts(gGameSettings.Locale, True);
+    gSystem.Cursor := kmcDefault;
+  end;
+
   //Set initial position
   Label_Credits_KaM.SmoothScrollToTop := TimeGet;
   Label_Credits_Remake.SmoothScrollToTop := TimeGet;

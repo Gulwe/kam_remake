@@ -7,7 +7,8 @@ unit KM_CityPredictor;
 {$I KaM_Remake.inc}
 interface
 uses
-  Classes, Graphics, KromUtils, Math, SysUtils,
+  SysUtils, Classes, Math,
+  KromUtils,
   KM_Defaults, KM_CommonClasses, KM_CommonTypes,
   KM_AISetup, KM_ResHouses, KM_ResWares, KM_HandStats, KM_AIParameters,
   KM_ResTypes;

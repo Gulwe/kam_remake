@@ -7,8 +7,8 @@ uses
   KM_ResTypes;
   
 type
-  TKMWoodcutterMode = (wcmChopAndPlant, wcmChop, wcmPlant);
-  
+  TKMWoodcutterMode = (wmChopAndPlant, wmChop, wmPlant);
+
   TKMHouseWoodcutters = class(TKMHouseWFlagPoint)
   private
     fWoodcutterMode: TKMWoodcutterMode;
@@ -23,12 +23,14 @@ type
     constructor Create(aUID: Integer; aHouseType: TKMHouseType; PosX, PosY: Integer; aOwner: TKMHandID; aBuildState: TKMHouseBuildState);
     constructor Load(LoadStream: TKMemoryStream); override;
     procedure Save(SaveStream: TKMemoryStream); override;
+
+    function ObjToString(const aSeparator: String = '|'): String; override;
   end;
 
-
- 
   
 implementation
+uses
+  SysUtils, TypInfo;
 
 
 { TKMHouseWoodcutters }
@@ -36,7 +38,7 @@ constructor TKMHouseWoodcutters.Create(aUID: Integer; aHouseType: TKMHouseType; 
 begin
   inherited;
 
-  WoodcutterMode := wcmChopAndPlant;
+  WoodcutterMode := wmChopAndPlant;
 end;
 
 
@@ -87,10 +89,18 @@ begin
   //If we're allowed to plant only again or chop only
   //we should reshow the depleted message if we are changed to cut and run out of trees
   if (fWoodcutterMode <> aWoodcutterMode)
-    and (aWoodcutterMode in [wcmChop, wcmPlant]) then
+    and (aWoodcutterMode in [wmChop, wmPlant]) then
     ResourceDepleted := False;
 
   fWoodcutterMode := aWoodcutterMode;
 end;
+
+
+function TKMHouseWoodcutters.ObjToString(const aSeparator: String = '|'): String;
+begin
+  Result := inherited ObjToString(aSeparator) +
+            Format('%sWoodcutterMode = %s', [aSeparator, GetEnumName(TypeInfo(TKMWoodcutterMode), Integer(fWoodcutterMode))]);
+end;
+
 
 end.

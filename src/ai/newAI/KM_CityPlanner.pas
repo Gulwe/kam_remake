@@ -7,7 +7,8 @@ unit KM_CityPlanner;
 {$I KaM_Remake.inc}
 interface
 uses
-  Classes, Graphics, KromUtils, Math, SysUtils, Contnrs,
+  SysUtils, Classes, Math, Contnrs,
+  KromUtils,
   KM_Defaults, KM_Points, KM_CommonClasses, KM_CommonTypes, KM_CommonUtils,
   KM_Houses, KM_ResHouses, KM_Sort,
   KM_PathFindingRoad, KM_PathFindingAStarNew, KM_Eye, KM_AIParameters,
@@ -50,7 +51,7 @@ type
   private
   protected
     function IsWalkableTile(aX, aY: Word): Boolean; override;
-    function MovementCost(aFromX, aFromY, aToX, aToY: Word): Word; override;
+    function MovementCost(aFromX, aFromY, aToX, aToY: Word): Cardinal; override;
   public
     {$IFDEF DEBUG_NewAI}
       Ctr: Word;
@@ -64,7 +65,7 @@ type
   private
   protected
     function DestinationReached(aX, aY: Word): Boolean; override;
-    function MovementCost(aFromX, aFromY, aToX, aToY: Word): Word; override;
+    function MovementCost(aFromX, aFromY, aToX, aToY: Word): Cardinal; override;
   public
   end;
 
@@ -168,7 +169,7 @@ type
     procedure MarkAsExhausted(aHT: TKMHouseType; aLoc: TKMPoint);
 
     procedure RemoveHouseType(aHT: TKMHouseType);
-    procedure RemovePlan(aHT: TKMHouseType; aLoc: TKMPoint); overload;
+    procedure RemovePlan(aHT: TKMHouseType; const aLoc: TKMPoint); overload;
     procedure RemovePlan(aHT: TKMHouseType; aIdx: Integer); overload;
 
     function GetHousePlan(aIgnoreTrees, aIgnoreExistingPlans: Boolean; aHT: TKMHouseType; var aLoc: TKMPoint; var aIdx: Integer): Boolean;
@@ -218,12 +219,16 @@ const
     {htWineyard}       [ htInn,            htQuary,          htCoalMine                                         ],
     {htWoodcutters}    [ htStore                                                                                ],
     {htCharcoalFactory}[ htStore                                                                                ],
-    {htWall}           [ htStore                                                                                ]
+    {htObsTower}       [ htStore                                                                                ]
+
   );
 
 implementation
 uses
-  KM_GameParams, KM_HouseCollection, KM_HandsCollection, KM_Hand, KM_Terrain, KM_Resource,
+  KM_GameParams,
+  KM_HouseCollection,
+  KM_HandsCollection, KM_Hand, KM_HandTypes,
+  KM_Terrain, KM_Resource,
   KM_AIFields,
   KM_NavMesh, KM_HouseWoodcutters, KM_ResUnits,
   KM_RenderAux, KM_ResMapElements;
@@ -289,9 +294,11 @@ begin
       with fPlannedHouses[HT].Plans[I] do
         if (House <> nil) then
           gHands.CleanUpHousePointer(House);
+
   fRoadPlanner.Free;
   fRoadShortcutPlanner.Free;
   fFieldEval.Free;
+
   inherited;
 end;
 
@@ -357,7 +364,7 @@ begin
   LoadStream.Read(fFields.UpdateIdx);
   SetLength(fFields.Farms,fFields.Count);
   if (fFields.Count > 0) then
-    LoadStream.Read(fFields.Farms[0],SizeOf(fFields.Farms[0]) * fFields.Count);
+    LoadStream.Read(fFields.Farms[0], SizeOf(fFields.Farms[0]) * fFields.Count);
 
   for HT := HOUSE_MIN to HOUSE_MAX do
   begin
@@ -395,7 +402,7 @@ begin
   for HT := HOUSE_MIN to HOUSE_MAX do
     for K := 0 to fPlannedHouses[HT].Count - 1 do
       with fPlannedHouses[HT].Plans[K] do
-        House := gHands.GetHouseByUID( Cardinal(House) );
+        House := gHands.GetHouseByUID(Cardinal(House));
 end;
 
 
@@ -445,11 +452,11 @@ procedure TKMCityPlanner.UpdateState(aTick: Cardinal);
     begin
       if aCheckChopOnly then
         ScanChopOnly(W);
-      if (W.WoodcutterMode <> wcmChop) then // Center of forest is not in protected area => chop only mode
-        W.WoodcutterMode := wcmChop
+      if (W.WoodcutterMode <> wmChop) then // Center of forest is not in protected area => chop only mode
+        W.WoodcutterMode := wmChop
     end
-    else if (W.WoodcutterMode <> wcmChopAndPlant) then
-      W.WoodcutterMode := wcmChopAndPlant;
+    else if (W.WoodcutterMode <> wmChopAndPlant) then
+      W.WoodcutterMode := wmChopAndPlant;
   end;
 
 const
@@ -483,12 +490,12 @@ begin
             fPlannedHouses[HT].Plans[K].House := H.GetPointer;
           end;
           CheckExistHouse := True;
-          break;
+          Break;
         end;
       if not CheckExistHouse then // House was added by script / spectator in debug mode
       begin
         if (HT = htWoodcutters) then
-          AddPlan(HT, H.Entrance, TKMHouseWoodcutters(H).FlagPoint, TKMHouseWoodcutters(H).WoodcutterMode = wcmChop)
+          AddPlan(HT, H.Entrance, TKMHouseWoodcutters(H).FlagPoint, TKMHouseWoodcutters(H).WoodcutterMode = wmChop)
         else
           AddPlan(HT, H.Entrance);
       end;
@@ -519,11 +526,11 @@ begin
           begin
             if ChopOnly AND HouseExist AND House.IsComplete then // Dont consider choponly woodcutters
               CompletedHouses := CompletedHouses - 1;
-            if (House <> nil) AND (House.IsComplete) then
+            if (House <> nil) AND House.IsComplete then
               CheckWoodcutter(fPlannedHouses[HT].Plans[I], CheckChopOnly);
           end;
         end
-        else if (HouseReservation OR RemoveTreeInPlanProcedure) then // House was reserved
+        else if HouseReservation OR RemoveTreeInPlanProcedure then // House was reserved
         begin
           PlannedHouses := PlannedHouses + 1;
         end
@@ -761,12 +768,12 @@ begin
     end;
 end;
 
-procedure TKMCityPlanner.RemovePlan(aHT: TKMHouseType; aLoc: TKMPoint);
+procedure TKMCityPlanner.RemovePlan(aHT: TKMHouseType; const aLoc: TKMPoint);
 var
   I: Integer;
 begin
   for I := 0 to fPlannedHouses[aHT].Count - 1 do
-    if KMSamePoint(fPlannedHouses[aHT].Plans[I].Loc,aLoc) then
+    if KMSamePoint(fPlannedHouses[aHT].Plans[I].Loc, aLoc) then
     begin
       RemovePlan(aHT, I);
       Exit;
@@ -839,9 +846,9 @@ function TKMCityPlanner.GetRoadToHouse(aHT: TKMHouseType; aIdx: Integer; var aFi
   function IsRoad(aP: TKMPoint): Boolean;
   begin
     Result := (gAIFields.Influences.AvoidBuilding[aP.Y, aP.X] = AVOID_BUILDING_NODE_LOCK_ROAD) // Reserved road plan
-              OR (tpWalkRoad in gTerrain.Land[aP.Y, aP.X].Passability)                         // Completed road
+              OR (tpWalkRoad in gTerrain.Land^[aP.Y, aP.X].Passability)                         // Completed road
               OR (gHands[fOwner].Constructions.FieldworksList.HasField(aP) = ftRoad)               // Placed road plan
-              OR (gTerrain.Land[aP.Y, aP.X].TileLock = tlRoadWork);                            // Road under construction
+              OR (gTerrain.Land^[aP.Y, aP.X].TileLock = tlRoadWork);                            // Road under construction
   end;
 // New house plan may overlap existing road -> new road must be done (new road will extend aField list)
   procedure ReplaceOverlappingRoad(aLoc: TKMPoint);
@@ -941,6 +948,8 @@ function TKMCityPlanner.GetRoadToHouse(aHT: TKMHouseType; aIdx: Integer; var aFi
     Result := True;
   end;
 
+const
+  MAX_ROAD_DISTANCE = 50;
 var
   Output: Boolean;
   NewLoc, ExistLoc: TKMPoint;
@@ -956,7 +965,8 @@ begin
   //  Output := true;
   //  ExistLoc := H.PointBelowEntrance;
   //end;
-  if Output AND fRoadPlanner.Route_Make(KMPointBelow(NewLoc), KMPointBelow(ExistLoc), aField) then
+  if Output AND fRoadPlanner.Route_Make(KMPointBelow(NewLoc), KMPointBelow(ExistLoc), aField)
+    AND ((aField.Count < MAX_ROAD_DISTANCE) OR (aHT = htWatchtower)) then
   begin
     Output := True;
     ReplaceOverlappingRoad( fPlannedHouses[aHT].Plans[aIdx].Loc );
@@ -968,7 +978,10 @@ begin
     end;
   end
   else
+  begin
+    Output := False;
     RemovePlan(aHT,aIdx);
+  end;
   Result := Output;
 end;
 
@@ -1136,14 +1149,14 @@ function TKMCityPlanner.CheckFields(var aFieldType: TKMFieldType; var aNodeList:
   begin
     Result := gTerrain.TileIsWineField(aP)
               OR (gHands[fOwner].Constructions.FieldworksList.HasField(aP) = ftWine)
-              OR (gTerrain.Land[aP.Y, aP.X].TileLock = tlFieldWork)
+              OR (gTerrain.Land^[aP.Y, aP.X].TileLock = tlFieldWork)
               OR ((gAIFields.Influences.AvoidBuilding[aP.Y, aP.X] = AVOID_BUILDING_NODE_LOCK_FIELD) AND (gHands[fOwner].CanAddFieldPlan(aP, ftWine)));
   end;
   function IsField(aP: TKMPoint): Boolean;
   begin
     Result := gTerrain.TileIsCornField(aP)
               OR (gHands[fOwner].Constructions.FieldworksList.HasField(aP) = ftCorn)
-              OR (gTerrain.Land[aP.Y, aP.X].TileLock = tlFieldWork)
+              OR (gTerrain.Land^[aP.Y, aP.X].TileLock = tlFieldWork)
               OR ((gAIFields.Influences.AvoidBuilding[aP.Y, aP.X] = AVOID_BUILDING_NODE_LOCK_FIELD) AND (gHands[fOwner].CanAddFieldPlan(aP, ftCorn)));
   end;
 var
@@ -1320,8 +1333,8 @@ begin
     begin
       X := aLoc.X + Tiles[K].X;
       Y := aLoc.Y + Tiles[K].Y;
-      Tree := Tree + Byte(gTerrain.ObjectIsChopableTree(KMPoint(X,Y), [caAge1,caAge2,caAge3,caAgeFull]));
-      Road := Road + Byte(tpWalkRoad in gTerrain.Land[Y, X].Passability);
+      Tree := Tree + Ord(gTerrain.ObjectIsChopableTree(KMPoint(X,Y), [caAge1, caAge2, caAge3, caAgeFull]));
+      Road := Road + Ord(tpWalkRoad in gTerrain.Land^[Y, X].Passability);
     end;
   Result := Tree * AI_Par[PLANNER_ObstaclesInHousePlan_Tree] + Road * AI_Par[PLANNER_ObstaclesInHousePlan_Road];
 end;
@@ -1363,7 +1376,7 @@ function TKMCityPlanner.SnapCrit(aHT: TKMHouseType; aLoc: TKMPoint): Single;
   function IsPlan(aPoint: TKMPoint; aLock: TKMTileLock; aField: TKMFieldType): Boolean;
   begin
     Result := (gHands[fOwner].Constructions.FieldworksList.HasField(aPoint) = aField) // Placed plan
-              OR (gTerrain.Land[aPoint.Y, aPoint.X].TileLock = aLock);            // Plan under construction
+              OR (gTerrain.Land^[aPoint.Y, aPoint.X].TileLock = aLock);            // Plan under construction
   end;
   function IsRoad(aAvoidBuilding: Byte; aPoint: TKMPoint): Boolean; inline;
   begin
@@ -1382,7 +1395,7 @@ function TKMCityPlanner.SnapCrit(aHT: TKMHouseType; aLoc: TKMPoint): Single;
   function IsNearHouse(aAvoidBuilding: Byte; aPoint: TKMPoint): Boolean; inline;
   begin
     Result := (aAvoidBuilding = AVOID_BUILDING_HOUSE_OUTSIDE_LOCK)
-              OR not (tpBuild in gTerrain.Land[aPoint.Y,aPoint.X].Passability);
+              OR not (tpBuild in gTerrain.Land^[aPoint.Y,aPoint.X].Passability);
     //Result := gAIFields.Eye.BuildFF.State
   end;
   function IsReservedField(aAvoidBuilding: Byte): Boolean; inline;
@@ -1416,8 +1429,8 @@ begin
                   //+ Byte(IsRoad(AvoidBuilding,Point)) * GA_PLANNER_SnapCrit_SnapToRoads;
       end;
   Output := Output
-            - Byte(IsReservedField( gAIFields.Influences.AvoidBuilding[aLoc.Y+1,aLoc.X] )) * AI_Par[PLANNER_SnapCrit_ObstacleInEntrance]
-            + Byte(IsRoad( gAIFields.Influences.AvoidBuilding[aLoc.Y+1,aLoc.X], aLoc )) * AI_Par[PLANNER_SnapCrit_RoadInEntrance];
+            - Ord(IsReservedField( gAIFields.Influences.AvoidBuilding[aLoc.Y+1,aLoc.X] )) * AI_Par[PLANNER_SnapCrit_ObstacleInEntrance]
+            + Ord(IsRoad( gAIFields.Influences.AvoidBuilding[aLoc.Y+1,aLoc.X], aLoc )) * AI_Par[PLANNER_SnapCrit_RoadInEntrance];
   Result := Output;
 end;
 
@@ -1484,7 +1497,7 @@ var
       Exit;
     end;
     for K := -1 to 1 do
-      Result := Result + Byte(tpWalk in gTerrain.Land[aLoc.Y+2,aLoc.X+K].Passability) * OBSTACLE_COEF;
+      Result := Result + Byte(tpWalk in gTerrain.Land^[aLoc.Y+2,aLoc.X+K].Passability) * OBSTACLE_COEF;
   end;
 
   {$IFDEF DEBUG_NewAI}
@@ -1559,7 +1572,7 @@ var
         + #9#9 + 'FlatAr'
         + #9#9 + 'AllInf'
         + #9#9 + 'EnmInf'
-        + #9#9 + 'FreeEntr',[gRes.Houses[aHT].HouseName, Sum, Peak, SumFF, PeakFF]);
+        + #9#9 + 'FreeEntr',[gResHouses[aHT].HouseName, Sum, Peak, SumFF, PeakFF]);
     Coef := 1;
     if (BestGainArr[0] <> 0) then
       Coef := (100 / BestGainArr[0]);
@@ -1999,9 +2012,11 @@ const
   HT = htQuary;
   MAX_DERIVATION = 75;
   MAX_SCAN_DIST = 3;
+  INIT_TAG = 0;
 var
   Output, IsWalkable: Boolean;
-  I, Y, MinIdx, MaxIdx: Integer;
+  I, Y, X, MinIdx, MaxIdx: Integer;
+  NewTag: Cardinal;
   Gain, BestGain: Single;
   Loc, BestLoc: TKMPoint;
   HouseReq: TKMHouseRequirements;
@@ -2035,26 +2050,25 @@ begin
     with StoneLocs do
       for I := Count - 1 downto 0 do
       begin
+        Tag[I] := 0;
         IsWalkable := False;
-        for Y := Items[I].Y to Min(Items[I].Y + MAX_SCAN_DIST, gTerrain.MapY - 1) do
-        begin
+        for Y := Max(Items[I].Y - 1, 1) to Min(Items[I].Y + MAX_SCAN_DIST, gTerrain.MapY - 1) do
+        for X := Max(Items[I].X - 1, 1) to Min(Items[I].X + 1, gTerrain.MapX - 1) do
           // Set stone loc to closest walkable point (which is bellow actual point)
-          if (BuildFF.VisitIdx = BuildFF.Visited[ Y, Items[I].X ]) then
-            Items[I] := KMPoint(Items[I].X,Y)
-          else if (BuildFF.VisitIdx = BuildFF.Visited[ Y, Max(Items[I].X-1,1) ]) then
-            Items[I] := KMPoint( Max(Items[I].X-1,1), Y)
-          else if (BuildFF.VisitIdx = BuildFF.Visited[ Y, Min(Items[I].X+1,gTerrain.MapX-1) ]) then
-            Items[I] := KMPoint( Min(Items[I].X+1,gTerrain.MapX-1), Y)
-          else
-            Continue;
-          // Update tag
-          Tag[I] := Max(0, 10000
-                           + gAIFields.Influences.OwnPoint[fOwner, Items[I]]
-                           - gAIFields.Influences.GetOtherOwnerships(fOwner,Items[I].X,Items[I].Y)
-                           - BuildFF.Distance[ Items[I] ]) * 10;
-          IsWalkable := True;
-          break;
-        end;
+          if (BuildFF.VisitIdx = BuildFF.Visited[Y,X]) then
+          begin
+            // Update tag
+            NewTag := Max(0, 10000
+              + gAIFields.Influences.OwnPoint[ fOwner, KMPoint(X,Y) ] * 4
+              - gAIFields.Influences.GetOtherOwnerships(fOwner,X,Y)
+              - BuildFF.Distance[ KMPoint(X,Y) ]) * 10;
+            if (NewTag > Tag[I]) then
+            begin
+              Items[I] := KMPoint(X,Y);
+              Tag[I] := NewTag;
+              IsWalkable := True;
+            end;
+          end;
         if not IsWalkable then // Remove stone locs without walkable tiles (under the loc)
           Delete(I);
       end;
@@ -2295,7 +2309,7 @@ begin
 
   for K := 0 to FIRnd.Count - 1 do
   begin
-    FI.Forests[ FI.Count ] := FIRnd.Forests[K];
+    FI.Forests[FI.Count] := FIRnd.Forests[K];
     Inc(FI.Count);
   end;
   //}
@@ -2304,7 +2318,7 @@ begin
   begin
     // Check influence
     if (gAIFields.Influences.GetBestAllianceOwner(fOwner, FI.Forests[K].Loc, atEnemy) > 10)
-      OR (gAIFields.Influences.GetBestOwner(FI.Forests[K].Loc.X, FI.Forests[K].Loc.Y) <> fOwner) then
+    or (gAIFields.Influences.GetBestOwner(FI.Forests[K].Loc.X, FI.Forests[K].Loc.Y) <> fOwner) then
     begin
       Dec(FI.Count);
       FI.Forests[K] := FI.Forests[ FI.Count ];
@@ -2317,7 +2331,7 @@ begin
         begin
           Dec(FI.Count);
           FI.Forests[K] := FI.Forests[ FI.Count ];
-          break;
+          Break;
         end;
   end;
 
@@ -2325,7 +2339,7 @@ begin
   for K := 0 to FI.Count - 1 do
     EvalForest(K, False);
   if (FI.Count > 1) then
-    Sort(FI.Forests[0], 0, FI.Count-1, sizeof(FI.Forests[0]), CompareForests);
+    SortCustom(FI.Forests[0], 0, FI.Count-1, SizeOf(FI.Forests[0]), CompareForests);
 
   {$IFDEF DEBUG_NewAI}
     for K := FI.Count - 1 downto Max(0,FI.Count - 5) do
@@ -2450,7 +2464,7 @@ function TKMCityPlanner.PlanDefenceTowers(): Boolean;
   begin
     // Filter defence positions, build towers only at the closest
     PL := gAIFields.Influences.GetBestAllianceOwner(fOwner, aCenter, atAlly);
-    if (PL <> fOwner) AND (PL <> PLAYER_NONE) then
+    if (PL <> fOwner) AND (PL <> HAND_NONE) then
       Exit;
     if (gAIFields.Influences.GetBestAllianceOwnership(fOwner, gAIFields.NavMesh.Point2Polygon[aCenter.Y,aCenter.X], atEnemy) > MAX_ENEMY_INFLUENCE) then
       Exit;
@@ -2667,14 +2681,14 @@ end;
 function TPathFindingCityPlanner.IsWalkableTile(aX, aY: Word): Boolean;
 begin
   // Just in case that worker will die while digging house plan or when you plan road near ally
-  Result := ( ([tpMakeRoads, tpWalkRoad] * gTerrain.Land[aY,aX].Passability <> []) OR (gTerrain.Land[aY, aX].TileLock in [tlRoadWork, tlFieldWork]) ) // Existing road / road construction
+  Result := ( ([tpMakeRoads, tpWalkRoad] * gTerrain.Land^[aY,aX].Passability <> []) OR (gTerrain.Land^[aY, aX].TileLock in [tlRoadWork, tlFieldWork]) ) // Existing road / road construction
              //AND (gHands[fOwner].Constructions.FieldworksList.HasField(KMPoint(aX, aY)) in [ftNone, ftRoad]) // AI can handle plans
              //AND not gHands[fOwner].Constructions.HousePlanList.HasPlan(KMPoint(aX, aY)) // Use avoid building instead so plans are also considered
              AND (gAIFields.Influences.AvoidBuilding[aY, aX] <> AVOID_BUILDING_HOUSE_INSIDE_LOCK);
 end;
 
 
-function TPathFindingCityPlanner.MovementCost(aFromX, aFromY, aToX, aToY: Word): Word;
+function TPathFindingCityPlanner.MovementCost(aFromX, aFromY, aToX, aToY: Word): Cardinal;
 var
   IsRoad: Boolean;
   AvoidBuilding: Byte;
@@ -2684,16 +2698,16 @@ begin
 
   AvoidBuilding := gAIFields.Influences.AvoidBuilding[aToY, aToX];
   IsRoad := (AvoidBuilding = AVOID_BUILDING_NODE_LOCK_ROAD)                                     // Reserved road plan
-            OR (tpWalkRoad in gTerrain.Land[aToY, aToX].Passability)                            // Completed road
+            OR (tpWalkRoad in gTerrain.Land^[aToY, aToX].Passability)                            // Completed road
             OR (gHands[fOwner].Constructions.FieldworksList.HasField(KMPoint(aToX, aToY)) = ftRoad) // Placed road plan
-            OR (gTerrain.Land[aToY, aToX].TileLock = tlRoadWork);                               // Road under construction
+            OR (gTerrain.Land^[aToY, aToX].TileLock = tlRoadWork);                               // Road under construction
 
   // Improve cost if tile is or will be road
   if IsRoad                                                 then Result := Max(0, Result - Round(AI_Par[ROADS_Road]))
   // 1 tile from future house
   else if (AvoidBuilding = AVOID_BUILDING_HOUSE_OUTSIDE_LOCK)
   // Snap to no-build areas (1 tile from house / mountain / special tiles)
-   OR not (tpBuild in gTerrain.Land[aToY,aToX].Passability)
+    OR not (tpBuild in gTerrain.Land^[aToY,aToX].Passability)
   // 1 tile form mine
     OR (AvoidBuilding = AVOID_BUILDING_MINE_TILE)           then Inc(Result, Round(AI_Par[ROADS_noBuildArea]))
   else
@@ -2701,8 +2715,8 @@ begin
     // Penalization of change in direction in general case
     Node := GetNodeAt(aFromX, aFromY);
     if (Node <> nil) AND (Node.Parent <> nil)
-      AND (PANodeRec(Node.Parent).X <> aToX)
-      AND (PANodeRec(Node.Parent).Y <> aToY)                then Inc(Result, Round(AI_Par[ROADS_TurnPenalization]));
+      AND (Node.Parent.X <> aToX)
+      AND (Node.Parent.Y <> aToY)                           then Inc(Result, Round(AI_Par[ROADS_TurnPenalization]));
     // Corn / wine field
     if (AvoidBuilding = AVOID_BUILDING_NODE_LOCK_FIELD)     then Inc(Result, Round(AI_Par[ROADS_Field]))
     // Coal field
@@ -2723,7 +2737,7 @@ end;
 
 
 { TPathFindingShortcutsCityPlanner }
-function TPathFindingShortcutsCityPlanner.MovementCost(aFromX, aFromY, aToX, aToY: Word): Word;
+function TPathFindingShortcutsCityPlanner.MovementCost(aFromX, aFromY, aToX, aToY: Word): Cardinal;
 var
   IsRoad: Boolean;
   AvoidBuilding: Byte;
@@ -2733,16 +2747,16 @@ begin
 
   AvoidBuilding := gAIFields.Influences.AvoidBuilding[aToY, aToX];
   IsRoad := (AvoidBuilding = AVOID_BUILDING_NODE_LOCK_ROAD)                                     // Reserved road plan
-            OR (tpWalkRoad in gTerrain.Land[aToY, aToX].Passability)                            // Completed road
+            OR (tpWalkRoad in gTerrain.Land^[aToY, aToX].Passability)                            // Completed road
             OR (gHands[fOwner].Constructions.FieldworksList.HasField(KMPoint(aToX, aToY)) = ftRoad) // Placed road plan
-            OR (gTerrain.Land[aToY, aToX].TileLock = tlRoadWork);                               // Road under construction
+            OR (gTerrain.Land^[aToY, aToX].TileLock = tlRoadWork);                               // Road under construction
 
   // Improve cost if tile is or will be road
   if IsRoad                                                 then Result := Max(0, Result - Round(AI_Par[SHORTCUTS_Road]))
   // 1 tile from future house
   else if (AvoidBuilding = AVOID_BUILDING_HOUSE_OUTSIDE_LOCK)
   // Snap to no-build areas (1 tile from house or special tiles)
-    OR not (tpBuild in gTerrain.Land[aToY,aToX].Passability)
+    OR not (tpBuild in gTerrain.Land^[aToY,aToX].Passability)
   // 1 tile form mine
     OR (AvoidBuilding = AVOID_BUILDING_MINE_TILE)           then Inc(Result, Round(AI_Par[SHORTCUTS_noBuildArea]))
   else
@@ -2750,8 +2764,8 @@ begin
     // Penalization of change in direction in general case
     Node := GetNodeAt(aFromX, aFromY);
     if (Node <> nil) AND (Node.Parent <> nil)
-      AND (PANodeRec(Node.Parent).X <> aToX)
-      AND (PANodeRec(Node.Parent).Y <> aToY)                then Inc(Result, Round(AI_Par[SHORTCUTS_TurnPenalization]));
+      AND (Node.Parent.X <> aToX)
+      AND (Node.Parent.Y <> aToY)                           then Inc(Result, Round(AI_Par[SHORTCUTS_TurnPenalization]));
     // Corn / wine field
     if (AvoidBuilding = AVOID_BUILDING_NODE_LOCK_FIELD)     then Inc(Result, Round(AI_Par[SHORTCUTS_Field]))
     // Coal field
@@ -2801,7 +2815,7 @@ begin
   K := aX - fInitPoint.X;
   L := aY - fInitPoint.Y;
   Result := (K >= - FARM_RADIUS) AND (L >= - FARM_RADIUS) AND (K <= + FARM_RADIUS) AND (L <= + FARM_RADIUS) AND (FieldPrice[L,K] = 0)
-            AND gTerrain.TileInMapCoords(aX, aY) AND (tpWalk in gTerrain.Land[aY,aX].Passability) AND (gAIFields.Influences.AvoidBuilding[aY, aX] <> AVOID_BUILDING_HOUSE_INSIDE_LOCK);
+            AND gTerrain.TileInMapCoords(aX, aY) AND (tpWalk in gTerrain.Land^[aY,aX].Passability) AND (gAIFields.Influences.AvoidBuilding[aY, aX] <> AVOID_BUILDING_HOUSE_INSIDE_LOCK);
 end;
 
 
@@ -3035,7 +3049,7 @@ var
       Exit;
     end;
     for I := -1 to 1 do
-      Result := Result + Byte(tpWalk in gTerrain.Land[aLoc.Y+2,aLoc.X+I].Passability) * OBSTACLE_COEF;
+      Result := Result + Byte(tpWalk in gTerrain.Land^[aLoc.Y+2,aLoc.X+I].Passability) * OBSTACLE_COEF;
   end;
 
   procedure EvaluateLoc(aLoc: TKMPoint; InitBid: Single);
@@ -3250,7 +3264,7 @@ begin
   begin
     X := aLoc.X + HMA[aHT].Tiles[I].X;
     Y := aLoc.Y + HMA[aHT].Tiles[I].Y;
-    Output := Output AND (tpBuild in gTerrain.Land[Y,X].Passability);
+    Output := Output AND (tpBuild in gTerrain.Land^[Y,X].Passability);
     if gTerrain.ObjectIsChopableTree(KMPoint(X,Y), [caAge1,caAge2,caAge3,caAgeFull]) then
     begin
       aTrees[TreeCnt] := KMPoint(X,Y);
@@ -3326,7 +3340,7 @@ begin
         PriceArr[I,K] := 0
       else
         PriceArr[I,K] := + KMDistanceAbs(Point, aLoc)
-                         + NOT_IN_AVOID_BUILDING * Byte(not (tpBuild in gTerrain.Land[Y,X].Passability) )
+                         + NOT_IN_AVOID_BUILDING * Byte(not (tpBuild in gTerrain.Land^[Y,X].Passability) )
                          + NOT_IN_FIELD * Byte(not gTerrain.TileIsCornField(Point))
                          + NORTH_PENALIZATION * Byte(Y < aLoc.Y - 2);
     end;

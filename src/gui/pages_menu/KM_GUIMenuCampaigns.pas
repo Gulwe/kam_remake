@@ -4,9 +4,9 @@ interface
 uses
   {$IFDEF MSWindows} Windows, {$ENDIF}
   {$IFDEF Unix} LCLType, {$ENDIF}
-  Classes, Controls, SysUtils, Math,
+  Classes, SysUtils, Math,
   KM_Controls, KM_Pics,
-  KM_Campaigns, KM_InterfaceDefaults;
+  KM_Campaigns, KM_InterfaceDefaults, KM_InterfaceTypes;
 
 
 type
@@ -34,7 +34,10 @@ type
 
 implementation
 uses
-  KM_ResTexts, KM_ResFonts, KM_RenderUI, KM_GameSettings, KM_CampaignTypes;
+  KM_ResTexts, KM_ResFonts, KM_ResTypes,
+  KM_RenderUI,
+  KM_GameSettings,
+  KM_CampaignTypes;
 
 
 { TKMMainMenuInterface }
@@ -116,7 +119,7 @@ end;
 procedure TKMMenuCampaigns.ListChange(Sender: TObject);
 var
   cmp: TKMCampaignId;
-  Camp: TKMCampaign;
+  camp: TKMCampaign;
 begin
   //Key press can cause ItemIndex = -1
   if ColumnBox_Camps.ItemIndex = -1 then
@@ -129,13 +132,13 @@ begin
   begin
     Button_Camp_Start.Enable;
     cmp := fCampaigns[ColumnBox_Camps.Rows[ColumnBox_Camps.ItemIndex].Tag].CampaignId;
-    Camp := fCampaigns.CampaignById(cmp);
+    camp := fCampaigns.CampaignById(cmp);
 
-    Image_CampsPreview.RX := Camp.BackGroundPic.RX;
-    Image_CampsPreview.TexID := Camp.BackGroundPic.ID;
+    Image_CampsPreview.RX := camp.BackGroundPic.RX;
+    Image_CampsPreview.TexID := camp.BackGroundPic.ID;
 
-    Memo_CampDesc.Text := Camp.GetCampaignDescription;
-    gGameSettings.MenuCampaignName := Camp.ShortName;
+    Memo_CampDesc.Text := camp.GetCampaignDescription;
+    gGameSettings.MenuCampaignName := camp.ShortName;
   end;
 end;
 

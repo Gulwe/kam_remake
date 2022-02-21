@@ -10,12 +10,18 @@ uses
 
 type
   //School has one unique property - queue of units to be trained, 1 wip + 5 in line
-  TKMHouseSiegeWorkshop = class(TKMHouse)
+  //TKMHouseSiegeWorkshop = class(TKMHouse)
+  TKMHouseSiegeWorkshop = class(TKMHouseWFlagPoint)
   private
     fUnitWip: Pointer;  //can't replace with TKMUnit since it will lead to circular reference in KM_House-KM_Units
     fHideOneGold: Boolean; //Hide the gold incase Player cancels the training, then we won't need to tweak DeliverQueue order
     fTrainProgress: Byte; //Was it 150 steps in KaM?
     fQueue: array [0..5] of TKMUnitType;
+    
+    fAcceptWood: Boolean;
+    fAcceptSteel: Boolean;
+    
+    
     function GetQueue(aIndex: Integer): TKMUnitType; //Used in UI. First item is the unit currently being trained, 1..5 are the actual queue
     procedure CreateUnit; //This should Create new unit and start training cycle
     procedure StartTrainingUnit; //This should Create new unit and start training cycle
@@ -24,6 +30,8 @@ type
     property PrivateQueue[aIndex: Integer]: TKMUnitType read GetQueue write SetQueue;
   protected
     function GetResInLocked(aI: Byte): Word; override;
+    function GetFlagPointTexId: Word; override;
+    function GetMaxDistanceToPoint: Integer; override;
   public
     constructor Create(aUID: Integer; aHouseType: TKMHouseType; PosX, PosY: Integer; aOwner: TKMHandID; aBuildState: TKMHouseBuildState);
     constructor Load(LoadStream: TKMemoryStream); override;
@@ -44,6 +52,12 @@ type
     property HideOneGold: Boolean read fHideOneGold;
     property Queue[aIndex: Integer]: TKMUnitType read GetQueue;
     procedure Save(SaveStream: TKMemoryStream); override;
+    
+    property AcceptWood: Boolean read fAcceptWood write fAcceptWood;
+    property AcceptSteel: Boolean read fAcceptSteel write fAcceptSteel;
+    procedure ToggleResDelivery(aWareType: TKMWareType);
+    function AcceptWareForDelivery(aWareType: TKMWareType): Boolean;
+    function ShouldAbandonDeliveryTo(aWareType: TKMWareType): Boolean; override;
   end;
 
 
@@ -61,6 +75,9 @@ begin
 
   for I := 0 to High(fQueue) do
     fQueue[I] := utNone;
+    
+  fAcceptWood := True;
+  fAcceptSteel := True;
 end;
 
 
@@ -73,6 +90,10 @@ begin
   LoadStream.Read(fHideOneGold);
   LoadStream.Read(fTrainProgress);
   LoadStream.Read(fQueue, SizeOf(fQueue));
+  
+  LoadStream.CheckMarker('HouseSiegeWorkshop');
+  LoadStream.Read(fAcceptWood);
+  LoadStream.Read(fAcceptSteel);
 end;
 
 
@@ -127,6 +148,15 @@ begin
   end;
 end;
 
+function TKMHouseSiegeWorkshop.GetFlagPointTexId: Word;
+begin
+  Result := 248;
+end;
+
+function TKMHouseSiegeWorkshop.GetMaxDistanceToPoint: Integer;
+begin
+  Result := 40;
+end;
 
 procedure TKMHouseSiegeWorkshop.CancelTrainingUnit;
 begin
@@ -236,7 +266,7 @@ begin
 
 
   //Create the Unit
-  fUnitWip := gHands[Owner].TrainUnit(fQueue[0], Entrance);
+  fUnitWip := gHands[Owner].TrainUnit(fQueue[0], Self);
   TKMUnit(fUnitWip).TrainInSiegeWorkshop(Self); //Let the unit start the training task
 
   WorkAnimStep := 0;
@@ -352,6 +382,7 @@ begin
 end;
 
 
+
 procedure TKMHouseSiegeWorkshop.Save(SaveStream: TKMemoryStream);
 begin
   inherited;
@@ -360,6 +391,33 @@ begin
   SaveStream.Write(fHideOneGold);
   SaveStream.Write(fTrainProgress);
   SaveStream.Write(fQueue, SizeOf(fQueue));
+  
+  
+  SaveStream.PlaceMarker('HouseSiegeWorkshop');
+  SaveStream.Write(fAcceptWood);
+  SaveStream.Write(fAcceptSteel);
+end;
+
+procedure TKMHouseSiegeWorkshop.ToggleResDelivery(aWareType: TKMWareType);
+begin
+  case aWareType of
+    wtWood: fAcceptWood := not fAcceptWood;
+    wtSteel: fAcceptSteel := not fAcceptSteel;
+  end;
+end;
+
+function TKMHouseSiegeWorkshop.AcceptWareForDelivery(aWareType: TKMWareType): Boolean;
+begin
+  Result := False;
+  case aWareType of
+    wtWood: Result := fAcceptWood;
+    wtSteel: Result := fAcceptSteel;
+  end;
+end;
+
+function TKMHouseSiegeWorkshop.ShouldAbandonDeliveryTo(aWareType: TKMWareType): Boolean;
+begin
+  Result := inherited or not AcceptWareForDelivery(aWareType);
 end;
 
 

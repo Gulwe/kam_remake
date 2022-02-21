@@ -2,9 +2,9 @@ unit KM_UnitsCollection;
 {$I KaM_Remake.inc}
 interface
 uses
-  Classes, Math, Types,
+  Classes, Math, Types, Generics.Collections,
   KM_CommonClasses, KM_Defaults, KM_Points,
-  KM_Terrain, KM_Units;
+  KM_Terrain, KM_Units, KM_Houses;
 
 //Memo on directives:
 //Dynamic - declared and used (overriden) occasionally
@@ -21,7 +21,7 @@ type
     constructor Create;
     destructor Destroy; override;
     function AddUnit(aOwner: TKMHandID; aUnitType: TKMUnitType; const aLoc: TKMPoint; aAutoPlace: Boolean = True;
-                     aRequiredWalkConnect: Byte = 0; aAddInHouse: Boolean = False): TKMUnit;
+                     aRequiredWalkConnect: Byte = 0; aInHouse: TKMHouse = nil): TKMUnit;
     procedure AddUnitToList(aUnit: TKMUnit);
     property Count: Integer read GetCount;
     property Units[aIndex: Integer]: TKMUnit read GetUnit; default; //Use instead of Items[.]
@@ -33,7 +33,7 @@ type
     function HitTest(X, Y: Integer; const UT: TKMUnitType = utAny): TKMUnit;
     function GetUnitByUID(aUID: Integer): TKMUnit;
     function GetClosestUnit(const aPoint: TKMPoint; aTypes: TKMUnitTypeSet = [Low(TKMUnitType)..High(TKMUnitType)]): TKMUnit;
-    procedure GetUnitsInRect(const aRect: TKMRect; List: TList);
+    procedure GetUnitsInRect(const aRect: TKMRect; List: TList<TKMUnit>);
     function GetTotalPointers: Integer;
     procedure Clear;
     procedure Save(SaveStream: TKMemoryStream);
@@ -92,54 +92,55 @@ end;
 
 //AutoPlace means we should try to find a spot for this unit instead of just placing it where we were told to
 function TKMUnitsCollection.AddUnit(aOwner: TKMHandID; aUnitType: TKMUnitType; const aLoc: TKMPoint; aAutoPlace: Boolean = True;
-                                    aRequiredWalkConnect: Byte = 0; aAddInHouse: Boolean = False): TKMUnit;
+                                    aRequiredWalkConnect: Byte = 0; aInHouse: TKMHouse = nil): TKMUnit;
 var
   ID: Cardinal;
-  PlaceTo: TKMPoint;
+  placeTo: TKMPoint;
   U: TKMUnit;
 begin
   if aAutoPlace then
   begin
-    PlaceTo := KMPOINT_ZERO; // Will have 0:0 if no place found
+    placeTo := KMPOINT_ZERO; // Will have 0:0 if no place found
     if aRequiredWalkConnect = 0 then
       aRequiredWalkConnect := gTerrain.GetWalkConnectID(aLoc);
-    gHands.FindPlaceForUnit(aLoc.X, aLoc.Y, aUnitType, PlaceTo, aRequiredWalkConnect);
+    gHands.FindPlaceForUnit(aLoc.X, aLoc.Y, aUnitType, placeTo, aRequiredWalkConnect);
   end
   else
-    PlaceTo := aLoc;
+    placeTo := aLoc;
 
   //Check if Pos is within map coords first, as other checks rely on this
-  if not gTerrain.TileInMapCoords(PlaceTo.X, PlaceTo.Y) then
+  if not gTerrain.TileInMapCoords(placeTo.X, placeTo.Y) then
   begin
-    gLog.AddTime('Unable to add unit to ' + KM_Points.TypeToString(PlaceTo));
+    gLog.AddTime('Unable to add unit to ' + KM_Points.TypeToString(placeTo));
     Result := nil;
     Exit;
   end;
 
-  if not aAddInHouse and gTerrain.HasUnit(PlaceTo) then
+  if (aInHouse = nil) and gTerrain.HasUnit(placeTo) then
   begin
-    U := TKMUnit(gTerrain.Land[PlaceTo.Y,PlaceTo.X].IsUnit);
+    U := TKMUnit(gTerrain.Land^[placeTo.Y,placeTo.X].IsUnit);
     raise ELocError.Create(Format('No space for %s at %s, tile is already occupied by %s, ID = %d',
                                   [gRes.Units[aUnitType].GUIName, aLoc.ToString, gRes.Units[U.UnitType].GUIName, U.UID]),
-                           PlaceTo);
+                           placeTo);
   end;
 
   ID := gGame.GetNewUID;
   case aUnitType of
-    utSerf:                        Result := TKMUnitSerf.Create(ID, aUnitType, PlaceTo, aOwner, aAddInHouse);
-    utWorker:                      Result := TKMUnitWorker.Create(ID, aUnitType, PlaceTo, aOwner, aAddInHouse);
+    utSerf:                        Result := TKMUnitSerf.Create(ID, aUnitType, placeTo, aOwner, aInHouse);
+    utWorker:                      Result := TKMUnitWorker.Create(ID, aUnitType, placeTo, aOwner, aInHouse);
     utWoodCutter..utFisher,
     {utWorker,}
-    utStoneCutter..utMetallurgist: Result := TKMUnitCitizen.Create(ID, aUnitType, PlaceTo, aOwner, aAddInHouse);
-    utRecruit:                     Result := TKMUnitRecruit.Create(ID, aUnitType, PlaceTo, aOwner, aAddInHouse);
-    WARRIOR_MIN..WARRIOR_MAX:      Result := TKMUnitWarrior.Create(ID, aUnitType, PlaceTo, aOwner, aAddInHouse);
-    ANIMAL_MIN..ANIMAL_MAX:        Result := TKMUnitAnimal.Create(ID, aUnitType, PlaceTo, aOwner); //Do not specify aAddInHouse, we want to call TKMUnitAnimal constructor
-    else                           raise ELocError.Create('Add ' + gRes.Units[aUnitType].GUIName, PlaceTo);
+    utStoneCutter..utMetallurgist: Result := TKMUnitCitizen.Create(ID, aUnitType, placeTo, aOwner, aInHouse);
+    utRecruit:                     Result := TKMUnitRecruit.Create(ID, aUnitType, placeTo, aOwner, aInHouse);
+    WARRIOR_MIN..WARRIOR_MAX:      Result := TKMUnitWarrior.Create(ID, aUnitType, placeTo, aOwner, aInHouse);
+    ANIMAL_MIN..ANIMAL_MAX:        Result := TKMUnitAnimal.Create(ID, aUnitType, placeTo, aOwner); //Do not specify aAddInHouse, we want to call TKMUnitAnimal constructor
+    else                           raise ELocError.Create('Add ' + gRes.Units[aUnitType].GUIName, placeTo);
   end;
 
   if Result <> nil then
     fUnits.Add(Result);
 end;
+
 
 procedure TKMUnitsCollection.AddUnitToList(aUnit: TKMUnit);
 begin
@@ -176,11 +177,11 @@ procedure TKMUnitsCollection.RemoveAllUnits;
 var
   I: Integer;
 begin
-  Assert(gGameParams.IsMapEditor);
   if Count <= 0 then Exit;
 
   for I := 0 to Count - 1 do
     Units[I].CloseUnit;
+
   fUnits.Clear;
 end;
 
@@ -230,7 +231,7 @@ begin
 end;
 
 
-procedure TKMUnitsCollection.GetUnitsInRect(const aRect: TKMRect; List: TList);
+procedure TKMUnitsCollection.GetUnitsInRect(const aRect: TKMRect; List: TList<TKMUnit>);
 var
   I: Integer;
 begin
@@ -243,17 +244,17 @@ end;
 function TKMUnitsCollection.GetClosestUnit(const aPoint: TKMPoint; aTypes: TKMUnitTypeSet = [Low(TKMUnitType)..High(TKMUnitType)]): TKMUnit;
 var
   I: Integer;
-  BestDist, Dist: Single;
+  bestDist, dist: Single;
 begin
   Result := nil;
-  BestDist := MaxSingle; //Any distance will be closer than that
+  bestDist := MaxSingle; //Any distance will be closer than that
   for I := 0 to Count - 1 do
     if not Units[I].IsDeadOrDying and Units[I].Visible and (Units[I].UnitType in aTypes) then
     begin
-      Dist := KMLengthSqr(Units[I].Position, aPoint);
-      if Dist < BestDist then
+      dist := KMLengthSqr(Units[I].Position, aPoint);
+      if dist < bestDist then
       begin
-        BestDist := Dist;
+        bestDist := dist;
         Result := Units[I];
       end;
     end;
@@ -288,15 +289,15 @@ end;
 procedure TKMUnitsCollection.Load(LoadStream: TKMemoryStream);
 var
   I, NewCount: Integer;
-  UnitType: TKMUnitType;
+  unitType: TKMUnitType;
   U: TKMUnit;
 begin
   LoadStream.CheckMarker('Units');
   LoadStream.Read(NewCount);
   for I := 0 to NewCount - 1 do
   begin
-    LoadStream.Read(UnitType, SizeOf(UnitType));
-    case UnitType of
+    LoadStream.Read(unitType, SizeOf(unitType));
+    case unitType of
       utSerf:                   U := TKMUnitSerf.Load(LoadStream);
       utWorker:                 U := TKMUnitWorker.Load(LoadStream);
       utWoodCutter..utFisher,
@@ -382,13 +383,13 @@ end;
 
 procedure TKMUnitsCollection.Paint(const aRect: TKMRect; aTickLag: Single);
 const
-  Margin = 2;
+  MARGIN = 2;
 var
   I: Integer;
   growRect: TKMRect;
 begin
   //Add additional margin to compensate for units height
-  growRect := KMRectGrow(aRect, Margin);
+  growRect := KMRectGrow(aRect, MARGIN);
 
   for I := 0 to Count - 1 do
   if (Units[I] <> nil)

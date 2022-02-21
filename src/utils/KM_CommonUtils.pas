@@ -2,8 +2,6 @@ unit KM_CommonUtils;
 {$I KaM_Remake.inc}
 interface
 uses
-  {$IFDEF FPC}Forms,{$ENDIF}   //Lazarus do not know UITypes
-  {$IFDEF WDC}UITypes,{$ENDIF} //We use settings in console modules
   Classes, DateUtils, Math, SysUtils, KM_Defaults, KM_Points, KM_CommonTypes
   {$IFDEF MSWindows}
   ,Windows
@@ -16,22 +14,28 @@ uses
 
   function IfThenS(aCondition: Boolean; const aIfTrue, aIfFalse: String): String;
 
-  function KMGetCursorDirection(X,Y: integer): TKMDirection;
-
   function GetPositionInGroup2(OriginX, OriginY: Word; aDir: TKMDirection; aIndex, aUnitPerRow: Word; MapX, MapY: Word; out aTargetCanBeReached: Boolean): TKMPoint;
   function GetPositionFromIndex(const aOrigin: TKMPoint; aIndex: Byte): TKMPoint;
 
   function FixDelim(const aString: UnicodeString): UnicodeString;
 
-  function Max3(const A,B,C: Integer): Integer;
-  function Min3(const A,B,C: Integer): Integer;
+  function Max3(const A,B,C: Integer): Integer; overload;
+  function Min3(const A,B,C: Integer): Integer; overload;
   function Max4(const A,B,C,D: Integer): Integer;
   function Min4(const A,B,C,D: Integer): Integer;
+
+  function Max3(const A,B,C: Single): Single; overload;
+  function Min3(const A,B,C: Single): Single; overload;
 
   function GetStackTrace(aLinesCnt: Integer): UnicodeString;
 
   function RGB2BGR(aRGB: Cardinal): Cardinal;
   function BGR2RGB(aRGB: Cardinal): Cardinal;
+
+  function RGB2XYZ(aRGB: TKMColor3f): TKMColor3f;
+  function RGB2CEILAB(aRGB: TKMColor3f): TKMColor3f;
+  function RGB2CEILUV(aRGB: TKMColor3f): TKMColor3f;
+
   function ApplyColorCoef(aColor: Cardinal; aAlpha, aRed, aGreen, aBlue: Single): Cardinal;
   function GetGreyColor(aGreyLevel: Byte): Cardinal;
   procedure ConvertRGB2HSB(aR, aG, aB: Integer; out oH, oS, oB: Single);
@@ -43,7 +47,8 @@ uses
   function MultiplyBrightnessByFactor(aColor: Cardinal; aBrightnessFactor: Single; aMinBrightness: Single = 0; aMaxBrightness: Single = 1): Cardinal;
   function ReduceBrightness(aColor: Cardinal; aBrightness: Byte): Cardinal;
   function IsColorCloseToColors(aColor: Cardinal; const aColors: TKMCardinalArray; aDist: Single): Boolean;
-  function GetColorDistance(aColor1, aColor2: Cardinal): Single;
+  function GetColorDistance(aColor1, aColor2: Cardinal): Single; overload;
+  function GetColorDistance(aColor1, aColor2: TKMColor3f): Single; overload;
   function GetRandomColor: Cardinal;
   function GetPingColor(aPing: Word): Cardinal;
   function GetFPSColor(aFPS: Word): Cardinal;
@@ -54,8 +59,10 @@ uses
   function StrToHex(const S: String): String;
   function HexToStr(const H: String): String;
 
-  function WrapColor(const aText: UnicodeString; aColor: Cardinal): UnicodeString;
+  function WrapColor(aValue: Integer; aColor: Cardinal): UnicodeString; overload;
+  function WrapColor(const aText: UnicodeString; aColor: Cardinal): UnicodeString; overload;
   function WrapColorA(const aText: AnsiString; aColor: Cardinal): AnsiString;
+  function WrapWrappedColor(const aText: UnicodeString; aColor: Cardinal): UnicodeString;
   function StripColor(const aText: UnicodeString): UnicodeString;
   function GetContrastTextColor(aBackgroundColor: Cardinal): Cardinal;
   function FindMPColor(aColor: Cardinal): Integer;
@@ -105,6 +112,7 @@ uses
   procedure KMSwapFloat(var A,B: Double); overload;
 
   function ToBoolean(aVal: Byte): Boolean;
+  function BoolStrShort(aVal: Boolean): string;
 
   //Extended == Double, so already declared error
   //https://forum.lazarus.freepascal.org/index.php?topic=29678.0
@@ -139,6 +147,7 @@ uses
 
   function CountOccurrences(const aSubstring, aText: String): Integer;
   function IntToBool(aValue: Integer): Boolean;
+  function HumanRound(X: Extended): Integer;
 
   //String functions
   function GetNextWordPos(const aStr: String; aPos: Integer): Integer;
@@ -175,6 +184,7 @@ const
 implementation
 uses
   StrUtils, Types,
+  {$IFDEF USE_MAD_EXCEPT} madStackTrace, {$ENDIF}
   {$IFDEF WDC} KM_RandomChecks, {$ENDIF}
   KM_Log;
 
@@ -194,12 +204,6 @@ begin
     Result := aIfFalse;
 end;
 
-
-//Taken from KromUtils to reduce dependancies (required so the dedicated server compiles on Linux without using Controls)
-function GetLength(A,B: Single): Single;
-begin
-  Result := Sqrt(Sqr(A) + Sqr(B));
-end;
 
 procedure KMSwapInt(var A,B: Byte);
 var
@@ -259,6 +263,15 @@ begin
     Result := False
   else
     Result := True;
+end;
+
+
+function BoolStrShort(aVal: Boolean): string;
+begin
+  if aVal then
+    Result := '1'
+  else
+    Result := '0';
 end;
 
 
@@ -559,23 +572,6 @@ begin
 end;
 
 
-function KMGetCursorDirection(X,Y: Integer): TKMDirection;
-var Ang, Dist: Single;
-begin
-  Dist := GetLength(X, Y);
-  if Dist > DIR_CURSOR_NA_RAD then
-  begin
-    //Convert XY to angle value
-    Ang := ArcTan2(Y/Dist, X/Dist) / Pi * 180;
-
-    //Convert angle value to direction
-    Result := TKMDirection((Round(Ang + 270 + 22.5) mod 360) div 45 + 1);
-  end
-  else
-    Result := dirNA;
-end;
-
-
 {Returns point where unit should be placed regarding direction & offset from Commanders position}
 // 23145     231456
 // 6789X     789xxx
@@ -680,30 +676,72 @@ begin
 end;
 
 
+function Max3(const A,B,C: Single): Single;
+begin
+  Result := Math.Max(A, Math.Max(B, C));
+end;
+
+function Min3(const A,B,C: Single): Single;
+begin
+  Result := Math.Min(A, Math.Min(B, C));
+end;
+
+
+type
+  EStackTraceInfo = class(Exception);
+
+
 function GetStackTrace(aLinesCnt: Integer): UnicodeString;
 {$IFDEF WDC}
+{$IFDEF USE_MAD_EXCEPT}
 var
   I: Integer;
   SList: TStringList;
+{$ENDIF}
 {$ENDIF}
 begin
   Result := '';
 
   {$IFDEF WDC}
+  {$IFDEF USE_MAD_EXCEPT}
   try
-    raise Exception.Create('');
-  except
-    on E: Exception do
-    begin
-      SList := TStringList.Create;
-      SList.Text := E.StackTrace;
+    SList := TStringList.Create;
+    try
+      SList.Text := madStackTrace.StackTrace();
 
-      for I := 1 to aLinesCnt do //Do not print last line (its this method line)
+      for I := 1 to Min(SList.Count - 1, aLinesCnt) do //Do not print last line (its this method line)
         Result := Result + SList[I] + sLineBreak;
-
+    finally
       SList.Free;
-    end;
+    end
+  except
+    // Noticed a crash on game exit once somewhere here, just ignore the exception in this case
+    on E: Exception do ;
   end;
+
+  // todo: delete unused code later
+//  try
+//    raise EStackTraceInfo.Create('');
+//  except
+//    on E: EStackTraceInfo do
+//    begin
+//      try
+//        SList := TStringList.Create;
+//        try
+//          SList.Text := E.StackTrace;
+//
+//          for I := 1 to Min(SList.Count - 1, aLinesCnt) do //Do not print last line (its this method line)
+//            Result := Result + SList[I] + sLineBreak;
+//        finally
+//          SList.Free;
+//        end
+//      except
+//        // Noticed a crash on game exit once somewhere here, just ignore the exception in this case
+//        on E: Exception do ;
+//      end;
+//    end;
+//  end;
+  {$ENDIF}
   {$ENDIF}
 end;
 
@@ -755,6 +793,119 @@ begin
   A := aRGB shr 24 and $FF;
 
   Result := R + G shl 8 + B shl 16 + A shl 24;
+end;
+
+
+// According to
+// http://www.brucelindbloom.com/index.html?Eqn_RGB_to_XYZ.html
+function RGB2XYZ(aRGB: TKMColor3f): TKMColor3f;
+const
+  X_VECTOR: array[0..2] of Single = (0.4124564, 0.3575761, 0.1804375);
+  Y_VECTOR: array[0..2] of Single = (0.2126729, 0.7151522, 0.0721570);
+  Z_VECTOR: array[0..2] of Single = (0.0193339, 0.1191920, 0.9503041);
+
+  function RBG2(aVal: Single): Single;
+  begin
+    if aVal < 0.04045 then
+      Result := aVal / 12.92
+    else
+      Result := Math.Power((aVal + 0.055)/1.055, 2.4);
+  end;
+var
+  R2, G2, B2: Single;
+begin
+  R2 := RBG2(aRGB.R);
+  G2 := RBG2(aRGB.G);
+  B2 := RBG2(aRGB.B);
+
+  Result.R := X_VECTOR[0]*R2 + X_VECTOR[1]*G2 + X_VECTOR[2]*B2;
+  Result.G := Y_VECTOR[0]*R2 + Y_VECTOR[1]*G2 + Y_VECTOR[2]*B2;
+  Result.B := Z_VECTOR[0]*R2 + Z_VECTOR[1]*G2 + Z_VECTOR[2]*B2;
+end;
+
+
+// According to
+// https://docs.opencv.org/4.5.2/de/d25/imgproc_color_conversions.html#color_convert_rgb_lab
+// Tested on online calculators, 100% accurate
+function RGB2CEILAB(aRGB: TKMColor3f): TKMColor3f;
+
+  function Fn(aValue: Single): Single;
+  begin
+    if aValue > 0.008856 then
+      Result := Math.Power(aValue, 0.3333)
+    else
+      Result := 7.787 * aValue + 16 / 116;
+  end;
+
+const
+  X_N: Single = 0.950456;
+  Z_N: Single = 1.088754;
+var
+  X, Y, Z, L, a, b: Single;
+  XYZ: TKMColor3f;
+begin
+  XYZ := RGB2XYZ(aRGB);
+  X := XYZ.R;
+  Y := XYZ.G;
+  Z := XYZ.B;
+
+  X := X / X_N;
+  Z := Z / Z_N;
+
+  if Y > 0.008856 then
+    L := 116 * Math.Power(Y, 0.3333) - 16
+  else
+    L := 903.3 * Y;
+
+  a := 500*(Fn(X) - Fn(Y));
+
+  b := 200*(Fn(Y) - Fn(Z));
+
+  Result.R := L / 100;
+  Result.G := (a + 128) / 256;
+  Result.B := (b + 128) / 256;
+end;
+
+
+// According to
+// https://docs.opencv.org/4.5.2/de/d25/imgproc_color_conversions.html#color_convert_rgb_luv
+// Has to be tested, use with caution
+function RGB2CEILUV(aRGB: TKMColor3f): TKMColor3f;
+const
+  U_N: Single = 0.19793943;
+  V_N: Single = 0.46831096;
+
+var
+  XYZ: TKMColor3f;
+  X, Y, Z: Single;
+  L, u, v, u_, v_, tmp: Single;
+begin
+  XYZ := RGB2XYZ(aRGB);
+  X := XYZ.R;
+  Y := XYZ.G;
+  Z := XYZ.B;
+
+  //0 <= L <= 100
+  if Y > 0.008856 then
+    L := 116*Math.Power(Y, 0.33333) - 16
+  else
+    L := 903.3*Y;
+
+  tmp := (X + 15*Y + 3*Z);
+  u_ := 4*X / tmp;
+  v_ := 9*Y / tmp;
+
+  // -134 <= u <= 220
+  u := 13*L*(u_ - U_N);
+  // -140 <= u <= 122
+  v := 13*L*(v_ - V_N);
+
+  // L
+  Result.R := L / 100;
+  // u
+  Result.G := (u + 134) / 354;
+  // v
+  Result.B := (v + 140) / 262;
 end;
 
 
@@ -981,6 +1132,12 @@ begin
 end;
 
 
+function GetColorDistance(aColor1, aColor2: TKMColor3f): Single;
+begin
+  Result := Sqrt(Sqr(aColor1.R - aColor2.R) + Sqr(aColor1.G - aColor2.G) + Sqr(aColor1.B - aColor2.B));
+end;
+
+
 function GetRandomColorWSeed(aSeed: Integer): Cardinal;
 var
   R,G,B: Byte;
@@ -1067,11 +1224,25 @@ begin
 end;
 
 
+function WrapColor(aValue: Integer; aColor: Cardinal): UnicodeString;
+begin
+  Result := WrapColor(IntToStr(aValue), aColor);
+end;
+
+
 //Make a string wrapped into color code
 function WrapColor(const aText: UnicodeString; aColor: Cardinal): UnicodeString;
 begin
   Result := '[$' + IntToHex(aColor and $00FFFFFF, 6) + ']' + aText + '[]';
 end;
+
+
+// Do not close color tag, its useful for wrapping inside other wrapped colored text
+function WrapWrappedColor(const aText: UnicodeString; aColor: Cardinal): UnicodeString;
+begin
+  Result := '[$' + IntToHex(aColor and $00FFFFFF, 6) + ']' + aText;
+end;
+
 
 
 function WrapColorA(const aText: AnsiString; aColor: Cardinal): AnsiString;
@@ -1355,18 +1526,22 @@ end;
 
 // Returns file directory name
 // F.e. for aFilePath = 'c:/kam/remake/fore.ver' returns 'remake'
+// and for 'Maps/My new map' returns 'Maps'
 function GetFileDirName(const aFilePath: UnicodeString): UnicodeString;
-var DirPath: UnicodeString;
+var
+  dirPath: UnicodeString;
 begin
   Result := '';
   if Trim(aFilePath) = '' then Exit;
 
-  DirPath := ExtractFileDir(aFilePath);
+  dirPath := ExtractFileDir(aFilePath);
 
-  if DirPath = '' then Exit;
+  if dirPath = '' then Exit;
 
-  if StrIndexOf(DirPath, PathDelim) <> -1 then
-    Result := copy(DirPath, StrLastIndexOf(DirPath, PathDelim) + 2);
+  if StrIndexOf(dirPath, PathDelim) <> -1 then
+    Result := copy(dirPath, StrLastIndexOf(dirPath, PathDelim) + 2)
+  else
+    Result := dirPath;
 end;
 
 
@@ -1487,6 +1662,20 @@ end;
 function IntToBool(aValue: Integer): Boolean;
 begin
   Result := aValue <> 0;
+end;
+
+
+// use this to not get "banker's rounding"
+function HumanRound(X: Extended): Integer;
+// Rounds a number "normally": if the fractional
+// part is >= 0.5 the number is rounded up (see RoundUp)
+// Otherwise, if the fractional part is < 0.5, the
+// number is rounded down
+//   RoundN(3.5) = 4     RoundN(-3.5) = -4
+//   RoundN(3.1) = 3     RoundN(-3.1) = -3
+begin
+  // Trunc() does nothing except conv to integer.  needed because return type of Int() is Extended
+  Result := Trunc(Int(X) + Int(Frac(X) * 2));
 end;
 
 

@@ -27,7 +27,7 @@ implementation
 uses
   KM_HandsCollection, KM_ResTexts, KM_HandLocks,
   KM_Resource, KM_ResHouses, KM_RenderUI, KM_ResFonts,
-  KM_ResTypes;
+  KM_ResTypes, KM_HandTypes;
 
 
 { TKMMapEdPlayerBlockHouse }
@@ -43,8 +43,8 @@ begin
   for I := 1 to GUI_HOUSE_COUNT do
   if GUIHouseOrder[I] <> htNone then
   begin
-    Button_BlockHouse[I] := TKMButtonFlat.Create(Panel_BlockHouse, 9 + ((I-1) mod 5)*37, 30 + ((I-1) div 5)*37,33,33,gRes.Houses[GUIHouseOrder[I]].GUIIcon);
-    Button_BlockHouse[I].Hint := gRes.Houses[GUIHouseOrder[I]].HouseName;
+    Button_BlockHouse[I] := TKMButtonFlat.Create(Panel_BlockHouse, 9 + ((I-1) mod 5)*37, 30 + ((I-1) div 5)*37,33,33,gResHouses[GUIHouseOrder[I]].GUIIcon);
+    Button_BlockHouse[I].Hint := gResHouses[GUIHouseOrder[I]].HouseName;
     Button_BlockHouse[I].OnClickShift := Player_BlockHouseClick;
     Button_BlockHouse[I].Tag := I;
     Image_BlockHouse[I] := TKMImage.Create(Panel_BlockHouse, 9 + ((I-1) mod 5)*37 + 15, 30 + ((I-1) div 5)*37 + 15, 16, 16, 0, rxGuiMain);
@@ -65,43 +65,14 @@ begin
 
   locks := gMySpectator.Hand.Locks;
 
+  // Circling through 3 house lock values
   if ssLeft in Shift then
-  begin
-    //Loop through states CanBuild > CantBuild > Released
-    if not locks.HouseBlocked[H] and not locks.HouseGranted[H] then
-    begin
-      locks.HouseBlocked[H] := True;
-      locks.HouseGranted[H] := False;
-    end else
-    if locks.HouseBlocked[H] and not locks.HouseGranted[H] then
-    begin
-      locks.HouseBlocked[H] := False;
-      locks.HouseGranted[H] := True;
-    end else
-    begin
-      locks.HouseBlocked[H] := False;
-      locks.HouseGranted[H] := False;
-    end;
-  end
+    // Straight direction
+    locks.HouseLock[H] := TKMHandHouseLock(1 + ((Ord(locks.HouseLock[H]) - 1 + 1) mod 3))
   else
   if ssRight in Shift then
-  begin
-    //Loop through states CanBuild < CantBuild < Released
-    if not locks.HouseBlocked[H] and not locks.HouseGranted[H] then
-    begin
-      locks.HouseBlocked[H] := False;
-      locks.HouseGranted[H] := True;
-    end else
-    if locks.HouseBlocked[H] and not locks.HouseGranted[H] then
-    begin
-      locks.HouseBlocked[H] := False;
-      locks.HouseGranted[H] := False;
-    end else
-    begin
-      locks.HouseBlocked[H] := True;
-      locks.HouseGranted[H] := False;
-    end;
-  end;
+    // Reverse direction
+    locks.HouseLock[H] := TKMHandHouseLock(1 + ((Ord(locks.HouseLock[H]) - 1 + 3 - 1) mod 3));
 
   Player_BlockHouseRefresh;
 end;
@@ -118,16 +89,12 @@ begin
   for I := 1 to GUI_HOUSE_COUNT do
   begin
     H := GUIHouseOrder[I];
-    if locks.HouseBlocked[H] and not locks.HouseGranted[H] then
-      Image_BlockHouse[I].TexID := 32
-    else
-    if locks.HouseGranted[H] and not locks.HouseBlocked[H] then
-      Image_BlockHouse[I].TexID := 33
-    else
-    if not locks.HouseGranted[H] and not locks.HouseBlocked[H] then
-      Image_BlockHouse[I].TexID := 0
-    else
-      Image_BlockHouse[I].TexID := 24; //Some erroneous value
+
+    case locks.HouseLock[H] of
+      hlBlocked:  Image_BlockHouse[I].TexID := 32;
+      hlGranted:  Image_BlockHouse[I].TexID := 33;
+      else        Image_BlockHouse[I].TexID := 0;
+    end;
   end;
 end;
 
