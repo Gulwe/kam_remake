@@ -156,9 +156,9 @@ const
     (HouseType: (htButchers, htTannery, htNone, htNone);                UnitType: (utButcher, utNone)),
     (HouseType: (htMetallurgists, htIronSmithy, htNone, htNone);        UnitType: (utMetallurgist, utNone)),
     (HouseType: (htArmorSmithy, htWeaponSmithy, htNone, htNone);        UnitType: (utSmith, utNone)),
-    (HouseType: (htCoalMine, htIronMine, htGoldMine, htNone);           UnitType: (utMiner, utNone)),
+    (HouseType: (htCoalMine, htIronMine, htGoldMine, htCharcoalFactory);           UnitType: (utMiner, utNone)),
     (HouseType: (htSawmill, htWeaponWorkshop, htArmorWorkshop, htSiegeWorkshop); UnitType: (utLamberjack, utNone)),
-    (HouseType: (htBarracks, htTownHall, htWatchTower, htNone);         UnitType: (utRecruit, utNone)),
+    (HouseType: (htBarracks, htTownHall, htWatchTower, htObsTower);         UnitType: (utRecruit, utNone)),
     (HouseType: (htStore, htSchool, htInn, htMarketplace);              UnitType: (utSerf, utWorker))
     );
 

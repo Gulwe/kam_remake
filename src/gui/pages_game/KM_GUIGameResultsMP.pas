@@ -230,7 +230,7 @@ begin
   fType := aType;
   case aType of
     cwtAll:                   fUnitType := utAny;
-    cwtMilitia..cwtHorseman:  fUnitType := TKMUnitType(Ord(utMilitia) + Ord(aType) - Ord(cwtMilitia));
+    cwtMilitia..cwtBallista:  fUnitType := TKMUnitType(Ord(utMilitia) + Ord(aType) - Ord(cwtMilitia));
   end;
 end;
 
@@ -253,6 +253,7 @@ begin
   case fType of
     cwtArmyPower: Result := gResTexts[TX_RESULTS_ARMY_POWER];
     cwtAll:       Result := gResTexts[TX_RESULTS_ALL_SOLDIERS];
+    cwtMetalBarbarian:    Result := gRes.Units[utMetalBarbarian].GUIName;
     cwtCatapult:  Result := gRes.Units[utCatapult].GUIName;
     cwtBallista:  Result := gRes.Units[utBallista].GUIName;
     else           Result := gRes.Units[UnitType].GUIName;
@@ -265,6 +266,10 @@ begin
   case fType of
     cwtArmyPower: Result := 53;
     cwtAll:       Result := 665;
+    cwtPeasant: Result := 79;
+    cwtSlingshot: Result := 80;
+    cwtMetalBarbarian:  Result := 81;
+    cwtHorseman: Result:= 82;
     cwtCatapult:  Result := 83;
     cwtBallista:  Result := 84;
     else           Result := gRes.Units[UnitType].GUIIcon;

@@ -556,7 +556,7 @@ const
     Input:            (wtTrunk,       wtNone,      wtNone,       wtNone);
     Output:           (wtCoal,       wtNone,       wtNone,       wtNone);
     UnlockedByHouse:  htWoodcutters;
-    SnowSpriteId:     0;
+    SnowSpriteId:     2084;
     GroundArea:       ((0,0,0,0), (0,0,0,0), (3,0,1,0), (4,2,1,0));
     ),
                 ( //htObsTower
@@ -882,8 +882,8 @@ begin
   fItems[htObsTower].fHouseDat.StonePicSteps := 140;
 
   AddAnimation(htObsTower, haIdle, -2, -16, [1653,1653,1653,1653,1654,1654,1654,1655,1655,1655,1654,1654,1654,1653,1653,1653,1653]);
-  
-  AddAnimation(htObsTower, haFlag3, 6, -170, [1161,1162,1158,1159,1160]);
+
+  AddAnimation(htObsTower, haFlag3, 1, -165, [1161,1162,1158,1159,1160]);
 
  // fItems[htWall].fHouseType := htWall;
   
@@ -922,14 +922,17 @@ begin
   1134,1134,1134
   ]);
   AddAnimation(htCharcoalFactory, haSmoke, 0, 0, [888,889,890,891]);
+  AddAnimation(htCharcoalFactory, haWork2, 0, 0, [0,0,0,0]);
+  AddAnimation(htCharcoalFactory, haWork1, 0, 0, [0,0,0,0]);
   //AddAnimation(htCharcoalFactory, haWork2, 0, 0, [2083,2083,2083,2083,2084,2084,2085,2085,2084,2084,2083,2083,2083,2083]);
   //AddAnimation(htCharcoalFactory, haWork1, 0, 0, [2083,2083,2084,2085]);
   //1134
-  
+
   AddAnimation(htCharcoalFactory, haFlag3, 0, 0, [1161,1162,1158,1159,1160]);
-  
-  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].MoveX := 27;
-  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].MoveY := -60;
+  //AddAnimation(htCharcoalFactory, haFlag3, 0, 0, [2090,2091,2092,2093,2094,2095,2096,2097,2098,2099]);
+
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].MoveX := 21;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].MoveY := -52;
   
   fItems[htCharcoalFactory].fHouseDat.Anim[haIdle].MoveY := 10;
 

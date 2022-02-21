@@ -2,7 +2,7 @@ unit KM_FogOfWar;
 {$I KaM_Remake.inc}
 interface
 uses
-  Math, KM_CommonClasses, KM_CommonTypes, KM_Defaults, KM_Points;
+  Math, KM_CommonClasses, KM_CommonTypes, KM_Defaults, KM_Points, KM_ResTypes, KM_Terrain;
 
 
 { FOW state for each player }
@@ -40,14 +40,7 @@ type
     fCoverHasBeenCalled: Boolean;
     fRevealedToMax: TBoolean2Array;
 
-    (*Revelation: array of array of packed record
-      //Lies within range 0, TERRAIN_FOG_OF_WAR_MIN..TERRAIN_FOG_OF_WAR_MAX.
-      Visibility: Byte;
-      {LastTerrain: Byte;
-      LastHeight: Byte;
-      LastObj: Byte;
-      LastHouse: TKMHouseType;}
-    end;*)
+
     procedure SetMapSize(X,Y: Word);
     function CheckVerticeRev(aRevArray: PKMByte2Array; const X,Y: Word): Byte; inline;
     function CheckTileRev(aRevArray: PKMByte2Array; const X,Y: Word): Byte; inline;
@@ -55,6 +48,14 @@ type
   public
     Revelation: TKMByte2Array; //Public for faster access from Render
     RenderRevelation: TKMByte2Array; //Revelation for render - we have to render sprites a bit around actual FOW revelation
+    RevelationF: array of array of packed record
+      //Lies within range 0, TERRAIN_FOG_OF_WAR_MIN..TERRAIN_FOG_OF_WAR_MAX.
+      Visibility: Byte;
+      LastTerrain: Byte;
+      LastHeight: Byte;
+      LastObj: Byte;
+      LastHouse: TKMHouseType;
+    end;
 
     constructor Create(X,Y: Word; aDynamicFOW: Boolean);
     destructor Destroy; override;

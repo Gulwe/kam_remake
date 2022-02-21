@@ -210,7 +210,7 @@ end;
 
 procedure TKMGameParams.SetDynamicFOW(const aDynamicFOW: Boolean);
 begin
-  fDynamicFOW := aDynamicFOW;
+  fDynamicFOW := True;
 end;
 
 

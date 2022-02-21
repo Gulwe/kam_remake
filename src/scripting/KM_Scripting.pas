@@ -394,7 +394,7 @@ begin
       + 'htIronMine,        htIronSmithy,      htMarketplace,   htMetallurgists, htMill,'
       + 'htQuary,           htSawmill,         htSchool,        htSiegeWorkshop, htStables,'
       + 'htStore,           htSwine,           htTannery,       htTownHall,      htWatchTower,'
-      + 'htWeaponSmithy,    htWeaponWorkshop,  htWineyard,      htWoodcutters    )');
+      + 'htWeaponSmithy,    htWeaponWorkshop,  htWineyard,      htWoodcutters,  htCharcoalFactory, htObsTower)');
 
     Sender.AddTypeS('TKMHouseTypeSet', 'set of TKMHouseType');
 

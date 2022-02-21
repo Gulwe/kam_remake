@@ -1639,7 +1639,7 @@ begin
   // We use only Latin for Markers, hence ANSI is fine
   // But since Android does not support "AnsiString" we take "string" as input
   ReadANSI(s);
-  //Assert(s = aTitle);
+  Assert(s = aTitle);
 end;
 
 
