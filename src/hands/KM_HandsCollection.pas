@@ -5,7 +5,7 @@ uses
   Classes, Math, Generics.Collections,
   KM_Hand, KM_HandSpectator, KM_HouseCollection,
   KM_Houses, KM_ResHouses, KM_Units, KM_UnitGroup, KM_UnitWarrior,
-  KM_CommonClasses, KM_CommonTypes, KM_Defaults, KM_Points,
+  KM_CommonClasses, KM_CommonTypes, KM_Defaults, KM_Points, KM_HouseWatchTower,
   KM_HandEntity,
   KM_HandTypes,
   KM_GameTypes,

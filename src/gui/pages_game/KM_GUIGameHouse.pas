@@ -107,7 +107,7 @@ type
       WaresRow_School_Gold: TKMWaresRow;
       Button_School_UnitWIP: TKMButton;
       Button_School_UnitWIPBar: TKMPercentBar;
-      Button_School_UnitPlan: array [1..5] of TKMButtonFlat;
+      Button_School_UnitPlan: array [1..20] of TKMButtonFlat;
       Label_School_Unit: TKMLabel;
       Image_School_Right,Image_School_Train,Image_School_Left: TKMImage;
       Button_School_Right,Button_School_Train,Button_School_Left: TKMButton;
@@ -384,7 +384,7 @@ end;
 {School page}
 procedure TKMGUIGameHouse.Create_HouseSchool;
 var
-  I: Integer;
+  I, J, K: Integer;
 begin
   Panel_House_School := TKMPanel.Create(Panel_House, 0, 76, TB_WIDTH, 266);
 
@@ -401,22 +401,31 @@ begin
     Button_School_UnitWIP.Tag := 0;
     Button_School_UnitWIP.OnClickShift := House_SchoolUnitQueueClick;
     Button_School_UnitWIPBar := TKMPercentBar.Create(Panel_House_School,34,54,146,20);
-    for I := 1 to 5 do
+    J :=1;
+    K :=0;
+    for I := 1 to 20 do
     begin
-      Button_School_UnitPlan[i] := TKMButtonFlat.Create(Panel_House_School, (I-1) * 36, 80, 32, 32, 0);
+     if(J=6) then begin
+       J := 1;
+       K:=K+36;
+     end;
+      Button_School_UnitPlan[i] := TKMButtonFlat.Create(Panel_House_School, (J-1) * 36, 80+K, 32, 32, 0);
       Button_School_UnitPlan[i].Tag := I;
       Button_School_UnitPlan[i].OnClickShift := House_SchoolUnitQueueClick;
+      J:=J+1;
+
+
     end;
 
-    Label_School_Unit := TKMLabel.Create(Panel_House_School,   0,116,TB_WIDTH,30,'',fntOutline,taCenter);
-    Image_School_Left := TKMImage.Create(Panel_House_School,   0,136,54,80,521);
-    Image_School_Train := TKMImage.Create(Panel_House_School, 62,136,54,80,522);
-    Image_School_Right := TKMImage.Create(Panel_House_School,124,136,54,80,523);
+    Label_School_Unit := TKMLabel.Create(Panel_House_School,   0,116+(36*3),TB_WIDTH,30,'',fntOutline,taCenter);
+    Image_School_Left := TKMImage.Create(Panel_House_School,   0,136+(36*3),54,80,521);
+    Image_School_Train := TKMImage.Create(Panel_House_School, 62,136+(36*3),54,80,522);
+    Image_School_Right := TKMImage.Create(Panel_House_School,124,136+(36*3),54,80,523);
     Image_School_Left.Disable;
     Image_School_Right.Disable;
-    Button_School_Left  := TKMButton.Create(Panel_House_School,  0,222,54,40,35, rxGui, bsGame);
-    Button_School_Train := TKMButton.Create(Panel_House_School, 62,222,54,40,42, rxGui, bsGame);
-    Button_School_Right := TKMButton.Create(Panel_House_School,124,222,54,40,36, rxGui, bsGame);
+    Button_School_Left  := TKMButton.Create(Panel_House_School,  0,222+(36*3),54,40,35, rxGui, bsGame);
+    Button_School_Train := TKMButton.Create(Panel_House_School, 62,222+(36*3),54,40,42, rxGui, bsGame);
+    Button_School_Right := TKMButton.Create(Panel_House_School,124,222+(36*3),54,40,36, rxGui, bsGame);
     Button_School_Left.OnClickShift  := House_SchoolUnitChange;
     Button_School_Train.OnClickShift := House_SchoolUnitChange;
     Button_School_Right.OnClickShift := House_SchoolUnitChange;
@@ -816,7 +825,7 @@ begin
         begin
           WaresRow_School_Gold.WareCount := aHouse.CheckResIn(wtGold) - Byte(TKMHouseSchool(aHouse).HideOneGold);
           Button_School_UnitWIP.FlagColor := gHands[aHouse.Owner].FlagColor;
-          for I := 1 to 5 do
+          for I := 1 to 20 do
             Button_School_UnitPlan[I].FlagColor := gHands[aHouse.Owner].FlagColor;
           Image_School_Left.FlagColor  := gHands[aHouse.Owner].FlagColor;
           Image_School_Right.FlagColor := gHands[aHouse.Owner].FlagColor;
@@ -1625,7 +1634,7 @@ begin
   begin
     // Right click - fill queue with same units
     if (ssRight in Shift) then
-      gGame.GameInputProcess.CmdHouse(gicHouseSchoolTrain, school, School_Order[fLastSchoolUnit], 10)
+      gGame.GameInputProcess.CmdHouse(gicHouseSchoolTrain, school, School_Order[fLastSchoolUnit], 5)
     else if (ssLeft in Shift) then
     begin
       // Left click - add Unit to queue
@@ -1646,7 +1655,7 @@ begin
 
   Button_School_UnitWIPBar.Position := school.GetTrainingProgress;
 
-  for I := 1 to 5 do
+  for I := 1 to 20 do
     if school.Queue[I] <> utNone then
     begin
       Button_School_UnitPlan[I].TexID := gRes.Units[school.Queue[I]].GUIIcon;

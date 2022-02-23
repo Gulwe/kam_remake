@@ -36,10 +36,10 @@ const
     {$IFDEF DEBUG}
     GAME_VERSION_POSTFIX  = ' [ UNSECURE - DEBUG ]';
     {$ELSE}
-    GAME_VERSION_POSTFIX  = ' [ UNSECURE ]';
+    GAME_VERSION_POSTFIX  = ' [ v.1.0 ]';
     {$ENDIF}
   {$ENDIF}
-  GAME_VERSION_PREFIX   = ''; //Game version string displayed in menu corner
+  GAME_VERSION_PREFIX   = 'Warmachine Mod'; //Game version string displayed in menu corner
 var
   //Game revision is set in initialisation block
   GAME_REVISION: AnsiString; //Should be updated for every release (each time save format is changed)
@@ -276,7 +276,7 @@ var
   DEBUG_CHEATS            :Boolean = DEBUG_CFG; //Cheats for debug (place scout and reveal map) which can be turned On from menu
   MULTIPLAYER_SPEEDUP     :Boolean = DEBUG_CFG; //Allow you to use F8 to speed up multiplayer for debugging (only effects local client)
   SKIP_EXE_CRC            :Boolean = False; //Don't check KaM_Remake.exe CRC before MP game (useful for testing with different versions)
-  ALLOW_MP_MODS           :Boolean = DEBUG_CFG; //Don't let people enter MP mode if they are using mods (unit.dat, house.dat, etc.)
+  ALLOW_MP_MODS           :Boolean = True; //Don't let people enter MP mode if they are using mods (unit.dat, house.dat, etc.)
   ALLOW_TAKE_AI_PLAYERS   :Boolean = False; //Allow to load SP maps without Human player (usefull for AI testing)
   {Data output}
   BLOCK_SAVE              :Boolean = False; //Block saving game (used in parallel Runner)
@@ -1093,7 +1093,8 @@ implementation
 initialization
 begin
   GAME_REVISION := AnsiString('r' + IntToStr(GAME_REVISION_NUM));
-  GAME_VERSION := GAME_VERSION_PREFIX + GAME_REVISION + GAME_VERSION_POSTFIX;
+  //GAME_VERSION := GAME_VERSION_PREFIX + GAME_REVISION + GAME_VERSION_POSTFIX;
+  GAME_VERSION := GAME_VERSION_PREFIX + GAME_VERSION_POSTFIX;
   //Clients of this net protocol version may connect to the dedicated server
   NET_PROTOCOL_REVISON := AnsiString('r' + IntToStr(NET_PROTOCOL_REVISION_NUM));
 end;

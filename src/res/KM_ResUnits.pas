@@ -395,9 +395,9 @@ end;
 function TKMUnitSpec.GetMiningRange: byte;
 begin
   case fUnitType of
-    utWoodcutter:  Result := 10;
+    utWoodcutter:  Result := 10+5;
     utFarmer:      Result := 10;
-    utStonecutter: Result := 16;
+    utStonecutter: Result := 16+4;
     utFisher:      Result := 14;
   else
     raise Exception.Create(GUIName + ' has no mining range');
@@ -509,7 +509,7 @@ end;
 
 class function TKMUnitSpec.IsRanged(aUnitType: TKMUnitType): Boolean;
 begin
-  Result := aUnitType in [utBowman, utArbaletman, utSlingshot];
+  Result := aUnitType in [utBowman, utArbaletman, utSlingshot, utCatapult, utBallista];
 end;
 
 
@@ -542,6 +542,7 @@ begin
   fItems[utBallista].fUnitDat.Sight := 20;
 
   fItems[utBowman].fUnitDat.Sight := 18;
+  fItems[utWorker].fUnitDat.Sight := fItems[utWorker].fUnitDat.Sight + 10;
 
   fItems[utMetalBarbarian].fUnitDat.Defence := fItems[utMetalBarbarian].fUnitDat.Defence + 1;
   fItems[utBarbarian].fUnitDat.Attack := fItems[utBarbarian].fUnitDat.Attack + 15;

@@ -4,7 +4,7 @@ interface
 uses
   KM_Houses,
 
-  KM_CommonClasses, KM_Defaults,
+  KM_CommonClasses, KM_Defaults, 
   KM_ResTypes;
 
 const
@@ -21,6 +21,7 @@ type
     procedure UpdateDemands;
 
     procedure SetStoneMaxCnt(aValue: Word);
+    
 
     function GetStoneDeliveryCnt: Word;
     procedure SetStoneDeliveryCnt(aCount: Word);
@@ -30,12 +31,14 @@ type
    // function GetFlagPointTexId: Word; override;
     procedure AddDemandsOnActivate(aWasBuilt: Boolean); override;
     function GetResIn(aI: Byte): Word; override;
+
     procedure SetResIn(aI: Byte; aValue: Word); override;
   public
     constructor Create(aUID: Integer; aHouseType: TKMHouseType; PosX, PosY: Integer; aOwner: TKMHandID; aBuildState: TKMHouseBuildState);
     constructor Load(LoadStream: TKMemoryStream); override;
     procedure Save(SaveStream: TKMemoryStream); override;
 
+    procedure Paint; override; //Render debug radius overlay
 
     procedure DecResourceDelivery(aWare: TKMWareType); override;
 
@@ -61,13 +64,16 @@ implementation
 uses
   Math,
   KM_Hand, KM_HandsCollection, KM_HandLogistics,
-  KM_UnitWarrior, KM_ResUnits, KM_ScriptingEvents,
+  KM_UnitWarrior, KM_ResUnits, KM_ScriptingEvents,  
+  KM_RenderPool, 
+  KromUtils,
+  KM_GameParams,
   KM_InterfaceGame;
 
 {TKMHouseTower}
 constructor TKMHouseTower.Create(aUID: Integer; aHouseType: TKMHouseType; PosX, PosY: Integer; aOwner: TKMHandID; aBuildState: TKMHouseBuildState);
 var
-  I, M: Integer;
+  M: Integer;
 begin
   inherited;
   
@@ -126,45 +132,6 @@ begin
   fStoneMaxCnt := EnsureRange(aValue, 0, WT_MAX_STONE_VALUE);
   UpdateDemands;
 end;
-
-{
-function TKMHouseTower.GetFlagPointTexId: Word;
-begin
-  Result := 249;
-end;
-}
-
-//function TKMHouseTower.CanEquip(aUnitType: TKMUnitType): Boolean;
-//var
-//  thUnitIndex: Integer;
-//begin
-//  Result := not gHands[Owner].Locks.GetUnitBlocked(aUnitType, True);
-
-//  thUnitIndex := GetTHUnitOrderIndex(aUnitType);
-
-//  if thUnitIndex <> -1 then
-//    Result := Result and (fStoneCnt >= TH_TROOP_COST[thUnitIndex]);  //Can't equip if we don't have a required resource
-//end;
-
-
-
-
-{
-function TKMHouseTower.GetTHUnitOrderIndex(aUnitType: TKMUnitType): Integer;
-var
-  I: Integer;
-begin
-  Result := -1;
-  for I := Low(TownHall_Order) to High(TownHall_Order) do
-  begin
-    if TownHall_Order[I] = aUnitType then
-    begin
-      Result := I;
-      Break;
-    end;
-  end;
-end;
-}
 
 procedure TKMHouseTower.PostLoadMission;
 begin
@@ -304,6 +271,27 @@ function TKMHouseTower.ResCanAddToIn(aRes: TKMWareType): Boolean;
 begin
   Result := (aRes = wtStone) and (fStoneCnt < fStoneMaxCnt);
 end;
+
+
+ procedure TKMHouseTower.Paint;
+var
+  fillColor, lineColor: Cardinal;
+begin
+  inherited;
+
+  if SHOW_ATTACK_RADIUS or (mlTowersAttackRadius in gGameParams.VisibleLayers) then
+  begin
+    fillColor := $40FFFFFF;
+    lineColor := icWhite;
+    if gMySpectator.Selected = Self then
+    begin
+      fillColor := icRed and fillColor;
+      lineColor := icCyan;
+    end;
+
+    gRenderPool.RenderDebug.RenderTiledArea(Position, RANGE_WATCHTOWER_MIN, RANGE_WATCHTOWER_MAX, GetLength, fillColor, lineColor);
+  end;
+end;  
 
 
 end.

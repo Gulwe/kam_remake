@@ -4,7 +4,7 @@ interface
 uses
   Classes,
   {$IFDEF FPC} LResources, {$ENDIF}
-  Forms, Controls, ComCtrls, ExtCtrls, StdCtrls, Graphics;
+  Forms, Controls, ComCtrls, ExtCtrls, StdCtrls, Graphics, Vcl.Imaging.pngimage;
 
 type
   TFormLoading = class(TForm)
@@ -19,6 +19,7 @@ type
     Label7: TLabel;
     Label2: TLabel;
     Label8: TLabel;
+    Label9: TLabel;
     procedure FormHide(Sender: TObject);
   public
     procedure LoadingStep;

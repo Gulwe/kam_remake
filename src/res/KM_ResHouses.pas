@@ -873,7 +873,7 @@ begin
   fItems[htObsTower].fNameTextID := 1516;
 
   fItems[htObsTower].fHouseDat.Anim[haWork1].Count := 0;
-  fItems[htObsTower].fHouseDat.Anim[haWork2].Count := 0;
+  fItems[htObsTower].fHouseDat.Anim[haWork2].Count := 15;
   fItems[htObsTower].fHouseDat.Anim[haWork3].Count := 0;
   fItems[htObsTower].fHouseDat.Anim[haWork4].Count := 0;
   fItems[htObsTower].fHouseDat.Anim[haWork5].Count := 0;
@@ -922,10 +922,10 @@ begin
   1134,1134,1134
   ]);
   AddAnimation(htCharcoalFactory, haSmoke, 0, 0, [888,889,890,891]);
-  AddAnimation(htCharcoalFactory, haWork2, 0, 0, [0,0,0,0]);
-  AddAnimation(htCharcoalFactory, haWork1, 0, 0, [0,0,0,0]);
-  //AddAnimation(htCharcoalFactory, haWork2, 0, 0, [2083,2083,2083,2083,2084,2084,2085,2085,2084,2084,2083,2083,2083,2083]);
-  //AddAnimation(htCharcoalFactory, haWork1, 0, 0, [2083,2083,2084,2085]);
+ // AddAnimation(htCharcoalFactory, haWork2, 0, 0, [2100,2101,2102,2103]);
+ // AddAnimation(htCharcoalFactory, haWork1, 30, 10, [2100,2101,2102,2103]);
+  AddAnimation(htCharcoalFactory, haWork2, 0, 0, [2101,2101,2101,2102,2102,2102,2103,2103,2103,2102,2102,2102,2101,2101]);
+  AddAnimation(htCharcoalFactory, haWork1, 0, 0, [2100,2101,2102,2103]);
   //1134
 
   AddAnimation(htCharcoalFactory, haFlag3, 0, 0, [1161,1162,1158,1159,1160]);
@@ -949,17 +949,17 @@ begin
   fItems[htCharcoalFactory].fHouseDat.EntranceOffsetXpx := 10; //Enterance is slightly to the left
   fItems[htCharcoalFactory].fHouseDat.EntranceOffsetYpx := 10;
 
-  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,1] := 154;
-  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,2] := 155;
-  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,3] := 156;
-  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,4] := 157;
-  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,5] := 158;
-  
-  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,1] := 154;
-  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,2] := 155;
-  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,3] := 156;
-  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,4] := 157;
-  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,5] := 158;
+  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,1] := 2109;
+  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,2] := 2110;
+  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,3] := 2111;
+  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,4] := 2112;
+  fItems[htCharcoalFactory].fHouseDat.SupplyIn[1,5] := 2113;
+
+  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,1] := 2104;
+  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,2] := 2105;
+  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,3] := 2106;
+  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,4] := 2107;
+  fItems[htCharcoalFactory].fHouseDat.SupplyOut[1,5] := 2108;
   
 
   fItems[htCharcoalFactory].fHouseDat.ResProductionX := 2;

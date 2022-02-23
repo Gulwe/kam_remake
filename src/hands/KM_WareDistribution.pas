@@ -14,7 +14,7 @@ const
     (5, 3, 4, 4),
     (3, 4, 5, 0),
     (4, 5, 3, 0),
-    (5, 1, 0 ,0)
+    (5, 5, 0 ,0)
   );
 
 type
@@ -43,7 +43,7 @@ constructor TKMWareDistribution.Create;
 var
   I, K: Integer;
 begin
-  for I := 1 to 4 do
+  for I := 1 to 5 do
     for K := 1 to 4 do
       fWareDistribution[I, K] := DISTRIBUTION_DEFAULTS[I, K];  // Load default ratios
 end;

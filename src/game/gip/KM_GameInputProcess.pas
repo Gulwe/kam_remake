@@ -1033,7 +1033,7 @@ begin
       gicHouseArmorWSDeliveryToggle:   TKMHouseArmorWorkshop(srcHouse).ToggleResDelivery(TKMWareType(IntParams[1]));
       
       gicHouseSiegeWorkshopRally:     TKMHouseSiegeWorkshop(srcHouse).FlagPoint := KMPoint(IntParams[1], IntParams[2]);
-            gicHouseSiegeWorkshopTrain: TKMHouseSiegeWorkshop(srcHouse).AddUnitToQueue(TKMUnitType(IntParams[1]), IntParams[2]);
+      gicHouseSiegeWorkshopTrain: TKMHouseSiegeWorkshop(srcHouse).AddUnitToQueue(TKMUnitType(IntParams[1]), IntParams[2]);
       gicHouseSiegeWorkshopTrainChOrder:  TKMHouseSiegeWorkshop(srcHouse).ChangeUnitTrainOrder(IntParams[1], IntParams[2]);
       gicHouseSiegeWorkshopTrainChLastUOrder : TKMHouseSiegeWorkshop(srcHouse).ChangeUnitTrainOrder(IntParams[1]);
       gicHouseRemoveTrainSiege:       TKMHouseSiegeWorkshop(srcHouse).RemUnitFromQueue(IntParams[1]);

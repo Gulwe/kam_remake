@@ -316,16 +316,19 @@ type
     function ObjToString(const aSeparator: String = '|'): String; override;
   end;
 
-
-  TKMHouseTower = class(TKMHouse)
-  public
-    procedure Paint; override; //Render debug radius overlay
-  end;
-  
   TKMHouseObsTower = class(TKMHouse)
     public
     procedure Paint; override; //Render debug radius overlay
   end;
+
+  {
+   TKMHouseTower = class(TKMHouse)
+    public
+    procedure Paint; override; //Render debug radius overlay
+  end;
+  }
+
+
 
 
 implementation
@@ -334,7 +337,7 @@ uses
   TypInfo, SysUtils, Math, KromUtils,
   KM_GameParams, KM_Terrain, KM_RenderPool, KM_RenderAux, KM_Sound,
   KM_Hand, KM_HandsCollection, KM_HandLogistics, KM_HandTypes,
-  KM_Units, KM_UnitWarrior, KM_HouseWoodcutters,
+  KM_Units, KM_UnitWarrior, KM_HouseWoodcutters, KM_HouseWatchTower,
   KM_Resource, KM_ResSound, KM_ResTexts, KM_ResUnits, KM_ResMapElements,
   KM_Log, KM_ScriptingEvents, KM_CommonUtils, KM_MapEdTypes,
   KM_RenderDebug,
@@ -347,7 +350,6 @@ const
   //Made to prevent serf's taking/losing deliveries only because player clicks throught modes.
   //No hurry, let's wait a bit for player to be sure, what mode he needs
   UPDATE_DELIVERY_MODE_DELAY = 10;
-
 
 { TKMHouseSketch }
 constructor TKMHouseSketch.Create;
@@ -2320,13 +2322,12 @@ begin
   fHouse := gHands.GetHouseByUID(Integer(fHouse));
 end;
 
-
+{
 procedure TKMHouseTower.Paint;
 var
   fillColor, lineColor: Cardinal;
 begin
   inherited;
-
   if SHOW_ATTACK_RADIUS or (mlTowersAttackRadius in gGameParams.VisibleLayers) then
   begin
     fillColor := $40FFFFFF;
@@ -2340,6 +2341,7 @@ begin
     gRenderPool.RenderDebug.RenderTiledArea(Position, RANGE_WATCHTOWER_MIN, RANGE_WATCHTOWER_MAX, GetLength, fillColor, lineColor);
   end;
 end;
+}
 
 procedure TKMHouseObsTower.Paint;
 var
@@ -2350,7 +2352,7 @@ begin
   if SHOW_ATTACK_RADIUS or (mlTowersAttackRadius in gGameParams.VisibleLayers) then
   begin
     fillColor := $40FFFFFF;
-    lineColor := icWhite;
+    lineColor := icYellow;
     if gMySpectator.Selected = Self then
     begin
       fillColor := icRed and fillColor;
@@ -2358,7 +2360,9 @@ begin
     end;
 
     gRenderPool.RenderDebug.RenderTiledArea(Position, RANGE_WATCHTOWER_MIN, RANGE_WATCHTOWER_MAX, GetLength, fillColor, lineColor);
+    
   end;
+
 end;
 
 

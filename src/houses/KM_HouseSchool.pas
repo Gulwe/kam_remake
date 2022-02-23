@@ -15,7 +15,7 @@ type
     fUnitWip: Pointer;  //can't replace with TKMUnit since it will lead to circular reference in KM_House-KM_Units
     fHideOneGold: Boolean; //Hide the gold incase Player cancels the training, then we won't need to tweak DeliverQueue order
     fTrainProgress: Byte; //Was it 150 steps in KaM?
-    fQueue: array [0..5] of TKMUnitType;
+    fQueue: array [0..20] of TKMUnitType;
     function GetQueue(aIndex: Integer): TKMUnitType; //Used in UI. First item is the unit currently being trained, 1..5 are the actual queue
     procedure CreateUnit; //This should Create new unit and start training cycle
     procedure StartTrainingUnit; //This should Create new unit and start training cycle
@@ -178,7 +178,7 @@ var
   tmpUnit: TKMUnitType;
   I: Integer;
 begin
-  Assert((aNewPosition >= 0) and (aOldPosition <= 5));
+  Assert((aNewPosition >= 0) and (aOldPosition <= 20));
 
   if aOldPosition = 0 then Exit;
 

@@ -9,7 +9,7 @@ uses
   KromUtils,
   KM_Controls, KM_CommonClasses, KM_CommonTypes, KM_Defaults, KM_Pics, KM_Points, KM_CommonClassesExt,
   KM_InterfaceTypes, KM_InterfaceGame, KM_Terrain, KM_Houses, KM_Units, KM_Minimap, KM_Viewport, KM_Render,
-  KM_UnitGroup, KM_UnitWarrior, KM_Saves, KM_MessageStack, KM_ResHouses, KM_Alerts, KM_Networking,
+  KM_UnitGroup, KM_UnitWarrior, KM_Saves, KM_MessageStack, KM_ResHouses, KM_Alerts, KM_Networking, KM_HouseSiegeWorkshop,
   KM_HandEntity,
   KM_GameTypes,
   KM_GUICommonGameOptions,
@@ -748,6 +748,9 @@ begin
     begin
       if gMySpectator.Selected is TKMHouseBarracks then
         gGame.GameInputProcess.CmdHouse(gicHouseBarracksRally, TKMHouse(gMySpectator.Selected), loc)
+      else    
+      if gMySpectator.Selected is TKMHouseSiegeWorkshop then
+        gGame.GameInputProcess.CmdHouse(gicHouseSiegeWorkshopRally, TKMHouse(gMySpectator.Selected), loc)
       else
       if gMySpectator.Selected is TKMHouseTownHall then
         gGame.GameInputProcess.CmdHouse(gicHouseTownHallRally, TKMHouse(gMySpectator.Selected), loc)
@@ -4184,6 +4187,7 @@ begin
 
         if not fPlacingBeacon
           and ((gMySpectator.Selected is TKMHouseBarracks)
+            or (gMySpectator.Selected is TKMHouseSiegeWorkshop)
             or (gMySpectator.Selected is TKMHouseTownHall)
             or (gMySpectator.Selected is TKMHouseWoodcutters))
           and (fUIMode in [umSP, umMP])
@@ -4196,6 +4200,9 @@ begin
           begin
             if gMySpectator.Selected is TKMHouseBarracks then
               gGame.GameInputProcess.CmdHouse(gicHouseBarracksRally, TKMHouse(gMySpectator.Selected), P)
+            else
+            if gMySpectator.Selected is TKMHouseSiegeWorkshop then
+              gGame.GameInputProcess.CmdHouse(gicHouseSiegeWorkshopRally, TKMHouse(gMySpectator.Selected), P)
             else
             if gMySpectator.Selected is TKMHouseTownHall then
               gGame.GameInputProcess.CmdHouse(gicHouseTownHallRally, TKMHouse(gMySpectator.Selected), P)
