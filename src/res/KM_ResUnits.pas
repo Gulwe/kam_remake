@@ -196,7 +196,7 @@ uses
   KromUtils, KM_ResTexts;
 
 const
-  STORM_SPEEDUP = 1.5;
+  STORM_SPEEDUP = 3.5; //1.5
 
   //TownHall default units troops cost (number of gold chests needed)
   TH_DEFAULT_TROOP_COST: array[0..4] of Byte = (
@@ -396,9 +396,9 @@ function TKMUnitSpec.GetMiningRange: byte;
 begin
   case fUnitType of
     utWoodcutter:  Result := 10+5;
-    utFarmer:      Result := 10;
+    utFarmer:      Result := 10+5;
     utStonecutter: Result := 16+4;
-    utFisher:      Result := 14;
+    utFisher:      Result := 14+6;
   else
     raise Exception.Create(GUIName + ' has no mining range');
   end;

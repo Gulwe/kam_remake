@@ -94,6 +94,7 @@ const
      84/180, 180/120, 155/120, 180/120, 155/120,
     200/120, 195/120, 200/120, 195/120, 200/120,
     195/120,  69/120, 122/120);
+    
 
   //How much time it takes from owner taking a house till stable production
   //1 minute on average for the time it takes to process input into output

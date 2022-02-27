@@ -870,7 +870,7 @@ begin
   //fItems[htObsTower].fHouseDat.WoodPal := 2082;
   //fItems[htObsTower].fHouseDat.StonePal := 2083;
 
-  fItems[htObsTower].fNameTextID := 1516;
+  fItems[htObsTower].fNameTextID := 312;
 
   fItems[htObsTower].fHouseDat.Anim[haWork1].Count := 0;
   fItems[htObsTower].fHouseDat.Anim[haWork2].Count := 15;
@@ -884,6 +884,33 @@ begin
   AddAnimation(htObsTower, haIdle, -2, -16, [1653,1653,1653,1653,1654,1654,1654,1655,1655,1655,1654,1654,1654,1653,1653,1653,1653]);
 
   AddAnimation(htObsTower, haFlag3, 1, -165, [1161,1162,1158,1159,1160]);
+  {
+  AddAnimation(htObsTower, haFire1, 39, -47, [1629,1630,1631,1626,1627,1628]);
+  AddAnimation(htObsTower, haFire2, 39, -67, [1637,1632,1633,1634,1635,1636]);
+  AddAnimation(htObsTower, haFire3, -30, -103, [1620,1621,1622,1623,1624,1625]);
+  AddAnimation(htObsTower, haFire4, -3, -54, [1617,1618,1619,1614,1615,1616]);
+  AddAnimation(htObsTower, haFire5, 39, -38, [1632,1633,1634,1635,1636,1637]);
+  AddAnimation(htObsTower, haFire6, 39, -24, [1623,1624,1625,1620,1621,1622]);
+  AddAnimation(htObsTower, haFire7, 35, -47, [1635,1636,1637,1632,1633,1634]);
+  AddAnimation(htObsTower, haFire8, -30, -90, [1621,1622,1623,1624,1625,1620]);}
+  {
+  AddAnimation(htObsTower, haFire1, 0, -20, [1629,1630,1631,1626,1627,1628]);
+  AddAnimation(htObsTower, haFire2, 10, -20, [1629,1630,1631,1626,1627,1628]);
+  AddAnimation(htObsTower, haFire3, 0, -25, [1629,1630,1631,1626,1627,1628]);
+  AddAnimation(htObsTower, haFire4, 0, -30, [1629,1630,1631,1626,1627,1628]);
+  AddAnimation(htObsTower, haFire5, 0, -35, [1629,1630,1631,1626,1627,1628]);
+  AddAnimation(htObsTower, haFire6, 0, 0, [1629,1630,1631,1626,1627,1628]);
+  AddAnimation(htObsTower, haFire7, 0, 0, [1629,1630,1631,1626,1627,1628]);
+  AddAnimation(htObsTower, haFire8, 0, 0, [1629,1630,1631,1626,1627,1628]);}
+
+  fItems[htObsTower].fHouseDat.Anim[haFire1] := fItems[htWatchTower].fHouseDat.Anim[haFire1];
+  fItems[htObsTower].fHouseDat.Anim[haFire2] := fItems[htWatchTower].fHouseDat.Anim[haFire2];
+  fItems[htObsTower].fHouseDat.Anim[haFire3] := fItems[htWatchTower].fHouseDat.Anim[haFire3];
+  fItems[htObsTower].fHouseDat.Anim[haFire4] := fItems[htWatchTower].fHouseDat.Anim[haFire4];
+  fItems[htObsTower].fHouseDat.Anim[haFire5] := fItems[htWatchTower].fHouseDat.Anim[haFire5];
+  fItems[htObsTower].fHouseDat.Anim[haFire6] := fItems[htWatchTower].fHouseDat.Anim[haFire6];
+  fItems[htObsTower].fHouseDat.Anim[haFire7] := fItems[htWatchTower].fHouseDat.Anim[haFire7];
+  fItems[htObsTower].fHouseDat.Anim[haFire8] := fItems[htWatchTower].fHouseDat.Anim[haFire8];
 
  // fItems[htWall].fHouseType := htWall;
   
@@ -931,10 +958,23 @@ begin
   AddAnimation(htCharcoalFactory, haFlag3, 0, 0, [1161,1162,1158,1159,1160]);
   //AddAnimation(htCharcoalFactory, haFlag3, 0, 0, [2090,2091,2092,2093,2094,2095,2096,2097,2098,2099]);
 
-  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].MoveX := 21;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFire1] := fItems[htWoodcutters].fHouseDat.Anim[haFire1];
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFire2] := fItems[htWoodcutters].fHouseDat.Anim[haFire2];
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFire3] := fItems[htWoodcutters].fHouseDat.Anim[haFire3];
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFire4] := fItems[htWoodcutters].fHouseDat.Anim[haFire4];
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFire5] := fItems[htWoodcutters].fHouseDat.Anim[haFire5];
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFire6] := fItems[htWoodcutters].fHouseDat.Anim[haFire6];
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFire7] := fItems[htWoodcutters].fHouseDat.Anim[haFire7];
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFire8] := fItems[htWoodcutters].fHouseDat.Anim[haFire8];
+
+  fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].MoveX := 24;
   fItems[htCharcoalFactory].fHouseDat.Anim[haFlag3].MoveY := -52;
   
-  fItems[htCharcoalFactory].fHouseDat.Anim[haIdle].MoveY := 10;
+  //fItems[htCharcoalFactory].fHouseDat.Anim[haIdle].MoveY := 10;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haIdle] := fItems[htIronMine].fHouseDat.Anim[haIdle];
+
+  fItems[htCharcoalFactory].fHouseDat.Anim[haIdle].MoveX := 45;
+  fItems[htCharcoalFactory].fHouseDat.Anim[haIdle].MoveY := fItems[htIronMine].fHouseDat.Anim[haIdle].MoveY;
 
   fItems[htCharcoalFactory].fHouseDat.Anim[haWork1].MoveX := 4;
   fItems[htCharcoalFactory].fHouseDat.Anim[haWork2].MoveX := 4;
@@ -945,7 +985,7 @@ begin
   fItems[htCharcoalFactory].fHouseDat.Anim[haSmoke].MoveX := -55;
   fItems[htCharcoalFactory].fHouseDat.Anim[haSmoke].MoveY := 42;
   fItems[htCharcoalFactory].fHouseDat.Anim[haSmoke].MoveY := 42;
-  
+
   fItems[htCharcoalFactory].fHouseDat.EntranceOffsetXpx := 10; //Enterance is slightly to the left
   fItems[htCharcoalFactory].fHouseDat.EntranceOffsetYpx := 10;
 
@@ -963,7 +1003,7 @@ begin
   
 
   fItems[htCharcoalFactory].fHouseDat.ResProductionX := 2;
-  fItems[htCharcoalFactory].fNameTextID := 1515;
+  fItems[htCharcoalFactory].fNameTextID := 313;
 
 
   //ExportCSV(ExeDir+'Houses.csv');

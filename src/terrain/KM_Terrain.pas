@@ -3623,8 +3623,7 @@ begin
 
     isBuildNoObj := False;
     if TileIsRoadable(Loc)
-      and not TileIsCornField(Loc) //Can't build houses on fields
-      and not TileIsWineField(Loc)
+      or TileIsCornField(Loc) //Can't build houses on fields
       and (Land^[Loc.Y,Loc.X].TileLock = tlNone)
       and TileInMapCoords(Loc.X, Loc.Y, 1)
       and CheckHeightPass(Loc, hpBuilding) then
@@ -3632,6 +3631,8 @@ begin
       AddPassability(tpBuildNoObj);
       isBuildNoObj := True;
     end;
+
+
 
     if isBuildNoObj and not hasHousesNearTile
       and((Land[Loc.Y,Loc.X].Obj = OBJ_NONE) or (gMapElements[Land^[Loc.Y,Loc.X].Obj].CanBeRemoved)) then //Only certain objects are excluded
@@ -3645,7 +3646,14 @@ begin
       AddPassability(tpMakeRoads);
 
     if ObjectIsChopableTree(Loc, [caAge1, caAge2, caAge3, caAgeFull]) then
+    begin
       AddPassability(tpCutTree);
+      AddPassability(tpBuild);
+      isBuildNoObj := True;
+      end;
+
+    if TileIsWineField(Loc) then
+      AddPassability(tpBuild);
 
     if TileIsWater(Loc) then
       AddPassability(tpFish);

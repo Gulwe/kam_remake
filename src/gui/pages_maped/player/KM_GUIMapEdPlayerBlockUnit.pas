@@ -63,6 +63,10 @@ begin
   TKMLabel.Create(Panel_BlockUnit, 9, 146, Panel_BlockUnit.Width - 9, 0, gResTexts[TX_MAPED_BLOCK_UNITS_IN_BARRACKS], fntMetal, taLeft);
   for I := 0 to High(Button_BlockBarracksWarriors) do
   begin
+    if(I = 2) OR (I = 8) then
+    Button_BlockBarracksWarriors[I] := TKMButtonFlat.Create(Panel_BlockUnit,9 + (I mod 5)*37,20+146+(I div 5)*37,33,33,
+                                                            gRes.Units[Barracks_Order[I]].GUIIcon + 8, rxGui)
+    else
     Button_BlockBarracksWarriors[I] := TKMButtonFlat.Create(Panel_BlockUnit,9 + (I mod 5)*37,20+146+(I div 5)*37,33,33,
                                                             gRes.Units[Barracks_Order[I]].GUIIcon, rxGui);
     Button_BlockBarracksWarriors[I].Hint := gRes.Units[Barracks_Order[I]].GUIName;
@@ -73,14 +77,18 @@ begin
     Image_BlockBarracksWarriors[I].ImageCenter;
   end;
 
-  TKMLabel.Create(Panel_BlockUnit, 9, 245, Panel_BlockUnit.Width - 9, 0, gResTexts[TX_MAPED_BLOCK_UNITS_IN_TOWNHALL], fntMetal, taLeft);
+  TKMLabel.Create(Panel_BlockUnit, 9, 285, Panel_BlockUnit.Width - 9, 0, gResTexts[TX_MAPED_BLOCK_UNITS_IN_TOWNHALL], fntMetal, taLeft);
   for I := 0 to High(Button_BlockTHWarriors) do
   begin
-    Button_BlockTHWarriors[I] := TKMButtonFlat.Create(Panel_BlockUnit, 9 + (I mod 5)*37,265+(I div 5)*37,33,33, gRes.Units[TownHall_Order[I]].GUIIcon, rxGui);
+    if(I = 0) OR (I = 1) OR (I = 2) OR (I = 4) then
+    Button_BlockTHWarriors[I] := TKMButtonFlat.Create(Panel_BlockUnit, 9 + (I mod 5)*37,305+(I div 5)*37,33,33, gRes.Units[TownHall_Order[I]].GUIIcon + 8, rxGui)
+    else
+    Button_BlockTHWarriors[I] := TKMButtonFlat.Create(Panel_BlockUnit, 9 + (I mod 5)*37,305+(I div 5)*37,33,33,
+    gRes.Units[TownHall_Order[I]].GUIIcon, rxGui);
     Button_BlockTHWarriors[I].Hint := gRes.Units[TownHall_Order[I]].GUIName;
     Button_BlockTHWarriors[I].Tag := I;
     Button_BlockTHWarriors[I].OnClickShift := Player_BlockTHWarriorsClick;
-    Image_BlockTHWarriors[I] := TKMImage.Create(Panel_BlockUnit, 9 + (I mod 5)*37 + 15,265+(I div 5)*37 + 15, 16, 16, 0, rxGuiMain);
+    Image_BlockTHWarriors[I] := TKMImage.Create(Panel_BlockUnit, 9 + (I mod 5)*37 + 15,305+(I div 5)*37 + 15, 16, 16, 0, rxGuiMain);
     Image_BlockTHWarriors[I].Hitable := False;
     Image_BlockTHWarriors[I].ImageCenter;
   end;

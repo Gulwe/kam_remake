@@ -695,7 +695,8 @@ end;
 //If the player is allowed to issue orders to group
 function TKMUnitGroup.CanTakeOrders: Boolean;
 begin
-  Result := (IsRanged or not InFight) and (not fBlockOrders);
+  //Result := (IsRanged or not InFight) and (not fBlockOrders);
+  Result := True;
 end;
 
 

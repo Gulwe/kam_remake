@@ -753,6 +753,7 @@ begin
     Result := True //We can abandon attack house if the action is stay
   else
     Result := Action.CanBeInterrupted(aForced);
+
 end;
 
 

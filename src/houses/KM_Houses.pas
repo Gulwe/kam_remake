@@ -2322,26 +2322,6 @@ begin
   fHouse := gHands.GetHouseByUID(Integer(fHouse));
 end;
 
-{
-procedure TKMHouseTower.Paint;
-var
-  fillColor, lineColor: Cardinal;
-begin
-  inherited;
-  if SHOW_ATTACK_RADIUS or (mlTowersAttackRadius in gGameParams.VisibleLayers) then
-  begin
-    fillColor := $40FFFFFF;
-    lineColor := icWhite;
-    if gMySpectator.Selected = Self then
-    begin
-      fillColor := icRed and fillColor;
-      lineColor := icCyan;
-    end;
-
-    gRenderPool.RenderDebug.RenderTiledArea(Position, RANGE_WATCHTOWER_MIN, RANGE_WATCHTOWER_MAX, GetLength, fillColor, lineColor);
-  end;
-end;
-}
 
 procedure TKMHouseObsTower.Paint;
 var
@@ -2359,7 +2339,7 @@ begin
       lineColor := icCyan;
     end;
 
-    gRenderPool.RenderDebug.RenderTiledArea(Position, RANGE_WATCHTOWER_MIN, RANGE_WATCHTOWER_MAX, GetLength, fillColor, lineColor);
+    gRenderPool.RenderDebug.RenderTiledArea(Position, RANGE_WATCHTOWER_MIN, 30, GetLength, fillColor, lineColor);
     
   end;
 
