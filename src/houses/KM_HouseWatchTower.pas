@@ -53,9 +53,10 @@ type
     procedure PostLoadMission; override;
 
     procedure ResAddToIn(aWare: TKMWareType; aCount: Integer = 1; aFromScript: Boolean = False); override;
-    procedure ResTakeFromIn(aWare: TKMWareType; aCount: Word = 1; aFromScript: Boolean = False); override;
+    //procedure ResTakeFromIn(aWare: TKMWareType; aCount: Word = 1; aFromScript: Boolean = False); override;
     procedure ResTakeFromOut(aWare: TKMWareType; aCount: Word = 1; aFromScript: Boolean = False); override;
     function CheckResIn(aWare: TKMWareType): Word; override;
+    function GetStoneCnt: Integer;
     function ResCanAddToIn(aRes: TKMWareType): Boolean; override;
   end;
 
@@ -225,15 +226,21 @@ begin
 end;
 
 
-procedure TKMHouseTower.ResTakeFromIn(aWare: TKMWareType; aCount: Word = 1; aFromScript: Boolean = False);
+{procedure TKMHouseTower.ResTakeFromIn(aWare: TKMWareType; aCount: Word = 1; aFromScript: Boolean = False);
 begin
   Assert(aWare = wtStone, 'Invalid resource taken from TownHall');
   aCount := EnsureRange(aCount, 0, fStoneCnt);
   if aFromScript then
     gHands[Owner].Stats.WareConsumed(aWare, aCount);
 
+
   SetStoneCnt(fStoneCnt - aCount, False);
   UpdateDemands;
+end;}
+
+function TKMHouseTower.GetStoneCnt: Integer;
+begin
+  Result := CheckResIn(wtStone);
 end;
 
 

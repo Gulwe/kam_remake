@@ -51,7 +51,7 @@ begin
   Panel_MainMenu := TKMPanel.Create(aParent, 0, 0, aParent.Width, aParent.Height);
   Panel_MainMenu.AnchorsCenter;
     TKMImage.Create(Panel_MainMenu, 300, 120, 423, 164, 4, rxGuiMain);
-    TKMLabel.Create(Panel_MainMenu, 512, 300, 'Remake', fntMetal, taCenter);
+    TKMLabel.Create(Panel_MainMenu, 512, 300, 'Warmachine Mod', fntMetal, taCenter);
 
 //    TKMLabel.Create(Panel_MainMenu, 100, 60, 'Pos', fntMetal, taLeft);
 //    EditPos := TKMNumericEdit.Create(Panel_MainMenu, 150, 60, 0, 10000, fntArial);

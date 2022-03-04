@@ -309,6 +309,7 @@ begin
          case WorkPlan.GatheringScript of //Perform special tasks if required
            gsStoneCutter:      fDistantResAcquired := gTerrain.DecStoneDeposit(KMPoint(WorkPlan.Loc.X,WorkPlan.Loc.Y-1));
            gsFarmerSow:        gTerrain.SowCorn(WorkPlan.Loc);
+                            
            gsFarmerCorn:       fDistantResAcquired := gTerrain.CutCorn(WorkPlan.Loc);
            gsFarmerWine:       fDistantResAcquired := gTerrain.CutGrapes(WorkPlan.Loc);
            gsFisherCatch:      begin

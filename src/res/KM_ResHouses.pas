@@ -858,12 +858,12 @@ begin
   
   fItems[htObsTower].fHouseType := htObsTower;
   fItems[htObsTower].fHouseDat.MaxHealth := 150;
-  fItems[htObsTower].fHouseDat.WoodCost := 3;
-  fItems[htObsTower].fHouseDat.StoneCost := 2;
+  fItems[htObsTower].fHouseDat.WoodCost := 4;
+  fItems[htObsTower].fHouseDat.StoneCost := 1;
   fItems[htObsTower].fHouseDat.WorkerType := 13;
   fItems[htObsTower].fHouseDat.SizeX := 2;
   fItems[htObsTower].fHouseDat.SizeY := 2;
-  fItems[htObsTower].fHouseDat.Sight := 10;
+  fItems[htObsTower].fHouseDat.Sight := 7;
 
   fItems[htObsTower].fHouseDat.StonePic:= 2080;
   fItems[htObsTower].fHouseDat.WoodPic := 2081;

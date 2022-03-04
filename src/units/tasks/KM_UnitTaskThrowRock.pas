@@ -95,6 +95,7 @@ begin
     3:  begin
           Home.SetState(hstIdle);
           SetActionStay(20, uaWalk); //Idle before throwing another rock
+
         end;
     else Result := trTaskDone;
   end;
