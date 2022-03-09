@@ -566,7 +566,7 @@ begin
     G := UnitGroups.GetGroupByMember(aWarrior); //AI might assign warrior to different group
   end
   else
-    if G.Count = 1 then
+    if G.Count >= 1 then
     begin
       //If player is human and this is the first warrior in the group, send it to the rally point
       H := HousesHitTest(aWarrior.Position.X, aWarrior.Position.Y-1);
@@ -576,7 +576,9 @@ begin
         HWFP.ValidateFlagPoint; // Validate Flag point first. It will set it to a proper walkable position
         if HWFP.IsFlagPointSet
           and G.CanWalkTo(HWFP.FlagPoint, 0) then
-          G.OrderWalk(HWFP.FlagPoint, True, wtokFlagPoint);
+          G.OrderWalk(HWFP.FlagPoint, True, wtokFlagPoint)
+          else
+          G.OrderWalk(HWFP.FlagPoint, True, wtokFlagPoint,dirNA,True); //hack to prevent unit movement block after training
       end;
     end;
   gScriptEvents.ProcWarriorEquipped(aWarrior, G);

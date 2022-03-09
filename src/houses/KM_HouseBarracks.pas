@@ -308,6 +308,7 @@ begin
   for I := 1 to 4 do
   if TROOP_COST[aUnitType, I] <> wtNone then //Can't equip if we don't have a required resource
     Result := Result and (fResourceCount[TROOP_COST[aUnitType, I]] > 0);
+
 end;
 
 
@@ -326,11 +327,24 @@ begin
   for I := 1 to 4 do
   if TROOP_COST[aUnitType, I] <> wtNone then
   begin
+
     troopWareType := TROOP_COST[aUnitType, I];
+
+    if (aUnitType = utMetalBarbarian) and (I = 3) then
+    continue;
+    //hack to fix RC error for metal barbarian recruitment
+    if (aUnitType = utMetalBarbarian) and (fResourceCount[troopWareType] - 2 < 0)  then
+    Exit
+    else
+    if (aUnitType = utMetalBarbarian) and (I = 1) and (fResourceCount[troopWareType] >= 2) then
+    SetWareCnt(troopWareType, fResourceCount[troopWareType] - 2)
+    else
     SetWareCnt(troopWareType, fResourceCount[troopWareType] - 1);
 
     gHands[Owner].Stats.WareConsumed(TROOP_COST[aUnitType, I]);
     gHands[Owner].Deliveries.Queue.RemOffer(Self, TROOP_COST[aUnitType, I], 1);
+
+
   end;
 
   //Special way to kill the Recruit because it is in a house

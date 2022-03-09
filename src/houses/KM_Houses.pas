@@ -321,16 +321,6 @@ type
     procedure Paint; override; //Render debug radius overlay
   end;
 
-  {
-   TKMHouseTower = class(TKMHouse)
-    public
-    procedure Paint; override; //Render debug radius overlay
-  end;
-  }
-
-
-
-
 implementation
 uses
   // Do not add KM_Game dependancy! Entities should be isolated as much as possible

@@ -116,7 +116,7 @@ begin
     Image_Scroll := TKMImage.Create(Panel_CampScroll, 0, 0, 360, 430, 410, rxGui);
     Image_Scroll.ClipToBounds := True;
     Image_Scroll.AnchorsStretch;
-    Image_Scroll.ImageAnchors := [anLeft, anRight, anTop];
+    Image_Scroll.ImageAnchors := [anLeft, anRight, anTop, anBottom];
 
     Image_ScrollClose := TKMImage.Create(Panel_CampScroll, 360-60, 10, 32, 32, 52);
     Image_ScrollClose.Anchors := [anTop, anRight];

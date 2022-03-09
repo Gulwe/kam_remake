@@ -534,6 +534,37 @@ begin
   // Overwrite units stats only if they are set for default values from original game
   // We don't want to update them, in case player manually edited unit.dat file
 
+ {   procedure AddAnimation(aHouse: TKMHouseType; aAnim: TKMHouseActionType; aMoveX, aMoveY: Integer; const aSteps: array of SmallInt);
+  var
+    I: Integer;
+  begin
+    with fItems[aHouse].fHouseDat.Anim[aAnim] do
+    begin
+      MoveX := aMoveX;
+      MoveY := aMoveY;
+      Count := length(aSteps);
+      for I := 1 to Count do
+        Step[I] := aSteps[I-1];
+    end;
+  end;  }
+
+  {fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[1] := 9400;
+  fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[2] := 9401;
+  fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[3] := 9402;
+  fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[4] := 9403;
+  fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[5] := 9404;
+  fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[6] := 9405;
+  fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[7] := 9406;
+  fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[8] := 9407;}
+
+  {fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[8] := 9408;
+  fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[9] := 9409;
+  fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[10] := 9410;
+  fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Step[11] := 9411;}
+
+
+
+  //fItems[utBallista].fUnitSprite.Act[uaWalk].Dir[DirNE].Count := 8;
 
 
   fItems[utBallista].fUnitDat.Attack := 300;
@@ -542,7 +573,10 @@ begin
   fItems[utBallista].fUnitDat.Sight := 20;
 
   fItems[utBowman].fUnitDat.Sight := 18;
+  fItems[utSlingshot].fUnitDat.Sight := fItems[utSlingshot].fUnitDat.Sight + 5;
   fItems[utWorker].fUnitDat.Sight := fItems[utWorker].fUnitDat.Sight + 10;
+  
+  
 
   fItems[utMetalBarbarian].fUnitDat.Defence := fItems[utMetalBarbarian].fUnitDat.Defence + 1;
   fItems[utBarbarian].fUnitDat.Attack := fItems[utBarbarian].fUnitDat.Attack + 15;
@@ -576,6 +610,9 @@ begin
     fItems[UT].fUnitSpecInfo.StepsPerTileStorm     := Round(1    / (fItems[UT].Speed * STORM_SPEEDUP));
     fItems[UT].fUnitSpecInfo.StepsPerTileStormDiag := Round(1.41 / (fItems[UT].Speed * STORM_SPEEDUP));
   end;
+  
+
+  
 
   //ExportCSV(ExeDir+'units.csv');
 end;

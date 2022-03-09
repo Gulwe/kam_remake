@@ -300,7 +300,7 @@ const
   MAX_UNITS_AROUND_HOUSE = 50;
 
 const
-  MAX_WOODCUTTER_CUT_PNT_DISTANCE = 5; //Max distance for woodcutter new cutting point from his house
+  MAX_WOODCUTTER_CUT_PNT_DISTANCE = 8; //Max distance for woodcutter new cutting point from his house
 
 const
   MAX_HANDS            = 18; //Maximum players (human or AI) per map

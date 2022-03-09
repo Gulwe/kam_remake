@@ -24,13 +24,20 @@ type
     constructor Load(LoadStream: TKMemoryStream); override;
     procedure Save(SaveStream: TKMemoryStream); override;
 
+   // procedure Paint; override;
     function ObjToString(const aSeparator: String = '|'): String; override;
   end;
 
   
 implementation
 uses
-  SysUtils, TypInfo;
+  SysUtils, TypInfo,
+  KM_Hand,
+  KM_HandsCollection,
+  KM_RenderPool, 
+  KromUtils,
+  KM_GameParams,
+  KM_InterfaceGame;
 
 
 { TKMHouseWoodcutters }
@@ -94,7 +101,27 @@ begin
 
   fWoodcutterMode := aWoodcutterMode;
 end;
+{
+ procedure TKMHouseWoodcutters.Paint;
+var
+  fillColor, lineColor: Cardinal;
+begin
+  inherited;
 
+  if SHOW_ATTACK_RADIUS or (mlTowersAttackRadius in gGameParams.VisibleLayers) then
+  begin
+    fillColor := $40FFFFFF;
+    lineColor := icWhite;
+    if gMySpectator.Selected = Self then
+    begin
+      fillColor := icRed and fillColor;
+      lineColor := icCyan;
+    end;
+
+    gRenderPool.RenderDebug.RenderTiledArea(Position, RANGE_WATCHTOWER_MIN, MAX_WOODCUTTER_CUT_PNT_DISTANCE, GetLength, fillColor, lineColor);
+  end;
+end; 
+}
 
 function TKMHouseWoodcutters.ObjToString(const aSeparator: String = '|'): String;
 begin
